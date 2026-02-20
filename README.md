@@ -45,6 +45,12 @@ HotPlex is designed with a two-tier architecture:
 1.  **Core SDK (`pkg/hotplex`)**: The engine itself. It provides the `Engine` Singleton, `SessionPool`, and `Detector` (Security Firewall). It expects JSON streams from the CLI and emits strongly-typed Go events.
 2.  **Standalone Server (`cmd/hotplexd`)**: A lightweight wrapper around the SDK that exposes it over standard WebSockets.
 
+#### 🌊 Asynchronous Event Flow
+
+HotPlex leverages Go's concurrency for true full-duplex streaming:
+
+![HotPlex Event Flow](docs/images/async-stream.svg)
+
 *Note: The current MVP is deeply optimized for **Claude Code's** (`--output-format stream-json`) protocol but is designed with a future `Provider` interface abstraction in mind.*
 
 ## ⚡ Quick Start

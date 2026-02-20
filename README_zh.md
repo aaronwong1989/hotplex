@@ -45,6 +45,12 @@ HotPlex 采用两层架构设计：
 1.  **核心 SDK (`pkg/hotplex`)**：引擎本体，提供 `Engine` 单例、`SessionPool` 和 `Detector`（安全防火墙）。它接收 CLI 的 JSON 流并触发强类型的 Go 事件回调。
 2.  **独立服务端 (`cmd/hotplexd`)**：基于 SDK 封装的轻量级 WebSocket 服务器。
 
+#### 🌊 异步事件流机制
+
+HotPlex 充分利用 Go 的并发特性实现真正的全双工流式交互：
+
+![HotPlex Event Flow](docs/images/async-stream.svg)
+
 *注意：当前 MVP 版本深度优化了 **Claude Code** 的协议 (`--output-format stream-json`)，但设计上已预留 `Provider` 接口以支持 OpenCode 和 Aider。*
 
 ## ⚡ 快速开始
