@@ -13,15 +13,6 @@ import (
 	"github.com/hrygo/hotplex"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	// For MVP, allow all origins
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 // ClientRequest represents the JSON payload expected from the WebSocket client.
 type ClientRequest struct {
 	Type      string `json:"type"`       // "execute" or "stop"
@@ -55,21 +46,30 @@ func (cw *connWriter) writeJSON(event string, data any) {
 
 // WebSocketHandler manages a WebSocket connection to a HotPlex Engine.
 type WebSocketHandler struct {
-	engine hotplex.HotPlexClient
-	logger *slog.Logger
+	engine   hotplex.HotPlexClient
+	logger   *slog.Logger
+	cors     *CORSConfig
+	upgrader websocket.Upgrader
 }
 
-// NewWebSocketHandler creates a new handler.
-func NewWebSocketHandler(engine hotplex.HotPlexClient, logger *slog.Logger) *WebSocketHandler {
-	return &WebSocketHandler{
+// NewWebSocketHandler creates a new handler with CORS configuration.
+func NewWebSocketHandler(engine hotplex.HotPlexClient, logger *slog.Logger, cors *CORSConfig) *WebSocketHandler {
+	h := &WebSocketHandler{
 		engine: engine,
 		logger: logger,
+		cors:   cors,
+		upgrader: websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin:     cors.CheckOrigin(),
+		},
 	}
+	return h
 }
 
 // ServeHTTP upgrades the HTTP connection and starts the read loop.
 func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Error("Failed to upgrade websocket connection", "error", err)
 		return

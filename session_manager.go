@@ -57,6 +57,7 @@ type Session struct {
 
 	mu           sync.RWMutex
 	statusChange chan SessionStatus // Channel to broadcast status changes
+	closed       bool               // Track if statusChange channel is closed (#11)
 
 	callback Callback     // Active stream event handler for the current turn
 	logger   *slog.Logger // Context-aware logger initialized with session metadata
@@ -432,13 +433,17 @@ func (s *Session) Touch() {
 func (s *Session) SetStatus(status SessionStatus) {
 	s.mu.Lock()
 	s.Status = status
-	s.mu.Unlock()
-
+	// Check if channel is closed before sending (#11)
+	if s.closed {
+		s.mu.Unlock()
+		return
+	}
 	// Non-blocking send to statusChange channel
 	select {
 	case s.statusChange <- status:
 	default:
 	}
+	s.mu.Unlock()
 }
 
 // GetStatus returns the current session status.
@@ -524,10 +529,12 @@ func (s *Session) WriteInput(msg map[string]any) error {
 func (s *Session) close() {
 	// Set status directly to avoid deadlock - caller already holds s.mu.Lock()
 	s.Status = SessionStatusDead
-	// Non-blocking send to statusChange channel to signal waiting goroutines
-	select {
-	case s.statusChange <- SessionStatusDead:
-	default:
+
+	// Close statusChange channel to signal all waiting goroutines (#11)
+	// Use closed flag to prevent double close panic
+	if !s.closed {
+		s.closed = true
+		close(s.statusChange)
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -192,6 +194,22 @@ func (r *Engine) ValidateConfig(cfg *Config) error {
 	if cfg.SessionID == "" {
 		return fmt.Errorf("%w: session_id is required", ErrInvalidConfig)
 	}
+
+	// Security: Validate WorkDir to prevent path traversal attacks (#8)
+	cleanPath := filepath.Clean(cfg.WorkDir)
+
+	// Check for path traversal attempts - block any path containing ".."
+	// Note: filepath.Clean resolves ".." in the middle of paths,
+	// but we still check to catch edge cases and log attempts
+	if strings.Contains(cfg.WorkDir, "..") {
+		r.logger.Warn("Path traversal attempt blocked",
+			"work_dir", cfg.WorkDir,
+			"cleaned_path", cleanPath)
+		return fmt.Errorf("%w: work_dir contains path traversal sequence", ErrInvalidConfig)
+	}
+
+	// Update config with cleaned path
+	cfg.WorkDir = cleanPath
 	return nil
 }
 

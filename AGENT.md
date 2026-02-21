@@ -14,6 +14,12 @@ Please read and strictly adhere to the following rules when analyzing, modifying
 - **Primary Language**: Go (Golang) 1.21+
 - **Architecture**: A lightweight Gateway (WebSocket) wrapping a Core Engine (`hotplex.Engine`), a persistence layer (`SessionPool`), and a strict Regex WAF (`Detector`).
 
+### 📍 Repository
+
+- **GitHub**: https://github.com/hrygo/hotplex
+- **Owner**: `hrygo`
+- **Repo**: `hotplex`
+
 ---
 
 ## 📜 2. Strict Coding Rules (SOLID & DRY)

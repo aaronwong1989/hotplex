@@ -41,8 +41,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. Initialize WebSocket handler and setup routes
-	wsHandler := server.NewWebSocketHandler(engine, logger)
+	// 2. Initialize CORS configuration and WebSocket handler
+	corsConfig := server.NewCORSConfig(logger)
+	wsHandler := server.NewWebSocketHandler(engine, logger, corsConfig)
 	http.Handle("/ws/v1/agent", wsHandler)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

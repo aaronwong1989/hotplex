@@ -92,6 +92,89 @@ func (dd *Detector) loadDefaultPatterns() {
 		level       DangerLevel
 		category    string
 	}{
+		// ========================================
+		// CRITICAL: Command Injection Bypass Patterns (#6)
+		// ========================================
+		// Command substitution forms
+		{`\$\([^)]*\)`, "Command substitution $() - potential injection", DangerLevelCritical, "injection"},
+		{"`[^`]*`", "Backtick command substitution - potential injection", DangerLevelCritical, "injection"},
+		{`eval\s+`, "Eval command execution", DangerLevelCritical, "injection"},
+		{`exec\s+`, "Exec command replacement", DangerLevelHigh, "injection"},
+
+		// Encoding/decoding chains (often used to bypass WAF)
+		{`base64\s+-d\s*\|.*sh`, "Base64 decode and execute", DangerLevelCritical, "injection"},
+		{`base64\s+-d\s*\|.*bash`, "Base64 decode and execute via bash", DangerLevelCritical, "injection"},
+		{`xxd\s+-r\s*\|.*sh`, "Hex decode and execute", DangerLevelCritical, "injection"},
+		{`printf\s+.*\\x.*\|`, "Hex escape and pipe", DangerLevelCritical, "injection"},
+		{`od\s+-A\s+n\s*-t\s+x1`, "Octal/hex dump for obfuscation", DangerLevelHigh, "injection"},
+
+		// ========================================
+		// CRITICAL: Privilege Escalation (#7)
+		// ========================================
+		{`\bsudo\s+`, "Sudo privilege escalation", DangerLevelHigh, "privilege"},
+		{`\bsu\s+`, "Switch user command", DangerLevelHigh, "privilege"},
+		{`\bdoas\s+`, "Doas privilege escalation", DangerLevelHigh, "privilege"},
+		{`\bpkexec\s+`, "Polkit privilege escalation", DangerLevelCritical, "privilege"},
+		{`chmod\s+[ug]\+s\s+`, "Set SUID/SGID bit", DangerLevelCritical, "privilege"},
+		{`setcap\s+`, "Set file capabilities", DangerLevelHigh, "privilege"},
+
+		// ========================================
+		// CRITICAL: Network Penetration (#7)
+		// ========================================
+		{`\bnc\s+.*-e\s+`, "Netcat reverse shell", DangerLevelCritical, "network"},
+		{`\bncat\s+.*-e\s+`, "Ncat reverse shell", DangerLevelCritical, "network"},
+		{`bash\s+-i\s*(&gt;|>)`, "Bash reverse shell", DangerLevelCritical, "network"},
+		{`python\s+-c\s+.*socket`, "Python socket reverse shell", DangerLevelCritical, "network"},
+		{`perl\s+-e\s+.*socket`, "Perl socket reverse shell", DangerLevelCritical, "network"},
+		{`\bmsfconsole\b`, "Metasploit console", DangerLevelCritical, "network"},
+		{`\bmsfvenom\b`, "Metasploit payload generator", DangerLevelCritical, "network"},
+
+		// ========================================
+		// HIGH: Persistence Mechanisms (#7)
+		// ========================================
+		{`crontab\s+-[er]`, "Edit crontab (persistence)", DangerLevelHigh, "persistence"},
+		{`systemctl\s+enable\s+`, "Enable systemd service (persistence)", DangerLevelHigh, "persistence"},
+		{`launchctl\s+load\s+`, "Load launchd service (persistence)", DangerLevelHigh, "persistence"},
+		{`>>\s*~/\.bashrc`, "Append to bashrc (persistence)", DangerLevelHigh, "persistence"},
+		{`>>\s*~/\.profile`, "Append to profile (persistence)", DangerLevelHigh, "persistence"},
+		{`>>\s*~/\.zshrc`, "Append to zshrc (persistence)", DangerLevelHigh, "persistence"},
+		{`/etc/rc\.local`, "Modify rc.local (persistence)", DangerLevelHigh, "persistence"},
+		{`/etc/init\.d/`, "Modify init.d script (persistence)", DangerLevelHigh, "persistence"},
+
+		// ========================================
+		// HIGH: Information Gathering (#7)
+		// ========================================
+		{`cat\s+/etc/passwd`, "Read password file", DangerLevelHigh, "recon"},
+		{`cat\s+/etc/shadow`, "Read shadow file", DangerLevelCritical, "recon"},
+		{`cat\s+.*\.ssh/id_rsa`, "Read SSH private key", DangerLevelCritical, "recon"},
+		{`cat\s+.*\.ssh/authorized_keys`, "Read SSH authorized keys", DangerLevelHigh, "recon"},
+		{`\benv\b.*(?i)password`, "Environment variable password exposure", DangerLevelHigh, "recon"},
+		{`\bprintenv\b`, "Print all environment variables", DangerLevelModerate, "recon"},
+		{`cat\s+/proc/.*/environ`, "Read process environment", DangerLevelHigh, "recon"},
+		{`/proc/self/environ`, "Read own process environment", DangerLevelHigh, "recon"},
+
+		// ========================================
+		// CRITICAL: Container Escape (#7)
+		// ========================================
+		{`docker\s+run\s+.*--privileged`, "Privileged Docker container", DangerLevelCritical, "container"},
+		{`docker\s+run\s+.*--network\s+host`, "Host network Docker container", DangerLevelHigh, "container"},
+		{`docker\s+run\s+.*-v\s+/`, "Docker volume mount from root", DangerLevelHigh, "container"},
+		{`kubectl\s+exec\s+.*--`, "Kubectl exec into pod", DangerLevelHigh, "container"},
+		{`\bchroot\s+`, "Chroot escape attempt", DangerLevelHigh, "container"},
+		{`\bunshare\s+`, "Unshare namespace", DangerLevelHigh, "container"},
+		{`nsenter\s+`, "Enter namespace", DangerLevelHigh, "container"},
+
+		// ========================================
+		// CRITICAL: Kernel Module Manipulation (#7)
+		// ========================================
+		{`\binsmod\s+`, "Insert kernel module", DangerLevelCritical, "kernel"},
+		{`\bmodprobe\s+`, "Load kernel module", DangerLevelCritical, "kernel"},
+		{`\brmmod\s+`, "Remove kernel module", DangerLevelHigh, "kernel"},
+		{`/lib/modules/`, "Direct kernel module access", DangerLevelHigh, "kernel"},
+
+		// ========================================
+		// Original patterns (File deletion, etc.)
+		// ========================================
 		// Critical: File deletion
 		{`rm\s+-rf\s+?/`, "Delete root directory", DangerLevelCritical, "file_delete"},
 		{`rm\s+-rf\s+?\*/\*`, "Delete all files recursively", DangerLevelCritical, "file_delete"},
@@ -263,6 +346,42 @@ func (dd *Detector) getSuggestions(pat *DangerPattern) []string {
 			"Use 'BEGIN; <query>; ROLLBACK;' to test first",
 			"Create a database backup before running DDL/DML",
 			"Use WHERE clause carefully to limit scope",
+		}
+	case "injection":
+		return []string{
+			"Avoid command substitution in user-provided input",
+			"Use proper input validation and sanitization",
+			"Consider using safer alternatives to eval/exec",
+		}
+	case "privilege":
+		return []string{
+			"Use least privilege principle",
+			"Consider if the operation really needs elevated permissions",
+			"Use sudo with specific command allowlist",
+		}
+	case "persistence":
+		return []string{
+			"Document any persistence mechanisms you add",
+			"Consider temporary alternatives",
+			"Review security implications of auto-start services",
+		}
+	case "recon":
+		return []string{
+			"Use authorized access methods only",
+			"Log and audit sensitive file access",
+			"Consider if the information is necessary for the task",
+		}
+	case "container":
+		return []string{
+			"Avoid privileged containers in production",
+			"Use dedicated security contexts",
+			"Review container security best practices",
+		}
+	case "kernel":
+		return []string{
+			"Kernel module changes require extreme caution",
+			"Use signed kernel modules when possible",
+			"Document and audit any kernel modifications",
 		}
 	default:
 		return []string{

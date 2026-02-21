@@ -3,6 +3,7 @@
 package hotplex
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 )
@@ -13,13 +14,21 @@ func setupCmdSysProcAttr(cmd *exec.Cmd) {
 	// For deeper isolation on Windows, Job Objects would be required.
 }
 
-// killProcessGroup terminates the process (Windows).
+// killProcessGroup terminates the process and its children on Windows (#10).
+// Uses taskkill /F /T /PID to kill the entire process tree.
 func killProcessGroup(cmd *exec.Cmd) {
-	if cmd != nil && cmd.Process != nil {
-		// On Windows, Kill() terminates the process.
-		// Tree-kill would require additional logic (e.g. taskkill /F /T /PID).
-		_ = cmd.Process.Kill()
+	if cmd == nil || cmd.Process == nil {
+		return
 	}
+
+	// Use taskkill to terminate the entire process tree
+	// /F = force, /T = terminate all child processes, /PID = process ID
+	killCmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", cmd.Process.Pid))
+	// Ignore errors - process may already be dead
+	_ = killCmd.Run()
+
+	// Fallback: try direct Kill() in case taskkill failed
+	_ = cmd.Process.Kill()
 }
 
 // isProcessAlive checks if the process is still running (Windows).
