@@ -33,11 +33,12 @@ func main() {
 	// 3. Initialize Engine with Provider and short IdleTimeout to demonstrate GC
 	// Note: Internal cleanup loop runs every 1 minute.
 	opts := hotplex.EngineOptions{
-		Namespace:   "demo_lifecycle",
-		Timeout:     5 * time.Minute,
-		IdleTimeout: 10 * time.Second, // We set it short for demonstration, but it cleans every 1m
-		Logger:      logger,
-		Provider:    provider, // Custom provider (or nil for default ClaudeCodeProvider)
+		Namespace:        "demo_lifecycle",
+		Timeout:          5 * time.Minute,
+		IdleTimeout:      10 * time.Second, // We set it short for demonstration, but it cleans every 1m
+		Logger:           logger,
+		Provider:         provider, // Custom provider (or nil for default ClaudeCodeProvider)
+		BaseSystemPrompt: "You are a helpful assistant.",
 	}
 
 	engine, err := hotplex.NewEngine(opts)
@@ -66,8 +67,9 @@ func main() {
 	workDir, _ := os.Getwd()
 
 	cfg := &hotplex.Config{
-		SessionID: sessionID,
-		WorkDir:   workDir,
+		SessionID:        sessionID,
+		WorkDir:          workDir,
+		TaskInstructions: "You are a helpful assistant who uses uppercase for secret words.",
 	}
 
 	fmt.Printf("\n[1] Running Turn 1 (Cold Start for session: %s)...\n", sessionID)

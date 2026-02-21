@@ -46,7 +46,7 @@ type Provider interface {
 
 	// BuildInputMessage constructs the stdin message payload for sending user input.
 	// This handles provider-specific input formatting (e.g., stream-json for Claude).
-	BuildInputMessage(prompt string, taskSystemPrompt string) (map[string]any, error)
+	BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error)
 
 	// ParseEvent parses a raw output line into a normalized ProviderEvent.
 	// Returns nil if the line should be ignored (e.g., system messages).
@@ -109,7 +109,7 @@ type ProviderSessionOptions struct {
 
 	// System prompts
 	BaseSystemPrompt string // Engine-level foundational prompt
-	TaskSystemPrompt string // Per-task prompt (injected per-turn)
+	TaskInstructions string // Per-task instructions (persisted per session)
 
 	// Session management
 	SessionID         string // Internal SDK session ID

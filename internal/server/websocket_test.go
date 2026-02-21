@@ -439,9 +439,9 @@ func TestClientRequest_JSON(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "execute request with system prompt",
-			json: `{"type":"execute","session_id":"test-123","prompt":"hello","system_prompt":"you are a bot"}`,
-			want: ClientRequest{Type: "execute", SessionID: "test-123", Prompt: "hello", SystemPrompt: "you are a bot"},
+			name: "execute request with instructions",
+			json: `{"type":"execute","session_id":"test-123","prompt":"hello","instructions":"you are a bot"}`,
+			want: ClientRequest{Type: "execute", SessionID: "test-123", Prompt: "hello", Instructions: "you are a bot"},
 		},
 		{
 			name: "stop request",

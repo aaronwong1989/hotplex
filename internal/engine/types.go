@@ -33,7 +33,8 @@ const (
 // SessionConfig contains the minimal configuration needed for session management.
 // This is a subset of the root Config to avoid circular dependencies.
 type SessionConfig struct {
-	WorkDir string // Absolute path to the isolated sandbox directory
+	WorkDir          string // Absolute path to the isolated sandbox directory
+	TaskInstructions string // Persistent instructions for the session
 }
 
 // Callback handles streaming events from the CLI.

@@ -240,19 +240,20 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 		"pgid", cmd.Process.Pid)
 
 	sess := &Session{
-		ID:           sessionID,
-		CCSessionID:  ccSessionID,
-		Config:       cfg,
-		cmd:          cmd,
-		stdin:        stdin,
-		stdout:       stdout,
-		stderr:       stderr,
-		cancel:       cancel,
-		CreatedAt:    time.Now(),
-		LastActive:   time.Now(),
-		Status:       SessionStatusStarting,
-		statusChange: make(chan SessionStatus, 10),
-		logger:       sessLog,
+		ID:               sessionID,
+		CCSessionID:      ccSessionID,
+		Config:           cfg,
+		cmd:              cmd,
+		stdin:            stdin,
+		stdout:           stdout,
+		stderr:           stderr,
+		cancel:           cancel,
+		CreatedAt:        time.Now(),
+		LastActive:       time.Now(),
+		Status:           SessionStatusStarting,
+		TaskInstructions: cfg.TaskInstructions,
+		statusChange:     make(chan SessionStatus, 10),
+		logger:           sessLog,
 	}
 
 	go sess.ReadStdout()

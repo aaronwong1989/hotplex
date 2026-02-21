@@ -60,7 +60,7 @@ func main() {
 	cfg := &hotplex.Config{
 		WorkDir:          "/tmp",                                                 // The isolated working directory for the agent to operate in
 		SessionID:        "conversation:44",                                      // Unique session identifier for process pool lookup
-		TaskSystemPrompt: "Always add a short comment to the code you generate.", // Specific command for this turn
+		TaskInstructions: "Always add a short comment to the code you generate.", // Specific command for this turn
 	}
 
 	prompt := "Write a one-line bash script to print hello world and execute it."

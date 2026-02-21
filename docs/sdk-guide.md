@@ -92,7 +92,7 @@ Used in `engine.Execute(ctx, cfg, prompt, cb)` to define the context for a speci
 | :----------------- | :------- | :-------------------------------------------------------------------------------------------------------------- |
 | `WorkDir`          | `string` | **Working Directory**. Root directory where the agent performs file operations, searches, and script execution. |
 | `SessionID`        | `string` | **Session ID**. Business-level ID that HotPlex maps to a unique background hot process.                         |
-| `TaskSystemPrompt` | `string` | **Task-level System Prompt**. Only effective for the current turn, prepended to the user prompt.                |
+| `TaskInstructions` | `string` | **Task Instructions**. Persistent instructions defining the session objective.                                  |
 
 ### 3.3 Event Callbacks & Data Models (`Callback`)
 Defined as `func(eventType string, data any) error`.

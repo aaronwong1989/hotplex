@@ -236,7 +236,8 @@ func (r *Engine) executeWithMultiplex(
 ) error {
 	// Convert to engine session config
 	sessionCfg := intengine.SessionConfig{
-		WorkDir: cfg.WorkDir,
+		WorkDir:          cfg.WorkDir,
+		TaskInstructions: cfg.TaskInstructions,
 	}
 
 	// GetOrCreateSession reuses existing process or starts a new one
@@ -250,6 +251,13 @@ func (r *Engine) executeWithMultiplex(
 		"session_id", cfg.SessionID,
 		"cc_session_id", sess.CCSessionID)
 
+	// Update or reuse persistent instructions
+	if cfg.TaskInstructions != "" {
+		sess.TaskInstructions = cfg.TaskInstructions
+	} else {
+		cfg.TaskInstructions = sess.TaskInstructions
+	}
+
 	if err := r.waitForSession(ctx, sess, cfg.SessionID); err != nil {
 		return err
 	}
@@ -260,7 +268,7 @@ func (r *Engine) executeWithMultiplex(
 	sess.SetCallback(intengine.Callback(r.createEventBridge(cfg, callback, stats, doneChan)))
 
 	// Build provider-specific input message payload
-	msgPayload, err := r.provider.BuildInputMessage(prompt, cfg.TaskSystemPrompt)
+	msgPayload, err := r.provider.BuildInputMessage(prompt, cfg.TaskInstructions)
 	if err != nil {
 		return fmt.Errorf("build input message: %w", err)
 	}

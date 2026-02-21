@@ -151,11 +151,11 @@ func (p *ClaudeCodeProvider) BuildEnvVars(opts *ProviderSessionOptions) []string
 }
 
 // BuildInputMessage constructs the stream-json input message.
-func (p *ClaudeCodeProvider) BuildInputMessage(prompt string, taskSystemPrompt string) (map[string]any, error) {
+func (p *ClaudeCodeProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
 	// Inject task-level constraints into the prompt for Hot-Multiplexing
 	finalPrompt := prompt
-	if taskSystemPrompt != "" {
-		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskSystemPrompt, prompt)
+	if taskInstructions != "" {
+		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskInstructions, prompt)
 	}
 
 	return map[string]any{

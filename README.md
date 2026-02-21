@@ -96,7 +96,7 @@ func main() {
     cfg := &hotplex.Config{
         WorkDir:          "/tmp/ai-sandbox",
         SessionID:        "user-123", // Automatically routes to the correct hot process
-        TaskSystemPrompt: "You are a senior Go systems engineer.",
+        TaskInstructions: "You are a senior Go systems engineer.",
     }
 
     // 3. Execute with streaming callback

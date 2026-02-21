@@ -92,7 +92,7 @@ func main() {
 | :----------------- | :------- | :----------------------------------------------------------- |
 | `WorkDir`          | `string` | **工作目录**。智能体执行文件操作、搜索和脚本运行的根目录。   |
 | `SessionID`        | `string` | **会话 ID**。业务层 ID，HotPlex 将其映射为唯一的后台热进程。 |
-| `TaskSystemPrompt` | `string` | **任务级系统提示词**。仅对当前轮次生效，拼接在用户提示词前。 |
+| `TaskInstructions` | `string` | **任务指令**。定义会话目标的持久化指令。                     |
 
 ### 3.3 事件回调与数据模型 (`Callback`)
 `Callback` 的定义为 `func(eventType string, data any) error`。

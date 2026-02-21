@@ -96,7 +96,7 @@ func main() {
     cfg := &hotplex.Config{
         WorkDir:          "/tmp/ai-sandbox",
         SessionID:        "user-123", // 确保连接被正确路由到一个"热"进程
-        TaskSystemPrompt: "你是一个资深的 Go 语言系统工程师。",
+        TaskInstructions: "你是一个资深的 Go 语言系统工程师。",
     }
 
     // 3. 挂载流式回调监听并执行

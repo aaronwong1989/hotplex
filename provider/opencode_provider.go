@@ -175,11 +175,11 @@ func (p *OpenCodeProvider) BuildEnvVars(opts *ProviderSessionOptions) []string {
 // BuildInputMessage constructs the input for OpenCode.
 // Note: OpenCode typically takes the prompt as a CLI argument, not stdin.
 // For multi-turn sessions, this method may be used differently.
-func (p *OpenCodeProvider) BuildInputMessage(prompt string, taskSystemPrompt string) (map[string]any, error) {
+func (p *OpenCodeProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
 	// Inject task-level constraints
 	finalPrompt := prompt
-	if taskSystemPrompt != "" {
-		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskSystemPrompt, prompt)
+	if taskInstructions != "" {
+		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskInstructions, prompt)
 	}
 
 	// OpenCode CLI takes prompt as argument, but we structure this
@@ -392,10 +392,10 @@ func (p *OpenCodeProvider) GetHTTPAPIPort() int {
 
 // BuildHTTPCommand constructs the prompt as a command string for CLI mode.
 // Unlike Claude Code, OpenCode takes the prompt as a CLI argument.
-func (p *OpenCodeProvider) BuildHTTPCommand(prompt string, taskSystemPrompt string) string {
+func (p *OpenCodeProvider) BuildHTTPCommand(prompt string, taskInstructions string) string {
 	finalPrompt := prompt
-	if taskSystemPrompt != "" {
-		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskSystemPrompt, prompt)
+	if taskInstructions != "" {
+		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskInstructions, prompt)
 	}
 	// Escape quotes for shell
 	return strings.ReplaceAll(finalPrompt, "\"", "\\\"")

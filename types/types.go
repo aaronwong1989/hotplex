@@ -107,5 +107,5 @@ func (b *ContentBlock) GetUnifiedToolID() string {
 type Config struct {
 	WorkDir          string // Absolute path to the isolated sandbox directory where CLI operations occur
 	SessionID        string // Unique identifier used to route the request to a persistent process in the pool
-	TaskSystemPrompt string // Instructions prepended to the user prompt for this specific turn
+	TaskInstructions string // Per-task instructions or objective prepended to the user prompt
 }
