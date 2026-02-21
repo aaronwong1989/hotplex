@@ -12,6 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/internal/security"
 )
 
 func TestEngine_Concurrency(t *testing.T) {
@@ -49,14 +52,14 @@ done
 	}
 
 	// Manually construct engine to use dummyPath
-	engine := &Engine{
+	eng := &Engine{
 		opts:           opts,
 		cliPath:        dummyPath,
 		logger:         logger,
-		manager:        NewSessionPool(logger, opts.IdleTimeout, opts, dummyPath),
-		dangerDetector: NewDetector(logger),
+		manager:        engine.NewSessionPool(logger, opts.IdleTimeout, engine.EngineOptions(opts), dummyPath),
+		dangerDetector: security.NewDetector(logger),
 	}
-	defer engine.manager.Shutdown()
+	defer eng.manager.Shutdown()
 
 	const concurrentSessions = 3
 	const executionsPerSession = 4
@@ -74,7 +77,7 @@ done
 			for j := 0; j < executionsPerSession; j++ {
 				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 
-				err := engine.Execute(ctx, &Config{
+				err := eng.Execute(ctx, &Config{
 					SessionID: sessionID,
 					WorkDir:   tmpDir,
 				}, "test-prompt", func(eventType string, data any) error {
