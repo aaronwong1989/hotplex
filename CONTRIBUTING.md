@@ -2,6 +2,8 @@
 
 First off, thank you for considering contributing to HotPlex! It's people like you that make HotPlex such a great tool.
 
+Our **First Principle** is to leverage and bridge existing elite AI CLI tools (like Claude Code) into the production ecosystem. Contributions should align with this vision of building a "Control Plane" rather than reinventing the agent's core reasoning or tool logic.
+
 ## 🚀 How Can I Contribute?
 
 ### Reporting Bugs

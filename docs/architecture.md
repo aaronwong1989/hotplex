@@ -2,7 +2,7 @@
 
 *Read this in other languages: [English](architecture.md), [简体中文](architecture_zh.md).*
 
-HotPlex is a high-performance Process Multiplexer designed specifically to solve the "Cold Start" problem for large model CLI agents (such as Claude Code, OpenCode). It maintains a persistent process pool in the background to achieve millisecond-level instruction response and streaming execution results.
+HotPlex is a high-performance Control Plane for AI CLI Agents, designed to transform elite terminal-based AI tools (like Claude Code, Aider, or OpenCode) into production-ready system services. Its core philosophy is "Don't Reinvent the Wheel"—by maintaining a persistent process pool with hardened security boundaries, HotPlex enables millisecond-level responsiveness and full-duplex streaming integration, bridging the gap between local terminal AI tools and modern backend architectures.
 
 ---
 

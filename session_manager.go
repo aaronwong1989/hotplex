@@ -40,9 +40,9 @@ const (
 	cleanupCheckInterval = 1 * time.Minute  // Interval between idle session cleanup checks
 )
 
-// Session represents a persistent, long-lived process of the Claude Code CLI.
-// It wraps the OS process, manages standard I/O pipes for real-time multiplexing,
-// and tracks the session's readiness and lifecycle status.
+// Session represents a persistent, hot-multiplexed instance of an AI CLI agent (e.g., Claude Code).
+// It manages the underlying OS process group, handles streaming I/O via full-duplex pipes,
+// and tracks the operational readiness and lifecycle status of the agent sandbox.
 type Session struct {
 	ID          string // Internal SDK identifier (provided by the user)
 	CCSessionID string // The deterministic UUID (v5) passed to Claude CLI for persistent DB storage

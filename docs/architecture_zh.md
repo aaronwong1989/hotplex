@@ -2,7 +2,7 @@
 
 *查看其他语言: [English](architecture.md), [简体中文](architecture_zh.md).*
 
-HotPlex 是一个高性能的进程多路复用器 (Process Multiplexer)，专为解决大模型 CLI 智能体（如 Claude Code, OpenCode）启动缓慢（冷启动）的问题而设计。它通过在后台维护持久化的进程池，实现毫秒级的指令响应与执行结果流式返回。
+HotPlex 是一个高性能的 AI CLI 代理控制平面 (Control Plane)，旨在将顶级 AI 命令行工具（如 Claude Code, OpenCode）转化为生产就绪的系统级服务。它的核心哲学是“不重复造轮子”，通过在后台维护持久化的、具备安全围栏的进程池，实现毫秒级的指令响应与全双工流式集成，填补了终端 AI 工具与现代后端架构之间的鸿沟。
 
 ---
 

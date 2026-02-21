@@ -1,8 +1,8 @@
 <div align="center">
   <img src=".github/assets/hotplex-logo.svg" alt="hotplex" width="160"/>
   <h1>hotplex</h1>
-  <p><b>High-Performance Process Multiplexer for AI CLI Agents</b></p>
-  <p><i>From 5000ms 🐢 to 200ms 🚀 — keep your AI agents hot.</i></p>
+  <p><b>Production-Grade Control Plane for Elite AI CLI Agents</b></p>
+  <p><i>Don't reinvent the wheel. Leverage powerful tools like Claude Code with millisecond latency, secure isolation, and full-duplex integration.</i></p>
 
   <p>
     <a href="https://github.com/hrygo/hotplex/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/hrygo/hotplex/ci.yml?branch=main&style=for-the-badge&logo=github&label=Build" alt="Build Status"></a>
@@ -20,19 +20,22 @@
 
 ## ⚡ What is hotplex?
 
-**hotplex** solves the **"Cold Start" problem** for heavy AI CLI agents like Claude Code, Aider, and OpenCode. 
-Instead of spawning a new process and initializing the Node.js or Python runtime for every request, hotplex maintains a persistent, thread-safe process pool. This enables **millisecond-level response times** and **full-duplex async streaming** for seamless integration with web backends and orchestrators.
+**hotplex** is more than just a process multiplexer; it is the **"Last Mile" Adapter** for AI agent engineering.
+
+Our **First Principle** is: **Leverage existing, state-of-the-art AI CLI tools (like Claude Code, Aider, OpenCode) and upgrade them from "terminal tools for humans" to "cloud-native operators for systems."**
+
+Developers no longer need to build complex agent runtimes from scratch or reinvent file manipulation logic. By maintaining a persistent, thread-safe process pool, hotplex eliminates the interaction gap caused by cold starts and provides a unified security framework and streaming I/O abstraction. Whether building a personal AI assistant or enterprise-grade CI/CD pipelines, hotplex brings elite agent capabilities to your infrastructure with minimal overhead.
 
 <div align="center">
   <img src="docs/images/features.svg" alt="hotplex Features Outline" width="100%">
 </div>
 
 ### Why hotplex?
-- 🚀 **200ms Hot-Start**: Instant response matching API-level latencies.
-- ♻️ **Session Pool**: Managed OS process pool with automatic Garbage Collection cleanup.
-- 🔒 **Sandboxed Execution**: Built-in Danger Detector (WAF) and Process Group ID (PGID) Isolation.
-- 🔌 **Full-Duplex I/O**: Asynchronous streaming for real-time `stdin`, `stdout`, and `stderr`.
-- 🛠️ **Dual Mode**: Embed transparently as a **Go SDK** or deploy as a **WebSocket Gateway**.
+- 🧩 **Leverage vs. Build**: Directly integrate elite tools like Claude Code, skipping months of agent logic development.
+- 🚀 **200ms Instant Response**: Eliminate Node.js/Python spin-up latencies for a fluid, real-time experience.
+- ♻️ **Stateful Session Pool**: Managed lifecycle with persistent VFS state and context across requests.
+- 🔒 **Security Control Center**: Built-in Command WAF and PGID isolation to provide a hard sandbox for AI operations.
+- 🔌 **Production Ready**: Embed via **Go SDK** or deploy as a **WebSocket Gateway** for modern microservice architectures.
 
 ---
 

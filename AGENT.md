@@ -8,8 +8,9 @@ Please read and strictly adhere to the following rules when analyzing, modifying
 
 ## 🏗 1. Project Overview & Identity
 
-**HotPlex** is a high-performance **Process Multiplexer**.
-- **Core Role**: It solves the "cold start" problem for heavyweight Node.js CLI agents (specifically Claude Code initially) by keeping a persistent OS process alive in the background and multiplexing user requests via `Stdin/Stdout`.
+**HotPlex** is a high-performance **AI Agent Control Plane**.
+- **First Principle**: Instead of reinventing the wheel, we leverage existing, powerful AI CLI agents (like Claude Code, Aider, OpenCode) and bridge them into production-grade systems. We upgrade "human-oriented terminal tools" into "system-oriented cloud-native operators."
+- **Core Role**: It provides a production-ready execution environment for AI agents, solving the "cold start" latency for local tools and providing a unified control layer for security, state, and streaming.
 - **Primary Language**: Go (Golang) 1.21+
 - **Architecture**: A lightweight Gateway (WebSocket) wrapping a Core Engine (`hotplex.Engine`), a persistence layer (`SessionPool`), and a strict Regex WAF (`Detector`).
 

@@ -31,9 +31,10 @@ type EngineOptions struct {
 	DisallowedTools  []string // Explicit list of tools forbidden (blacklist).
 }
 
-// Engine is the unified process integration layer for Hot-Multiplexing.
-// Configured as a long-lived Singleton, it provides a persistent execution engine that manages
-// a pool of active Claude Code CLI processes, applying security rules (WAF) and routing traffic.
+// Engine is the core Control Plane for AI CLI agent integration.
+// Configured as a long-lived Singleton, it transforms local CLI tools into production-ready
+// services by managing a hot-multiplexed process pool, enforcing security WAF rules,
+// and providing a unified event-driven SDK for application integration.
 type Engine struct {
 	opts           EngineOptions
 	cliPath        string

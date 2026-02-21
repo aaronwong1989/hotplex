@@ -1,8 +1,8 @@
 <div align="center">
   <img src=".github/assets/hotplex-logo.svg" alt="hotplex" width="160"/>
   <h1>hotplex</h1>
-  <p><b>专为 AI CLI 智能体打造的高性能进程多路复用器</b></p>
-  <p><i>将启动延迟从 5000ms 🐢 降至 200ms 🚀 — 让你的 AI 智能体时刻保持 "热启动" 状态。</i></p>
+  <p><b>让顶尖 AI CLI 智能体 跨入 生产级应用 的 控制平面 (Control Plane)</b></p>
+  <p><i>无需从零构建，直接复用 Claude Code 等强大的 AI 工具，实现毫秒级响应、安全隔离与全双工集成。</i></p>
 
   <p>
     <a href="https://github.com/hrygo/hotplex/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/hrygo/hotplex/ci.yml?branch=main&style=for-the-badge&logo=github&label=Build" alt="Build Status"></a>
@@ -20,19 +20,22 @@
 
 ## ⚡ 什么是 hotplex？
 
-**hotplex** 旨在解决重型 AI CLI 智能体（如 Claude Code、Aider、OpenCode 等）的**“冷启动”痛点**。
-它不再为每次请求都去重新拉起进程和初始化 Node.js / Python 运行时，而是统一维护一个持久化、线程安全的进程池。这种机制使得请求能够获得**毫秒级的响应延迟**，同时支持**全双工的异步事件流**，便于与各类 Web 后端以及调度器进行无缝集成。
+**hotplex** 不仅仅是一个进程复用器，它是 AI 智能体工程化的**“最后 1 公里”适配器**。
+
+我们的**第一性原理**是：**借助既有的、强大的 AI CLI 工具（如 Claude Code, Aider, OpenCode），将其从“供人类使用的终端工具”升级为“供系统调用的云原生算子”。**
+
+开发者不再需要从零构建复杂的 Agent 运行环境或重写文件操作逻辑。hotplex 通过在后台维护持久化的、线程安全的进程池，解决了冷启动延迟带来的交互断层，并提供了统一的安全围栏与流式 I/O 抽象。这使得无论是构建个人 AI 助手还是企业级 CI/CD 工具，都能以最小的代价获得最先进的 Agent 能力。
 
 <div align="center">
   <img src="docs/images/features.svg" alt="hotplex Features Outline" width="100%">
 </div>
 
 ### 为什么选择 hotplex？
-- 🚀 **200ms 极速热启动**：瞬间响应，与直接调用 API 的低延迟体验媲美。
-- ♻️ **进程会话池**：自动管理的底层操作系统进程池，内置空闲垃圾回收（GC）机制。
-- 🔒 **多重沙箱执行**：内置危险指令拦截（WAF）以及基于进程组 ID (PGID) 的隔离控制。
-- 🔌 **全双工 I/O 操作**：原生支持 `stdin`、`stdout` 和 `stderr` 的异步实时流式传输。
-- 🛠️ **双运行模式**：可以作为 **Go SDK** 原生嵌入业务代码，也可以独立作为 **WebSocket 网关** 部署服务。
+- 🧩 **复用即生产**：直接集成 Claude Code 等尖端工具，跳过繁琐的 Agent 逻辑开发。
+- 🚀 **200ms 极速响应**：彻底消除 Node.js/Python 运行时启动延迟，提供丝滑的交互体验。
+- ♻️ **有状态会话池**：自动管理底层进程生命周期，支持跨请求的 VFS 状态与上下文持久化。
+- 🔒 **安全管控中心**：内置指令级 WAF 防火墙与进程组隔离，为 AI 代理的操作提供硬核安全围栏。
+- 🔌 **生产级适配**：支持 **Go SDK** 原生嵌入或 **WebSocket 网关** 部署，完美适配现代微服务架构。
 
 ---
 

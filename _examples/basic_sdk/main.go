@@ -12,9 +12,10 @@ import (
 )
 
 /*
-This example demonstrates how to integrate the HotPlex SDK directly into a Go application.
-It covers the lifecycle of initializing the Engine, configuring a session, sending a prompt,
-and processing the real-time stream of events using a callback.
+This example demonstrates how to use the HotPlex Control Plane to bridge elite AI CLI agents
+into your production-grade Go application. It follows our "First Principle" by leveraging
+tools like Claude Code to provide advanced AI capabilities with millisecond latency,
+secure sandboxing, and full-duplex session management.
 */
 func main() {
 	// Configure logging
