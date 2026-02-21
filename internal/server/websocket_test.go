@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gorilla/websocket"
@@ -158,8 +159,15 @@ func TestWebSocketHandler_HandleExecute_EmptyPrompt(t *testing.T) {
 			return
 		}
 
+		// Create a mock context and task map for the test
+		connCtx, cancel := context.WithCancel(r.Context())
+		_ = connCtx
+		defer cancel()
+		tasks := make(map[string]context.CancelFunc)
+		var mu sync.Mutex
+
 		if req.Type == "execute" {
-			h.handleExecute(cw, req)
+			h.handleExecute(connCtx, cw, req, tasks, &mu)
 		}
 	}))
 	defer server.Close()
@@ -275,8 +283,15 @@ func TestWebSocketHandler_HandleStop_EmptySessionID(t *testing.T) {
 			return
 		}
 
+		// Create a mock context and task map for the test
+		connCtx, cancel := context.WithCancel(r.Context())
+		_ = connCtx
+		defer cancel()
+		tasks := make(map[string]context.CancelFunc)
+		var mu sync.Mutex
+
 		if req.Type == "stop" {
-			h.handleStop(cw, req)
+			h.handleStop(cw, req, tasks, &mu)
 		}
 	}))
 	defer server.Close()
@@ -335,11 +350,18 @@ func TestWebSocketHandler_UnknownRequestType(t *testing.T) {
 			return
 		}
 
+		// Create a mock context and task map for the test
+		connCtx, cancel := context.WithCancel(r.Context())
+		_ = connCtx
+		defer cancel()
+		tasks := make(map[string]context.CancelFunc)
+		var mu sync.Mutex
+
 		switch req.Type {
 		case "execute":
-			h.handleExecute(cw, req)
+			h.handleExecute(connCtx, cw, req, tasks, &mu)
 		case "stop":
-			h.handleStop(cw, req)
+			h.handleStop(cw, req, tasks, &mu)
 		default:
 			cw.writeJSON("error", map[string]string{"message": "Unknown request type: " + req.Type})
 		}
@@ -417,14 +439,24 @@ func TestClientRequest_JSON(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "execute request",
-			json: `{"type":"execute","session_id":"test-123","prompt":"hello","work_dir":"/tmp"}`,
-			want: ClientRequest{Type: "execute", SessionID: "test-123", Prompt: "hello", WorkDir: "/tmp"},
+			name: "execute request with system prompt",
+			json: `{"type":"execute","session_id":"test-123","prompt":"hello","system_prompt":"you are a bot"}`,
+			want: ClientRequest{Type: "execute", SessionID: "test-123", Prompt: "hello", SystemPrompt: "you are a bot"},
 		},
 		{
 			name: "stop request",
 			json: `{"type":"stop","session_id":"test-123","reason":"user requested"}`,
 			want: ClientRequest{Type: "stop", SessionID: "test-123", Reason: "user requested"},
+		},
+		{
+			name: "stats request",
+			json: `{"type":"stats","session_id":"test-123"}`,
+			want: ClientRequest{Type: "stats", SessionID: "test-123"},
+		},
+		{
+			name: "version request",
+			json: `{"type":"version"}`,
+			want: ClientRequest{Type: "version"},
 		},
 		{
 			name: "minimal request",
@@ -503,8 +535,15 @@ func TestWebSocketHandler_HandleExecute_ExecuteError(t *testing.T) {
 			return
 		}
 
+		// Create a mock context and task map for the test
+		connCtx, cancel := context.WithCancel(r.Context())
+		_ = connCtx
+		defer cancel()
+		tasks := make(map[string]context.CancelFunc)
+		var mu sync.Mutex
+
 		if req.Type == "execute" {
-			h.handleExecute(cw, req)
+			h.handleExecute(connCtx, cw, req, tasks, &mu)
 		}
 	}))
 	defer server.Close()
@@ -558,8 +597,15 @@ func TestWebSocketHandler_HandleExecute_DefaultWorkDir(t *testing.T) {
 			return
 		}
 
+		// Create a mock context and task map for the test
+		connCtx, cancel := context.WithCancel(r.Context())
+		_ = connCtx
+		defer cancel()
+		tasks := make(map[string]context.CancelFunc)
+		var mu sync.Mutex
+
 		if req.Type == "execute" {
-			h.handleExecute(cw, req)
+			h.handleExecute(connCtx, cw, req, tasks, &mu)
 		}
 	}))
 	defer server.Close()
@@ -618,10 +664,15 @@ func TestWebSocketHandler_HandleStop_DefaultReason(t *testing.T) {
 			return
 		}
 
+		// Create a mock context and task map for the test
+		connCtx, cancel := context.WithCancel(r.Context())
+		_ = connCtx
+		defer cancel()
+		tasks := make(map[string]context.CancelFunc)
+		var mu sync.Mutex
+
 		if req.Type == "stop" {
-			// Since mockEngine is not *hotplex.Engine, the type assertion fails
-			// and we should get the "stopped" event
-			h.handleStop(cw, req)
+			h.handleStop(cw, req, tasks, &mu)
 		}
 	}))
 	defer server.Close()
@@ -677,8 +728,15 @@ func TestWebSocketHandler_HandleStop_WithReason(t *testing.T) {
 			return
 		}
 
+		// Create a mock context and task map for the test
+		connCtx, cancel := context.WithCancel(r.Context())
+		_ = connCtx
+		defer cancel()
+		tasks := make(map[string]context.CancelFunc)
+		var mu sync.Mutex
+
 		if req.Type == "stop" {
-			h.handleStop(cw, req)
+			h.handleStop(cw, req, tasks, &mu)
 		}
 	}))
 	defer server.Close()

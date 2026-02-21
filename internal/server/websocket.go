@@ -15,11 +15,12 @@ import (
 
 // ClientRequest represents the JSON payload expected from the WebSocket client.
 type ClientRequest struct {
-	Type      string `json:"type"`       // "execute" or "stop"
-	SessionID string `json:"session_id"` // Provide session_id to hot-multiplex
-	Prompt    string `json:"prompt"`     // The user input (for "execute")
-	WorkDir   string `json:"work_dir"`   // Working directory for CLI (for "execute")
-	Reason    string `json:"reason"`     // Reason for stopping (for "stop")
+	Type         string `json:"type"`                    // "execute", "stop", "stats", "version"
+	SessionID    string `json:"session_id"`              // Provide session_id to hot-multiplex
+	Prompt       string `json:"prompt,omitempty"`        // The user input (for "execute")
+	SystemPrompt string `json:"system_prompt,omitempty"` // Override system prompt (for "execute")
+	WorkDir      string `json:"work_dir,omitempty"`      // Working directory for CLI (for "execute")
+	Reason       string `json:"reason,omitempty"`        // Reason for stopping (for "stop")
 }
 
 // ServerResponse represents the JSON payload sent to the WebSocket client.
@@ -38,7 +39,11 @@ type connWriter struct {
 
 func (cw *connWriter) writeJSON(event string, data any) {
 	resp := ServerResponse{Event: event, Data: data}
-	val, _ := json.Marshal(resp)
+	val, err := json.Marshal(resp)
+	if err != nil {
+		// This should rarely happen with our internal types, but log it for enterprise observability
+		return
+	}
 	cw.mu.Lock()
 	defer cw.mu.Unlock()
 	_ = cw.conn.WriteMessage(websocket.TextMessage, val)
@@ -54,7 +59,7 @@ type WebSocketHandler struct {
 
 // NewWebSocketHandler creates a new handler with CORS configuration.
 func NewWebSocketHandler(engine hotplex.HotPlexClient, logger *slog.Logger, cors *CORSConfig) *WebSocketHandler {
-	h := &WebSocketHandler{
+	return &WebSocketHandler{
 		engine: engine,
 		logger: logger,
 		cors:   cors,
@@ -64,7 +69,6 @@ func NewWebSocketHandler(engine hotplex.HotPlexClient, logger *slog.Logger, cors
 			CheckOrigin:     cors.CheckOrigin(),
 		},
 	}
-	return h
 }
 
 // ServeHTTP upgrades the HTTP connection and starts the read loop.
@@ -74,9 +78,18 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("Failed to upgrade websocket connection", "error", err)
 		return
 	}
+
+	// Create a top-level context for the entire connection lifecycle
+	connCtx, connCancel := context.WithCancel(r.Context())
+	defer connCancel() // Cancels all child tasks when connection closes
+
 	defer func() { _ = conn.Close() }()
 
 	cw := &connWriter{conn: conn}
+
+	// Track active tasks for this specific connection to allow concurrent 'stop'
+	tasks := make(map[string]context.CancelFunc)
+	var mu sync.Mutex
 
 	h.logger.Info("Client connected via WebSocket", "addr", r.RemoteAddr)
 
@@ -105,16 +118,21 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		switch req.Type {
 		case "execute":
-			h.handleExecute(cw, req)
+			// Process execution asynchronously to keep the read loop open
+			go h.handleExecute(connCtx, cw, req, tasks, &mu)
 		case "stop":
-			h.handleStop(cw, req)
+			h.handleStop(cw, req, tasks, &mu)
+		case "stats":
+			h.handleStats(cw, req)
+		case "version":
+			h.handleVersion(cw, req)
 		default:
 			cw.writeJSON("error", map[string]string{"message": "Unknown request type: " + req.Type})
 		}
 	}
 }
 
-func (h *WebSocketHandler) handleExecute(cw *connWriter, req ClientRequest) {
+func (h *WebSocketHandler) handleExecute(connCtx context.Context, cw *connWriter, req ClientRequest, tasks map[string]context.CancelFunc, mu *sync.Mutex) {
 	if req.Prompt == "" {
 		cw.writeJSON("error", map[string]string{"message": "prompt cannot be empty"})
 		return
@@ -122,64 +140,99 @@ func (h *WebSocketHandler) handleExecute(cw *connWriter, req ClientRequest) {
 
 	sessionID := req.SessionID
 	if sessionID == "" {
-		// Auto-generate session ID if not provided
 		sessionID = uuid.New().String()
-		h.logger.Debug("Auto-generated session ID", "session_id", sessionID)
 	}
+
+	// Create task-specific context linked to the connection lifecycle
+	taskCtx, taskCancel := context.WithTimeout(connCtx, 10*time.Minute)
+
+	mu.Lock()
+	if oldCancel, exists := tasks[sessionID]; exists {
+		oldCancel() // Cancel previous execution if same sessionID is re-used concurrently
+	}
+	tasks[sessionID] = taskCancel
+	mu.Unlock()
+
+	defer func() {
+		mu.Lock()
+		delete(tasks, sessionID)
+		mu.Unlock()
+		taskCancel()
+	}()
 
 	workDir := req.WorkDir
 	if workDir == "" {
-		workDir = "/tmp/hotplex_sandbox" // Fallback MVP directory
+		workDir = "/tmp/hotplex_sandbox"
 	}
 
 	cfg := &hotplex.Config{
-		WorkDir:   workDir,
-		SessionID: sessionID,
+		WorkDir:          workDir,
+		SessionID:        sessionID,
+		TaskSystemPrompt: req.SystemPrompt,
 	}
 
-	h.logger.Info("Handling execute request", "session_id", sessionID, "prompt_length", len(req.Prompt))
+	h.logger.Info("Async execute start", "session_id", sessionID)
 
-	// Define the callback that bridges HotPlex Engine events to WebSocket messages.
-	// All writes to the connection go through connWriter, which is mutex-protected.
 	cb := func(eventType string, data any) error {
 		cw.writeJSON(eventType, data)
 		return nil
 	}
 
-	// HotPlex execution
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-
-	err := h.engine.Execute(ctx, cfg, req.Prompt, cb)
+	err := h.engine.Execute(taskCtx, cfg, req.Prompt, cb)
 	if err != nil {
-		cw.writeJSON("error", map[string]string{"message": "Execution failed: " + err.Error()})
+		// Only send error if it wasn't a normal cancellation/stop
+		if taskCtx.Err() == nil {
+			cw.writeJSON("error", map[string]string{"message": "Execution failed: " + err.Error()})
+		}
 		return
 	}
 
-	// Send completion signal
-	cw.writeJSON("completed", map[string]string{"session_id": sessionID})
+	stats := h.engine.GetSessionStats()
+	cw.writeJSON("completed", map[string]any{
+		"session_id": sessionID,
+		"stats":      stats,
+	})
 }
 
-func (h *WebSocketHandler) handleStop(cw *connWriter, req ClientRequest) {
+func (h *WebSocketHandler) handleStop(cw *connWriter, req ClientRequest, tasks map[string]context.CancelFunc, mu *sync.Mutex) {
 	if req.SessionID == "" {
 		cw.writeJSON("error", map[string]string{"message": "session_id is required for stop"})
 		return
 	}
 
+	// 1. Locally cancel the execution context to unblock the goroutine immediately
+	mu.Lock()
+	if cancel, exists := tasks[req.SessionID]; exists {
+		cancel()
+		delete(tasks, req.SessionID)
+	}
+	mu.Unlock()
+
+	// 2. Instruct the engine to stop the underlying session (process cleanup)
 	reason := req.Reason
 	if reason == "" {
-		reason = "client requested stop"
+		reason = "client_request:manual_stop"
 	}
 
-	h.logger.Info("Handling stop request", "session_id", req.SessionID, "reason", reason)
-
-	// Access the underlying Engine to call StopSession
-	if eng, ok := h.engine.(*hotplex.Engine); ok {
-		if err := eng.StopSession(req.SessionID, reason); err != nil {
-			cw.writeJSON("error", map[string]string{"message": "Stop failed: " + err.Error()})
-			return
-		}
+	h.logger.Info("Stop request", "session_id", req.SessionID, "reason", reason)
+	if err := h.engine.StopSession(req.SessionID, reason); err != nil {
+		cw.writeJSON("error", map[string]string{"message": "Stop failed: " + err.Error()})
+		return
 	}
 
 	cw.writeJSON("stopped", map[string]string{"session_id": req.SessionID})
+}
+
+func (h *WebSocketHandler) handleStats(cw *connWriter, req ClientRequest) {
+	stats := h.engine.GetSessionStats()
+	cw.writeJSON("stats", stats)
+}
+
+func (h *WebSocketHandler) handleVersion(cw *connWriter, req ClientRequest) {
+	version, err := h.engine.GetCLIVersion()
+	if err != nil {
+		cw.writeJSON("error", map[string]string{"message": "Failed to get version: " + err.Error()})
+		return
+	}
+	cw.writeJSON("version", map[string]string{"version": version})
 }
