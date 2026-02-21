@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="100%" height="100%">
+  <defs>
+    <style>
+      .text-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: bold; font-size: 18px; fill: #333; }
+      .text-desc { font-family: monospace; font-size: 14px; fill: #666; }
+      .box-slow { stroke: #d73a49; fill: #ffeef0; }
+      .box-fast { stroke: #28a745; fill: #e6ffed; }
+      .node { fill: #24292e; }
+      .text-node { font-family: monospace; font-size: 14px; fill: #fff; text-anchor: middle; font-weight: bold; }
+      
+      @keyframes dashSlow {
+        0% { stroke-dashoffset: 100; opacity: 0; }
+        20% { stroke-dashoffset: 50; opacity: 1; }
+        80% { stroke-dashoffset: 0; opacity: 1; }
+        100% { stroke-dashoffset: 0; opacity: 0; }
+      }
+      @keyframes dashFast {
+        0% { stroke-dashoffset: 100; opacity: 1; }
+        10% { stroke-dashoffset: 0; opacity: 1; }
+        100% { stroke-dashoffset: 0; opacity: 1; }
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); opacity: 1; }
+        70% { transform: rotate(360deg); opacity: 1; }
+        80% { opacity: 0; }
+        100% { opacity: 0; }
+      }
+      .line-slow { stroke: #d73a49; stroke-width: 3; stroke-dasharray: 100; animation: dashSlow 4s infinite; }
+      .line-fast { stroke: #28a745; stroke-width: 3; stroke-dasharray: 100; animation: dashFast 4s infinite; }
+      .loader { transform-origin: 200px 220px; animation: spin 4s infinite linear; stroke: #d73a49; stroke-width: 3; fill: none; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <rect x="40" y="40" width="340" height="320" rx="8" class="box box-slow" style="stroke-width: 2;" />
+  <text x="210" y="80" text-anchor="middle" class="text-title">Traditional Cold Start</text>
+  <text x="210" y="100" text-anchor="middle" class="text-desc">Node.js / Python Boot (Seconds)</text>
+  
+  <rect x="150" y="130" width="120" height="40" rx="4" class="node"/>
+  <text x="210" y="155" class="text-node">Client</text>
+  
+  <line x1="210" y1="170" x2="210" y2="280" class="line-slow" />
+  
+  <circle cx="210" cy="225" r="15" class="loader" stroke-dasharray="70" />
+  <text x="240" y="230" class="text-desc">Spawning...</text>
+
+  <rect x="150" y="280" width="120" height="40" rx="4" class="node"/>
+  <text x="210" y="305" class="text-node">CLI Process</text>
+
+  <rect x="420" y="40" width="340" height="320" rx="8" class="box box-fast" style="stroke-width: 2;" />
+  <text x="590" y="80" text-anchor="middle" class="text-title">HotPlex Hot-Multiplexing</text>
+  <text x="590" y="100" text-anchor="middle" class="text-desc">Warm Go Process Pool (200ms)</text>
+
+  <rect x="530" y="130" width="120" height="40" rx="4" class="node"/>
+  <text x="590" y="155" class="text-node">Client</text>
+  
+  <line x1="590" y1="170" x2="590" y2="280" class="line-fast" />
+  <text x="610" y="230" class="text-desc" style="fill: #28a745; font-weight: bold;">Instant Stdin!</text>
+
+  <rect x="470" y="260" width="240" height="80" rx="8" style="fill: rgba(40,167,69,0.1); stroke: #28a745; stroke-dasharray: 5;" />
+  <text x="590" y="275" text-anchor="middle" class="text-desc" style="font-size: 12px;">Persistent Session Pool</text>
+  <rect x="530" y="290" width="120" height="40" rx="4" class="node"/>
+  <text x="590" y="315" class="text-node">CLI Process</text>
+</svg>

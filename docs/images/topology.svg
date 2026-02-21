@@ -1,106 +1,113 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 680" width="100%" height="auto">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" width="1000" height="800">
   <defs>
-    <marker id="arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8B949E" />
-    </marker>
-    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#58A6FF" />
-    </marker>
-    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3FB950" />
-    </marker>
-    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#FF7B72" />
+    <style>
+      .bg { fill: #f8f9fa; }
+      .layer-bg { fill: #fff; stroke: #e1e4e8; stroke-width: 2; }
+      .layer-sandbox { fill: #f1f3f5; stroke: #cfd4da; stroke-width: 2; stroke-dasharray: 4; }
+      .box { rx: 8; fill: #fff; stroke-width: 2; stroke: #e1e4e8; }
+      .box-accent { fill: rgba(3, 102, 214, 0.05); stroke: #0366d6; stroke-width: 2; rx: 8; }
+      .box-success { fill: rgba(40, 167, 69, 0.05); stroke: #28a745; stroke-width: 2; rx: 8; }
+      .box-warning { fill: rgba(215, 58, 73, 0.05); stroke: #d73a49; stroke-width: 2; rx: 8; }
+      .box-purple { fill: rgba(111, 66, 193, 0.05); stroke: #6f42c1; stroke-width: 2; rx: 8; }
+      
+      .text-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: bold; font-size: 22px; fill: #24292e; }
+      .text-layer { font-family: -apple-system, sans-serif; font-weight: bold; font-size: 16px; fill: #586069; }
+      .text-label { font-family: -apple-system, sans-serif; font-weight: bold; font-size: 14px; fill: #24292e; }
+      .text-sub { font-family: -apple-system, sans-serif; font-size: 12px; fill: #6a737d; }
+      .text-code { font-family: monospace; font-size: 12px; fill: #444; }
+      
+      .arrow { fill: none; stroke: #0366d6; stroke-width: 2; stroke-linecap: round; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#0366d6" />
     </marker>
   </defs>
 
-  <rect width="900" height="680" rx="12" fill="#0D1117" stroke="#30363D" stroke-width="2"/>
+  <rect width="100%" height="100%" class="bg" rx="16"/>
+  <text x="500" y="45" text-anchor="middle" class="text-title">HotPlex System Topology</text>
 
-  <text x="450" y="45" font-family="-apple-system, sans-serif" font-size="22" font-weight="bold" fill="#E6EDF3" text-anchor="middle">HotPlex Core Architecture</text>
+  <!-- Layer 1: Entrance Layer -->
+  <rect x="50" y="80" width="900" height="140" rx="12" class="layer-bg" style="stroke-dasharray: 8 4;"/>
+  <text x="70" y="105" class="text-layer">1. Access &amp; Interface Layer</text>
 
-  <rect x="50" y="80" width="800" height="110" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1" stroke-dasharray="4,4"/>
-  <text x="70" y="105" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#8B949E">1. Access Layer</text>
-
-  <rect x="120" y="120" width="180" height="46" rx="6" fill="#21262D" stroke="#30363D" stroke-width="2"/>
-  <text x="210" y="148" font-family="-apple-system, sans-serif" font-size="14" font-weight="600" fill="#E6EDF3" text-anchor="middle">Client (Web / CLI)</text>
-
-  <g transform="translate(380, 120)">
-    <rect width="200" height="46" rx="6" fill="#1F6FEB" opacity="0.15"/>
-    <rect width="200" height="46" rx="6" fill="none" stroke="#58A6FF" stroke-width="2"/>
-    <text x="100" y="22" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#58A6FF" text-anchor="middle">WebSocket Gateway</text>
-    <text x="100" y="38" font-family="monospace" font-size="11" fill="#8B949E" text-anchor="middle">cmd/hotplexd</text>
+  <g transform="translate(100, 125)">
+    <rect width="360" height="70" rx="8" class="box-accent" />
+    <text x="20" y="30" class="text-label" style="fill:#0366d6">HotPlex Go SDK (Local Integrated)</text>
+    <text x="20" y="52" class="text-code">interface HotPlexClient</text>
   </g>
 
-  <g transform="translate(620, 120)">
-    <rect width="180" height="46" rx="6" fill="#238636" opacity="0.15"/>
-    <rect width="180" height="46" rx="6" fill="none" stroke="#3FB950" stroke-width="2"/>
-    <text x="90" y="22" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#3FB950" text-anchor="middle">Go SDK</text>
-    <text x="90" y="38" font-family="monospace" font-size="11" fill="#8B949E" text-anchor="middle">pkg/hotplex</text>
+  <g transform="translate(540, 125)">
+    <rect width="360" height="70" rx="8" class="box" />
+    <text x="20" y="30" class="text-label">WebSocket Gateway (cmd/hotplexd)</text>
+    <text x="20" y="52" class="text-sub">Exposes Client Interface via Network</text>
   </g>
 
-  <path d="M 300 143 L 370 143" stroke="#8B949E" stroke-width="2" marker-end="url(#arrow-gray)"/>
-  <path d="M 210 166 L 210 185 L 710 185 L 710 166" stroke="#8B949E" stroke-width="2" marker-end="url(#arrow-gray)" fill="none"/>
+  <!-- Bridge Labels -->
+  <circle cx="500" cy="160" r="15" fill="#f8f9fa" stroke="#e1e4e8" />
+  <text x="500" y="165" text-anchor="middle" class="text-sub" style="font-weight:bold;">OR</text>
 
-  <rect x="50" y="220" width="800" height="280" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1" stroke-dasharray="4,4"/>
-  <text x="70" y="245" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#8B949E">2. Core &amp; Session Control Layer</text>
 
-  <g transform="translate(350, 250)">
-    <rect width="260" height="60" rx="8" fill="#8957E5" opacity="0.15"/>
-    <rect width="260" height="60" rx="8" fill="none" stroke="#D2A8FF" stroke-width="2"/>
-    <text x="130" y="26" font-family="-apple-system, sans-serif" font-size="16" font-weight="bold" fill="#D2A8FF" text-anchor="middle">Engine Singleton</text>
-    <text x="130" y="46" font-family="-apple-system, sans-serif" font-size="12" fill="#8B949E" text-anchor="middle">Global Lifecycle &amp; Config</text>
+  <!-- Layer 2: Core Engine -->
+  <rect x="50" y="240" width="900" height="340" rx="12" class="layer-bg"/>
+  <text x="70" y="265" class="text-layer">2. Core Orchestration Engine</text>
+
+  <g transform="translate(100, 300)">
+    <rect width="800" height="80" rx="8" class="box-accent" style="stroke-width: 3;"/>
+    <text x="400" y="35" text-anchor="middle" class="text-title" style="font-size: 18px; fill:#0366d6">Engine (internal/engine/runner.go)</text>
+    <text x="400" y="60" text-anchor="middle" class="text-sub">The concrete implementation of HotPlexClient Contract</text>
   </g>
 
-  <g transform="translate(120, 250)">
-    <rect width="160" height="60" rx="6" fill="#DA3633" opacity="0.15"/>
-    <rect width="160" height="60" rx="6" fill="none" stroke="#FF7B72" stroke-width="2"/>
-    <text x="80" y="26" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#FF7B72" text-anchor="middle">Danger Detector</text>
-    <text x="80" y="46" font-family="-apple-system, sans-serif" font-size="12" fill="#8B949E" text-anchor="middle">Regex WAF</text>
+  <!-- Components inside Layer 2 -->
+  <g transform="translate(100, 410)">
+    <rect width="250" height="140" rx="8" class="box-warning" />
+    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#d73a49">SafetyManager</text>
+    <text x="125" y="55" text-anchor="middle" class="text-sub">internal/security</text>
+    <rect x="25" y="75" width="200" height="45" rx="4" fill="#fff" stroke="#d73a49" stroke-width="1"/>
+    <text x="125" y="95" text-anchor="middle" class="text-code">Regex WAF</text>
+    <text x="125" y="110" text-anchor="middle" class="text-code">AllowList / Bypass</text>
   </g>
 
-  <path d="M 350 280 L 290 280" stroke="#FF7B72" stroke-width="2" marker-end="url(#arrow-red)"/>
-  <text x="320" y="272" font-family="-apple-system, sans-serif" font-size="11" fill="#FF7B72" text-anchor="middle">Threat Check</text>
-
-  <path d="M 480 166 L 480 240" stroke="#8B949E" stroke-width="2" marker-end="url(#arrow-gray)"/>
-  <path d="M 710 166 L 710 210 L 550 210 L 550 240" stroke="#8B949E" stroke-width="2" marker-end="url(#arrow-gray)" fill="none"/>
-
-  <rect x="120" y="350" width="680" height="130" rx="8" fill="#0D1117" stroke="#30363D" stroke-width="2"/>
-  <text x="460" y="375" font-family="-apple-system, sans-serif" font-size="15" font-weight="bold" fill="#E6EDF3" text-anchor="middle">SessionPool / SessionManager</text>
-
-  <path d="M 480 310 L 480 340" stroke="#8B949E" stroke-width="2" marker-end="url(#arrow-gray)"/>
-  <text x="530" y="330" font-family="-apple-system, sans-serif" font-size="11" fill="#8B949E" text-anchor="middle">Session Routing</text>
-
-  <g transform="translate(150, 400)">
-    <rect width="120" height="50" rx="6" fill="#21262D" stroke="#30363D" stroke-width="1"/>
-    <text x="60" y="24" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#8B949E" text-anchor="middle">GC Loop</text>
-    <text x="60" y="40" font-family="-apple-system, sans-serif" font-size="11" fill="#8B949E" text-anchor="middle">Idle Cleanup</text>
+  <g transform="translate(375, 410)">
+    <rect width="250" height="140" rx="8" class="box-success" />
+    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#28a745">SessionController</text>
+    <text x="125" y="55" text-anchor="middle" class="text-sub">internal/engine/pool.go</text>
+    <rect x="25" y="75" width="200" height="45" rx="4" fill="#fff" stroke="#28a745" stroke-width="1"/>
+    <text x="125" y="102" text-anchor="middle" class="text-code">Process Pool &amp; GC</text>
   </g>
 
-  <g transform="translate(320, 400)">
-    <rect width="180" height="50" rx="6" fill="#238636" opacity="0.15"/>
-    <rect width="180" height="50" rx="6" fill="none" stroke="#3FB950" stroke-width="2"/>
-    <text x="90" y="24" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#3FB950" text-anchor="middle">Session (Active)</text>
-    <text x="90" y="40" font-family="-apple-system, sans-serif" font-size="11" fill="#3FB950" text-anchor="middle">PGID Isolation</text>
+  <g transform="translate(650, 410)">
+    <rect width="250" height="140" rx="8" class="box-purple" />
+    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#6f42c1">Provider Interface</text>
+    <text x="125" y="55" text-anchor="middle" class="text-sub">provider/*.go</text>
+    <rect x="25" y="75" width="200" height="45" rx="4" fill="#fff" stroke="#6f42c1" stroke-width="1"/>
+    <text x="125" y="95" text-anchor="middle" class="text-code">BuildInput / MapEvent</text>
+    <text x="125" y="110" text-anchor="middle" class="text-code">Claude | OpenCode</text>
   </g>
 
-  <g transform="translate(530, 400)">
-    <rect width="180" height="50" rx="6" fill="#21262D" stroke="#30363D" stroke-width="2" stroke-dasharray="2,2"/>
-    <text x="90" y="30" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#8B949E" text-anchor="middle">Session N...</text>
+
+  <!-- Layer 3: OS Layer -->
+  <rect x="50" y="600" width="900" height="160" rx="12" class="layer-sandbox"/>
+  <text x="70" y="625" class="text-layer">3. OS Process Layer (Isolated Sandbox)</text>
+
+  <g transform="translate(250, 650)">
+    <rect width="500" height="80" rx="10" fill="#fff" stroke="#495057" stroke-width="2" />
+    <text x="250" y="35" text-anchor="middle" class="text-title" style="fill:#212529; font-size: 18px;">OS Process Group (PGID)</text>
+    <text x="250" y="60" text-anchor="middle" class="text-sub" style="fill:#495057;">Node.js Runtime | Persistent SQLite Context</text>
   </g>
 
-  <rect x="50" y="530" width="800" height="110" rx="8" fill="#161B22" stroke="#30363D" stroke-width="1" stroke-dasharray="4,4"/>
-  <text x="70" y="555" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#8B949E">3. OS Process Layer</text>
+  <!-- Connecting Lines -->
+  <!-- Layer 1 to Layer 2: Convenging stepped lines -->
+  <path d="M 280 195 L 280 240 L 500 240" class="arrow" />
+  <path d="M 720 195 L 720 240 L 500 240" class="arrow" />
+  <path d="M 500 240 L 500 300" class="arrow" marker-end="url(#arrowhead)"/>
 
-  <g transform="translate(320, 560)">
-    <rect width="390" height="60" rx="6" fill="#1F6FEB" opacity="0.1"/>
-    <rect width="390" height="60" rx="6" fill="none" stroke="#58A6FF" stroke-width="2"/>
-    <text x="195" y="26" font-family="-apple-system, sans-serif" font-size="16" font-weight="bold" fill="#58A6FF" text-anchor="middle">OS Process (Claude Code / Aider)</text>
-    <text x="195" y="46" font-family="-apple-system, sans-serif" font-size="12" fill="#8B949E" text-anchor="middle">Native Tool Sandbox &amp; Workspace Locking</text>
-  </g>
+  <!-- Inside Engine to Sub-components -->
+  <path d="M 225 380 L 225 410" class="arrow" marker-end="url(#arrowhead)"/>
+  <path d="M 500 380 L 500 410" class="arrow" marker-end="url(#arrowhead)"/>
+  <path d="M 775 380 L 775 410" class="arrow" marker-end="url(#arrowhead)"/>
 
-  <path d="M 370 450 L 370 550" stroke="#3FB950" stroke-width="3" marker-end="url(#arrow-green)"/>
-  <text x="310" y="505" font-family="-apple-system, sans-serif" font-size="12" font-weight="bold" fill="#3FB950">Stdin Write</text>
+  <!-- Layer 2 to Layer 3 -->
+  <path d="M 500 550 L 500 650" class="arrow" marker-end="url(#arrowhead)"/>
+  <text x="510" y="615" class="text-code" style="fill:#0366d6">Full-Duplex I/O</text>
 
-  <path d="M 460 550 L 460 450" stroke="#58A6FF" stroke-width="3" marker-end="url(#arrow-blue)"/>
-  <text x="540" y="505" font-family="-apple-system, sans-serif" font-size="12" font-weight="bold" fill="#58A6FF">Stdout/Stderr Stream</text>
 </svg>

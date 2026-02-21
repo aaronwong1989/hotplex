@@ -128,6 +128,53 @@ func main() {
 - `TotalCostUSD`: 该轮通话的预估美金成本。
 - `IsError`: 执行是否以失败告终。
 
+### 3.4 管理与安全控制 (`HotPlexClient`)
+
+`HotPlexClient` 通过多个功能专一的子接口提供控制。由于 `hotplex.NewEngine` 返回的 `*Engine` 结构体已完整实现这些接口，您可以直接调用，或者在持有通用 Client 接口时通过类型断言来使用。
+
+#### 使用示例
+
+```go
+// 1. 基础执行 (Executor 接口)
+client.Execute(ctx, cfg, prompt, cb)
+
+// 2. 进阶控制 (SessionController 接口)
+// 如果您持有的是 hotplex.HotPlexClient 接口，可以通过断言获取子能力
+if controller, ok := client.(hotplex.SessionController); ok {
+    stats := controller.GetSessionStats()
+    fmt.Printf("已消耗 Input Tokens: %d\n", stats.InputTokens)
+    
+    // 强制终止一个超时的会话
+    controller.StopSession("session_123", "用户手动取消")
+}
+
+// 3. 安全策略管理 (SafetyManager 接口)
+if safety, ok := client.(hotplex.SafetyManager); ok {
+    // 动态调整安全沙箱允许的路径
+    safety.SetDangerAllowPaths([]string{"/home/user/project"})
+    // 使用 AdminToken 开启 Bypass 模式（慎用）
+    safety.SetDangerBypassEnabled("your-admin-token", true)
+}
+```
+
+#### `SessionController` (生命周期与观测)
+| 方法                              | 说明                                                       |
+| :-------------------------------- | :--------------------------------------------------------- |
+| `GetSessionStats() *SessionStats` | 返回当前引擎实例的最新的遥测数据和 Token 使用情况。        |
+| `StopSession(id, reason) error`   | 强制终止特定会话及其进程组（适用于 Web UI 的“停止”按钮）。 |
+| `GetCLIVersion() (string, error)` | 返回底层 AI CLI 工具的版本号。                             |
+
+#### `SafetyManager` (安全策略)
+| 方法                                        | 说明                                                    |
+| :------------------------------------------ | :------------------------------------------------------ |
+| `SetDangerAllowPaths([]string)`             | 动态配置管理文件操作的安全路径白名单。                  |
+| `SetDangerBypassEnabled(token, bool) error` | 在运行时越权关闭/开启 WAF 火墙（需验证 `AdminToken`）。 |
+
+#### `Executor` (配置校验)
+| 方法                            | 说明                               |
+| :------------------------------ | :--------------------------------- |
+| `ValidateConfig(*Config) error` | 执行前置安全审计和参数完整性校验。 |
+
 ---
 
 ## 4. 错误处理

@@ -27,8 +27,22 @@ func (m *mockEngine) Close() error {
 	return nil
 }
 
-func (m *mockEngine) GetSessionStats(sessionID string) (*hotplex.SessionStats, bool) {
-	return nil, false
+func (m *mockEngine) GetSessionStats() *hotplex.SessionStats {
+	return nil
+}
+
+func (m *mockEngine) StopSession(sessionID string, reason string) error {
+	return nil
+}
+
+func (m *mockEngine) SetDangerAllowPaths(paths []string) {}
+
+func (m *mockEngine) SetDangerBypassEnabled(token string, enabled bool) error {
+	return nil
+}
+
+func (m *mockEngine) GetCLIVersion() (string, error) {
+	return "mock-version", nil
 }
 
 func (m *mockEngine) ValidateConfig(cfg *hotplex.Config) error {

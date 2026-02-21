@@ -130,6 +130,50 @@ For the `session_stats` event, `data` is `*hotplex.SessionStatsData`:
 - `TotalCostUSD`: Real-time estimated cost for the turn in USD.
 - `IsError`: Boolean indicating if the turn ended in failure.
 
+### 3.4 Administrative & Safety Control (`HotPlexClient`)
+
+`HotPlexClient` provides specialized control through functional sub-interfaces. Since `hotplex.NewEngine` returns a concrete `*Engine` that implements all these interfaces, you can use them directly or via type assertion when receiving it as a generic client.
+
+#### Usage Example
+
+```go
+// 1. Basic execution (Executor interface)
+client.Execute(ctx, cfg, prompt, cb)
+
+// 2. Advanced Control (SessionController)
+if controller, ok := client.(hotplex.SessionController); ok {
+    stats := controller.GetSessionStats()
+    fmt.Printf("Input Tokens: %d\n", stats.InputTokens)
+    
+    // Stop a hung session
+    controller.StopSession("session_123", "user cancel")
+}
+
+// 3. Security Management (SafetyManager)
+if safety, ok := client.(hotplex.SafetyManager); ok {
+    safety.SetDangerAllowPaths([]string{"/home/user/project"})
+    safety.SetDangerBypassEnabled("my-admin-token", true)
+}
+```
+
+#### `SessionController` (Lifecycle & Observability)
+| Method                            | Description                                                                 |
+| :-------------------------------- | :-------------------------------------------------------------------------- |
+| `GetSessionStats() *SessionStats` | Returns the latest telemetry/tokens for the current engine instance.        |
+| `StopSession(id, reason) error`   | Forcibly terminates a specific session (useful for Web UIs "Stop" buttons). |
+| `GetCLIVersion() (string, error)` | Returns the version of the underlying agent binary.                         |
+
+#### `SafetyManager` (Security Policy)
+| Method                                      | Description                                              |
+| :------------------------------------------ | :------------------------------------------------------- |
+| `SetDangerAllowPaths([]string)`             | Dynamic whitelist for file operations.                   |
+| `SetDangerBypassEnabled(token, bool) error` | Privileged override for the WAF (requires `AdminToken`). |
+
+#### `Executor` (Logic Validation)
+| Method                          | Description                                                 |
+| :------------------------------ | :---------------------------------------------------------- |
+| `ValidateConfig(*Config) error` | Pre-flight security and integrity check for session config. |
+
 ---
 
 ## 4. Error Handling

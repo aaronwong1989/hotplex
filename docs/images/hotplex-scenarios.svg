@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="100%" height="100%">
+  <defs>
+    <style>
+      .font-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: bold; fill: #24292e; font-size: 18px; }
+      .font-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #586069; font-size: 14px; }
+      .font-code { font-family: monospace; fill: #444; font-size: 12px; }
+      
+      .box-container { fill: #fff; stroke: #e1e4e8; stroke-width: 2; }
+      .box-hotplex { fill: #f6f8fa; stroke: #0366d6; stroke-width: 3; }
+      .box-target { fill: #fff; stroke: #6a737d; stroke-width: 2; }
+      .box-waf { fill: #fff; stroke: #d73a49; stroke-width: 3; }
+      .warm-pool { fill: #dcffe4; stroke: #28a745; }
+      
+      /* Connection Lines */
+      .conn-line { fill: none; stroke: #e1e4e8; stroke-width: 2; stroke-dasharray: 6; }
+      .conn-active { stroke: #0366d6; opacity: 0.6; }
+
+      /* Animations */
+      @keyframes flowHorizontal {
+        0% { transform: translateX(0); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translateX(850px); opacity: 0; }
+      }
+      @keyframes pulseWarm {
+        0%, 100% { fill: #dcffe4; stroke-width: 2; }
+        50% { fill: #b4ffc6; stroke-width: 4; }
+      }
+      @keyframes persistencePulse {
+        0%, 100% { stroke-opacity: 0.3; stroke-width: 2; }
+        50% { stroke-opacity: 1; stroke-width: 4; }
+      }
+      @keyframes wafBlock {
+        0% { transform: translateX(0); opacity: 1; }
+        60% { transform: translateX(420px); opacity: 1; fill: #d73a49; }
+        70% { transform: translateX(440px); opacity: 0; transform-origin: center; scale: 2; }
+        100% { opacity: 0; }
+      }
+      @keyframes slideIn {
+        0% { transform: translateX(-50px); opacity: 0; }
+        100% { transform: translateX(0); opacity: 1; }
+      }
+
+      /* Packet Styles */
+      .packet { fill: #0366d6; rx: 10; }
+      .packet-green { fill: #28a745; rx: 10; }
+      .packet-red { fill: #d73a49; rx: 10; }
+      
+      /* Scenario Specific Animations */
+      #pkt1 { animation: flowHorizontal 6s infinite linear; animation-delay: 0s; }
+      #line1-persist { animation: persistencePulse 3s infinite ease-in-out; }
+      
+      #pkt2 { animation: flowHorizontal 6s infinite cubic-bezier(0.1, 0.7, 1.0, 0.1); animation-delay: 1.5s; } /* Faster middle */
+      #warm-pool-flash { animation: pulseWarm 1s infinite; animation-delay: 1.8s; }
+      
+      #pkt3 { animation: flowHorizontal 6s infinite linear; animation-delay: 3s; }
+      #git-icon { animation: slideIn 6s infinite; animation-delay: 3s; }
+      
+      #pkt4-good { animation: flowHorizontal 6s infinite linear; animation-delay: 4.5s; }
+      #pkt4-bad { animation: wafBlock 6s infinite linear; animation-delay: 5s; }
+
+    </style>
+  </defs>
+
+  <text x="150" y="30" text-anchor="middle" class="font-title" style="fill:#6a737d">SOURCES &amp; TRIGGERS</text>
+  <text x="600" y="30" text-anchor="middle" class="font-title" style="fill:#0366d6">HOTPLEX CORE ARCHITECTURE</text>
+  <text x="1050" y="30" text-anchor="middle" class="font-title" style="fill:#6a737d">EXECUTION TARGETS</text>
+
+  <g transform="translate(0, 50)">
+    <rect x="50" y="20" width="200" height="80" rx="8" class="box-container" />
+    <text x="70" y="50" class="font-title">🌐 Web AI Client</text>
+    <text x="70" y="75" class="font-sub">Browser Chat Window</text>
+    <rect x="70" y="85" width="160" height="10" fill="#e1e4e8" rx="2" />
+    <rect x="950" y="20" width="200" height="80" rx="4" class="box-target" />
+    <text x="970" y="65" class="font-title">Claude Code</text>
+    <text x="970" y="85" class="font-code">Process (PID: 101)</text>
+    
+    <line x1="250" y1="60" x2="950" y2="60" class="conn-line conn-active" id="line1-persist" />
+    
+    <rect id="pkt1" x="250" y="50" width="40" height="20" class="packet" />
+    <text x="160" y="130" class="font-sub" style="fill:#0366d6; font-weight:bold;">Benefit: Context Persistence</text>
+  </g>
+
+  <g transform="translate(0, 180)">
+    <rect x="50" y="20" width="200" height="80" rx="8" class="box-container" />
+    <text x="70" y="50" class="font-title">🔧 DevOps Platform</text>
+    <text x="70" y="75" class="font-sub">Admin Dashboard</text>
+     <polyline points="70,95 90,85 110,90 130,80 150,95" fill="none" stroke="#28a745" stroke-width="2"/>
+
+    <rect x="950" y="20" width="200" height="80" rx="4" class="box-target" />
+    <text x="970" y="65" class="font-title">K8s Logs (kubectl)</text>
+    <text x="970" y="85" class="font-code">Warm Process (PID: 205)</text>
+
+    <line x1="250" y1="60" x2="950" y2="60" class="conn-line" />
+    <rect id="pkt2" x="250" y="50" width="40" height="20" class="packet-green" />
+    <text x="160" y="130" class="font-sub" style="fill:#28a745; font-weight:bold;">Benefit: Zero Cold-Start Latency</text>
+  </g>
+
+  <g transform="translate(0, 310)">
+    <rect x="50" y="20" width="200" height="80" rx="8" class="box-container" />
+    <text x="70" y="50" class="font-title">🚀 CI/CD Pipeline</text>
+    <text x="70" y="75" class="font-sub">GitHub Actions Runner</text>
+    <g id="git-icon">
+      <circle cx="230" cy="60" r="15" fill="#f34f29" />
+      <path d="M 230 50 L 230 70 M 220 60 L 240 60" stroke="#fff" stroke-width="2"/>
+    </g>
+
+    <rect x="950" y="20" width="200" height="80" rx="4" class="box-target" />
+    <text x="970" y="65" class="font-title">Auto-Fix / Linter</text>
+    <text x="970" y="85" class="font-code">Ephemeral Job</text>
+
+    <line x1="250" y1="60" x2="950" y2="60" class="conn-line" />
+    <rect id="pkt3" x="250" y="50" width="40" height="20" class="packet" />
+    <text x="160" y="130" class="font-sub" style="fill:#0366d6; font-weight:bold;">Benefit: Seamless Integration</text>
+  </g>
+
+  <g transform="translate(0, 440)">
+    <rect x="50" y="20" width="200" height="80" rx="8" class="box-container" style="fill:#24292e; stroke:none;" />
+    <text x="70" y="50" class="font-title" style="fill:#fff">🕵️ AIOps Terminal</text>
+    <text x="70" y="75" class="font-sub" style="fill:#aaa">> remediation.sh</text>
+    <text x="70" y="90" class="font-code" style="fill:#d73a49">> rm -rf / (Malicious)</text>
+
+    <rect x="950" y="20" width="200" height="80" rx="4" class="box-target" />
+    <text x="970" y="65" class="font-title">Prod Pods</text>
+    <text x="970" y="85" class="font-code">Namespace: default</text>
+
+    <line x1="250" y1="60" x2="950" y2="60" class="conn-line" />
+    
+    <rect id="pkt4-good" x="250" y="40" width="40" height="20" class="packet-green" />
+    <g id="pkt4-bad">
+        <rect x="250" y="70" width="40" height="20" class="packet-red" />
+        <text x="270" y="84" text-anchor="middle" class="font-code" style="fill:#fff; font-size:10px">rm-rf</text>
+    </g>
+    
+    <text x="160" y="130" class="font-sub" style="fill:#d73a49; font-weight:bold;">Benefit: Regex WAF Safety Audit</text>
+  </g>
+
+
+  <rect x="350" y="50" width="500" height="500" rx="12" class="box-hotplex" style="opacity: 0.1" />
+  <rect x="350" y="50" width="500" height="500" fill="none" stroke="#0366d6" stroke-width="4" rx="12" stroke-dasharray="20 10" />
+
+  <rect x="370" y="70" width="100" height="460" rx="8" class="box-container" style="fill:#e6f7ff; stroke:#1890ff;" />
+  <text x="420" y="300" text-anchor="middle" class="font-title" transform="rotate(-90 420 300)">Engine Gateway</text>
+
+  <g transform="translate(480, 70)">
+    <rect x="0" y="0" width="80" height="460" rx="8" class="box-waf" />
+    <text x="40" y="230" text-anchor="middle" class="font-title" style="fill:#d73a49" transform="rotate(-90 40 230)">Security WAF</text>
+    <path d="M 20 410 L 40 400 L 60 410 L 60 430 C 60 450 40 460 40 460 C 40 460 20 450 20 430 Z" fill="#d73a49" opacity="0.5" />
+    <text x="40" y="395" text-anchor="middle" class="font-title" style="fill:#d73a49; opacity:0; animation: slideIn 6s infinite 5s;">BLOCKED!</text>
+  </g>
+
+  <rect x="570" y="70" width="260" height="460" class="box-container warm-pool" id="warm-pool-flash" />
+  <text x="700" y="100" text-anchor="middle" class="font-title" style="fill:#28a745">Warm Session Pool</text>
+  <text x="700" y="120" text-anchor="middle" class="font-sub">Pre-warmed Processes ready for I/O</text>
+  <g transform="translate(620, 235)">
+    <circle cx="0" cy="0" r="20" fill="#fff" stroke="#28a745" stroke-width="2" opacity="0.6"/>
+    <text x="0" y="5" text-anchor="middle" class="font-code">PID</text>
+  </g>
+  <circle cx="680" cy="235" r="20" fill="#fff" stroke="#28a745" stroke-width="2" opacity="0.6"/>
+  <circle cx="740" cy="235" r="20" fill="#fff" stroke="#28a745" stroke-width="2" opacity="0.6"/>
+
+</svg>
