@@ -49,15 +49,20 @@ Standardizes diverse CLI protocols into a unified "HotPlex Event Stream":
 *   **Regex WAF**: The `Detector` scans all input prompts for malicious intent (e.g., `rm -rf /`) as a final line of defense before reached the agent.
 *   **PGID Hard Isolation**: Ensures that the agent and any of its child processes (e.g., a build script) are assigned a unique Process Group ID. Termination kills the entire group via `SIGKILL` to prevent orphan processes.
 
+### 2.5 Event Hooks & Observability (`hooks/`, `telemetry/`)
+*   **Webhooks & Audit**: Asynchronously broadcasts payload events to external systems (Slack, Webhooks) without blocking the hot-execution path.
+*   **Tracing & Metrics**: Pushes native OpenTelemetry spans and exposes `/metrics` for Prometheus scraping.
+
 ---
 
 ## 3. Session Lifecycle & Data Flow
 
 ```mermaid
 sequenceDiagram
-    participant Client as "Client (WebSocket/HTTP)"
+    participant Client as "Client (WebSocket/SDK)"
     participant Server as "internal/server"
     participant Engine as "engine.Engine"
+    participant Hooks as "Event Hooks & OTel"
     participant Pool as "internal/engine.SessionPool"
     participant Provider as "provider.Provider"
     participant Proc as "CLI Process (OS)"
@@ -65,6 +70,7 @@ sequenceDiagram
     Client->>Server: Request (WebSocket Message / POST)
     Server->>Engine: Execute(Config, Prompt)
     Engine->>Engine: Check WAF (Detector)
+    Engine->>Hooks: Start Trace Span
     Engine->>Pool: GetOrCreateSession(ID)
     
     alt Cold Start (Not in Pool)
@@ -78,11 +84,13 @@ sequenceDiagram
     loop Stream Event Normalization
         Proc-->>Provider: Raw tool specific output
         Provider-->>Engine: Normalized ProviderEvent
+        Engine-->>Hooks: Emit Event (Webhook/Log)
         Engine-->>Server: Public EventWithMeta
         Server-->>Client: WebSocket/SSE Event
     end
     
     Engine->>Pool: Touch(ID) to refresh idle timer
+    Engine->>Hooks: End Trace & Record Metrics
 ```
 
 ---
