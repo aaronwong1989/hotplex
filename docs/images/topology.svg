@@ -31,15 +31,21 @@
   <text x="70" y="105" class="text-layer">1. Access &amp; Interface Layer</text>
 
   <g transform="translate(100, 125)">
-    <rect width="360" height="70" rx="8" class="box-accent" />
-    <text x="20" y="30" class="text-label" style="fill:#0366d6">hotplex Go SDK (Local Integrated)</text>
-    <text x="20" y="52" class="text-code">interface HotPlexClient</text>
+    <rect width="250" height="70" rx="8" class="box-accent" />
+    <text x="20" y="30" class="text-label" style="fill:#0366d6">Multi-Language SDKs</text>
+    <text x="20" y="52" class="text-code">Go | Python | TypeScript</text>
   </g>
 
-  <g transform="translate(540, 125)">
-    <rect width="360" height="70" rx="8" class="box" />
-    <text x="20" y="30" class="text-label">hotplex Proxy Server (cmd/hotplexd)</text>
-    <text x="20" y="52" class="text-sub">WebSocket (Native) &amp; HTTP/SSE (OpenCode)</text>
+  <g transform="translate(375, 125)">
+    <rect width="250" height="70" rx="8" class="box" />
+    <text x="20" y="30" class="text-label">hotplex Proxy Server</text>
+    <text x="20" y="52" class="text-sub">WebSocket (Native) &amp; SSE</text>
+  </g>
+
+  <g transform="translate(650, 125)">
+    <rect width="250" height="70" rx="8" class="box" style="stroke-dasharray: 4; fill: #f8f9fa" />
+    <text x="20" y="30" class="text-label" style="fill:#586069">Observability &amp; Metrics</text>
+    <text x="20" y="52" class="text-code">/metrics | /health (K8s)</text>
   </g>
 
   <!-- Bridge Labels -->
@@ -58,30 +64,39 @@
   </g>
 
   <!-- Components inside Layer 2 -->
-  <g transform="translate(100, 410)">
-    <rect width="250" height="140" rx="8" class="box-warning" />
-    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#d73a49">SafetyManager</text>
-    <text x="125" y="55" text-anchor="middle" class="text-sub">internal/security</text>
-    <rect x="25" y="75" width="200" height="45" rx="4" fill="#fff" stroke="#d73a49" stroke-width="1"/>
-    <text x="125" y="95" text-anchor="middle" class="text-code">Regex WAF</text>
-    <text x="125" y="110" text-anchor="middle" class="text-code">AllowList / Bypass</text>
+  <g transform="translate(80, 410)">
+    <rect width="200" height="140" rx="8" class="box-warning" />
+    <text x="100" y="30" text-anchor="middle" class="text-label" style="fill:#d73a49">SafetyManager</text>
+    <text x="100" y="55" text-anchor="middle" class="text-sub">internal/security</text>
+    <rect x="20" y="75" width="160" height="45" rx="4" fill="#fff" stroke="#d73a49" stroke-width="1"/>
+    <text x="100" y="95" text-anchor="middle" class="text-code">Regex WAF</text>
+    <text x="100" y="110" text-anchor="middle" class="text-code">AllowList</text>
   </g>
 
-  <g transform="translate(375, 410)">
-    <rect width="250" height="140" rx="8" class="box-success" />
-    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#28a745">SessionController</text>
-    <text x="125" y="55" text-anchor="middle" class="text-sub">internal/engine/pool.go</text>
-    <rect x="25" y="75" width="200" height="45" rx="4" fill="#fff" stroke="#28a745" stroke-width="1"/>
-    <text x="125" y="102" text-anchor="middle" class="text-code">Process Pool &amp; GC</text>
+  <g transform="translate(300, 410)">
+    <rect width="200" height="140" rx="8" class="box-success" />
+    <text x="100" y="30" text-anchor="middle" class="text-label" style="fill:#28a745">SessionController</text>
+    <text x="100" y="55" text-anchor="middle" class="text-sub">internal/engine</text>
+    <rect x="20" y="75" width="160" height="45" rx="4" fill="#fff" stroke="#28a745" stroke-width="1"/>
+    <text x="100" y="102" text-anchor="middle" class="text-code">Process Pool &amp; GC</text>
   </g>
 
-  <g transform="translate(650, 410)">
-    <rect width="250" height="140" rx="8" class="box-purple" />
-    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#6f42c1">Provider Interface</text>
-    <text x="125" y="55" text-anchor="middle" class="text-sub">provider/*.go</text>
-    <rect x="25" y="75" width="200" height="45" rx="4" fill="#fff" stroke="#6f42c1" stroke-width="1"/>
-    <text x="125" y="95" text-anchor="middle" class="text-code">BuildInput / MapEvent</text>
-    <text x="125" y="110" text-anchor="middle" class="text-code">Claude | OpenCode</text>
+  <g transform="translate(520, 410)">
+    <rect width="200" height="140" rx="8" class="box-purple" />
+    <text x="100" y="30" text-anchor="middle" class="text-label" style="fill:#6f42c1">Event Hooks</text>
+    <text x="100" y="55" text-anchor="middle" class="text-sub">hooks/*.go</text>
+    <rect x="20" y="75" width="160" height="45" rx="4" fill="#fff" stroke="#6f42c1" stroke-width="1"/>
+    <text x="100" y="95" text-anchor="middle" class="text-code">Webhooks &amp; Audit</text>
+    <text x="100" y="110" text-anchor="middle" class="text-code">OTel Tracing</text>
+  </g>
+
+  <g transform="translate(740, 410)">
+    <rect width="180" height="140" rx="8" class="box" style="stroke: #586069" />
+    <text x="90" y="30" text-anchor="middle" class="text-label" style="fill:#586069">Provider</text>
+    <text x="90" y="55" text-anchor="middle" class="text-sub">provider/*.go</text>
+    <rect x="15" y="75" width="150" height="45" rx="4" fill="#fff" stroke="#586069" stroke-width="1"/>
+    <text x="90" y="95" text-anchor="middle" class="text-code">Event Normalizer</text>
+    <text x="90" y="110" text-anchor="middle" class="text-code">Claude | OpenCode</text>
   </g>
 
 
@@ -102,9 +117,10 @@
   <path d="M 500 240 L 500 300" class="arrow" marker-end="url(#arrowhead)"/>
 
   <!-- Inside Engine to Sub-components -->
-  <path d="M 225 380 L 225 410" class="arrow" marker-end="url(#arrowhead)"/>
-  <path d="M 500 380 L 500 410" class="arrow" marker-end="url(#arrowhead)"/>
-  <path d="M 775 380 L 775 410" class="arrow" marker-end="url(#arrowhead)"/>
+  <path d="M 180 380 L 180 410" class="arrow" marker-end="url(#arrowhead)"/>
+  <path d="M 400 380 L 400 410" class="arrow" marker-end="url(#arrowhead)"/>
+  <path d="M 620 380 L 620 410" class="arrow" marker-end="url(#arrowhead)"/>
+  <path d="M 830 380 L 830 410" class="arrow" marker-end="url(#arrowhead)"/>
 
   <!-- Layer 2 to Layer 3 -->
   <path d="M 500 550 L 500 650" class="arrow" marker-end="url(#arrowhead)"/>

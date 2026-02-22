@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 240" width="1000" height="240">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1190 240" width="1190" height="240">
   <defs>
     <style>
       .bg { fill: #f8f9fa; }
@@ -17,7 +17,7 @@
     </style>
   </defs>
 
-  <rect width="1000" height="240" class="bg" rx="16"/>
+  <rect width="1190" height="240" class="bg" rx="16"/>
 
   <!-- Feature 1: Hot Start -->
   <g transform="translate(40, 40)">
@@ -67,5 +67,15 @@
     <path d="M88 40 L82 70" class="icon-stroke c5-stroke" />
     <text x="85" y="115" text-anchor="middle" class="text-title">SDK + Daemon</text>
     <text x="85" y="135" text-anchor="middle" class="text-sub">Cloud-Native Ready</text>
+  </g>
+  <!-- Feature 6: Observability -->
+  <g transform="translate(990, 40)">
+    <rect width="170" height="160" rx="12" class="feature-card" />
+    <circle cx="85" cy="55" r="35" class="icon-bg c1-fill" />
+    <path d="M70 65 L70 45 L78 45 L78 65 Z" class="c1-fill" />
+    <path d="M82 65 L82 35 L90 35 L90 65 Z" class="c1-fill" />
+    <path d="M94 65 L94 50 L102 50 L102 65 Z" class="c1-fill" />
+    <text x="85" y="115" text-anchor="middle" class="text-title">Observability</text>
+    <text x="85" y="135" text-anchor="middle" class="text-sub">Metrics &amp; Tracing</text>
   </g>
 </svg>
