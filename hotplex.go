@@ -53,10 +53,22 @@ type AssistantMessage = types.AssistantMessage
 // ===== Errors =====
 
 var (
-	// ErrDangerBlocked is returned when a dangerous operation is blocked.
+	// ErrDangerBlocked is returned when a dangerous operation is blocked by the WAF.
 	ErrDangerBlocked = types.ErrDangerBlocked
 	// ErrInvalidConfig is returned when the configuration is invalid.
 	ErrInvalidConfig = types.ErrInvalidConfig
+	// ErrSessionNotFound is returned when the requested session does not exist.
+	ErrSessionNotFound = types.ErrSessionNotFound
+	// ErrSessionDead is returned when the session is no longer alive.
+	ErrSessionDead = types.ErrSessionDead
+	// ErrTimeout is returned when an operation times out.
+	ErrTimeout = types.ErrTimeout
+	// ErrInputTooLarge is returned when input exceeds maximum size.
+	ErrInputTooLarge = types.ErrInputTooLarge
+	// ErrProcessStart is returned when the CLI process fails to start.
+	ErrProcessStart = types.ErrProcessStart
+	// ErrPipeClosed is returned when the pipe is closed.
+	ErrPipeClosed = types.ErrPipeClosed
 )
 
 // ===== Provider Types =====
