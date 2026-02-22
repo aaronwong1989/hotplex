@@ -14,6 +14,7 @@ import (
 	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/security"
 	"github.com/hrygo/hotplex/provider"
+	"github.com/hrygo/hotplex/telemetry"
 	"github.com/hrygo/hotplex/types"
 )
 
@@ -114,6 +115,8 @@ func (r *Engine) Execute(ctx context.Context, cfg *types.Config, prompt string, 
 		// Send danger block event to client (non-critical - error already being returned)
 		if callbackSafe := event.WrapSafe(r.logger, callback); callbackSafe != nil {
 			_ = callbackSafe("danger_block", dangerEvent)
+		// Track danger block in telemetry
+		telemetry.GetMetrics().IncDangersBlocked()
 		}
 		return types.ErrDangerBlocked
 	}
@@ -468,6 +471,8 @@ func (r *Engine) dispatchNormalizedCallback(pevt *provider.ProviderEvent, callba
 	case provider.EventTypeToolUse:
 		stats.EndThinking()
 		stats.RecordToolUse(pevt.ToolName, pevt.ToolID)
+		// Track tool invocation in telemetry
+		telemetry.GetMetrics().IncToolsInvoked()
 		meta := &event.EventMeta{
 			ToolName:        pevt.ToolName,
 			ToolID:          pevt.ToolID,
