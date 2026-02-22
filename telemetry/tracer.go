@@ -30,7 +30,6 @@ type Tracer struct {
 	provider *sdktrace.TracerProvider
 	logger   *slog.Logger
 	enabled  bool
-	mu       sync.RWMutex
 }
 
 var (

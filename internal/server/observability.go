@@ -45,15 +45,16 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if status == telemetry.StatusUnhealthy {
+	switch status {
+	case telemetry.StatusUnhealthy:
 		w.WriteHeader(http.StatusServiceUnavailable)
-	} else if status == telemetry.StatusDegraded {
+	case telemetry.StatusDegraded:
 		w.WriteHeader(http.StatusPartialContent)
-	} else {
+	default:
 		w.WriteHeader(http.StatusOK)
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // ReadyHandler handles /health/ready requests (Kubernetes readiness probe).
@@ -70,7 +71,7 @@ func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.engineReady == nil || !h.engineReady() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status": "not_ready",
 			"reason": "engine_not_initialized",
 		})
@@ -79,7 +80,7 @@ func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "ready",
 	})
 }
@@ -97,7 +98,7 @@ func NewLiveHandler() *LiveHandler {
 func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":    "alive",
 		"uptime":    time.Since(h.startTime).String(),
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
@@ -121,23 +122,23 @@ func (h *MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 
 	// Session metrics
-	fmt.Fprintf(w, "# HELP hotplex_sessions_active Number of currently active sessions\n")
-	fmt.Fprintf(w, "# TYPE hotplex_sessions_active gauge\n")
-	fmt.Fprintf(w, "hotplex_sessions_active %d\n", snapshot.SessionsActive)
+	_, _ = fmt.Fprintf(w, "# HELP hotplex_sessions_active Number of currently active sessions\n")
+	_, _ = fmt.Fprintf(w, "# TYPE hotplex_sessions_active gauge\n")
+	_, _ = fmt.Fprintf(w, "hotplex_sessions_active %d\n", snapshot.SessionsActive)
 
-	fmt.Fprintf(w, "# HELP hotplex_sessions_total Total number of sessions created\n")
-	fmt.Fprintf(w, "# TYPE hotplex_sessions_total counter\n")
-	fmt.Fprintf(w, "hotplex_sessions_total %d\n", snapshot.SessionsTotal)
+	_, _ = fmt.Fprintf(w, "# HELP hotplex_sessions_total Total number of sessions created\n")
+	_, _ = fmt.Fprintf(w, "# TYPE hotplex_sessions_total counter\n")
+	_, _ = fmt.Fprintf(w, "hotplex_sessions_total %d\n", snapshot.SessionsTotal)
 
-	fmt.Fprintf(w, "# HELP hotplex_sessions_errors Total number of session errors\n")
-	fmt.Fprintf(w, "# TYPE hotplex_sessions_errors counter\n")
-	fmt.Fprintf(w, "hotplex_sessions_errors %d\n", snapshot.SessionsErrors)
+	_, _ = fmt.Fprintf(w, "# HELP hotplex_sessions_errors Total number of session errors\n")
+	_, _ = fmt.Fprintf(w, "# TYPE hotplex_sessions_errors counter\n")
+	_, _ = fmt.Fprintf(w, "hotplex_sessions_errors %d\n", snapshot.SessionsErrors)
 
-	fmt.Fprintf(w, "# HELP hotplex_tools_invoked Total number of tool invocations\n")
-	fmt.Fprintf(w, "# TYPE hotplex_tools_invoked counter\n")
-	fmt.Fprintf(w, "hotplex_tools_invoked %d\n", snapshot.ToolsInvoked)
+	_, _ = fmt.Fprintf(w, "# HELP hotplex_tools_invoked Total number of tool invocations\n")
+	_, _ = fmt.Fprintf(w, "# TYPE hotplex_tools_invoked counter\n")
+	_, _ = fmt.Fprintf(w, "hotplex_tools_invoked %d\n", snapshot.ToolsInvoked)
 
-	fmt.Fprintf(w, "# HELP hotplex_dangers_blocked Total number of dangerous operations blocked\n")
-	fmt.Fprintf(w, "# TYPE hotplex_dangers_blocked counter\n")
-	fmt.Fprintf(w, "hotplex_dangers_blocked %d\n", snapshot.DangersBlocked)
+	_, _ = fmt.Fprintf(w, "# HELP hotplex_dangers_blocked Total number of dangerous operations blocked\n")
+	_, _ = fmt.Fprintf(w, "# TYPE hotplex_dangers_blocked counter\n")
+	_, _ = fmt.Fprintf(w, "hotplex_dangers_blocked %d\n", snapshot.DangersBlocked)
 }
