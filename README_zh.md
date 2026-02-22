@@ -124,7 +124,7 @@ make build
 ```
 
 **连接与控制：**
-通过你的 WebSocket 客户端连接至 `ws://localhost:8080/ws/v1/agent`。可直接查看项目根目录的 `_examples/websocket_client/` 以了解完整的 Web 客户端交互实现。
+通过你的 WebSocket 客户端连接至 `ws://localhost:8080/ws/v1/agent`。可直接查看项目根目录的 `_examples/node_claude_websocket/` 以了解完整的 Web 客户端交互实现。
 
 ---
 

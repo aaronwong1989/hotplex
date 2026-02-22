@@ -67,6 +67,9 @@ type Provider = provider.Provider
 // ProviderConfig defines the configuration for a specific provider instance.
 type ProviderConfig = provider.ProviderConfig
 
+// OpenCodeConfig contains OpenCode-specific configuration.
+type OpenCodeConfig = provider.OpenCodeConfig
+
 // ProviderSessionOptions configures a provider session.
 type ProviderSessionOptions = provider.ProviderSessionOptions
 
@@ -106,4 +109,6 @@ var (
 	SummarizeInput = types.SummarizeInput
 	// NewClaudeCodeProvider creates a new Claude Code provider instance.
 	NewClaudeCodeProvider = provider.NewClaudeCodeProvider
+	// NewOpenCodeProvider creates a new OpenCode provider instance.
+	NewOpenCodeProvider = provider.NewOpenCodeProvider
 )

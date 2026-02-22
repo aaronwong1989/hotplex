@@ -124,7 +124,7 @@ make build
 ```
 
 **Connect & Control:**
-Connect your websocket client to `ws://localhost:8080/ws/v1/agent`. Check out `_examples/websocket_client/` for a fully functional web demo implementation.
+Connect your websocket client to `ws://localhost:8080/ws/v1/agent`. Check out `_examples/node_claude_websocket/` for a fully functional web demo implementation.
 
 ---
 
