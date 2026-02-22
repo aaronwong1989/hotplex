@@ -56,18 +56,20 @@ func (cw *connWriter) writeJSON(event string, data any, requestID int) {
 
 // HotPlexWSHandler manages a WebSocket connection to a HotPlex Engine.
 type HotPlexWSHandler struct {
-	engine   hotplex.HotPlexClient
-	logger   *slog.Logger
-	cors     *SecurityConfig
-	upgrader websocket.Upgrader
+	engine     hotplex.HotPlexClient
+	controller *ExecutionController
+	logger     *slog.Logger
+	cors       *SecurityConfig
+	upgrader   websocket.Upgrader
 }
 
 // NewHotPlexWSHandler creates a new handler with security configuration.
 func NewHotPlexWSHandler(engine hotplex.HotPlexClient, logger *slog.Logger, cors *SecurityConfig) *HotPlexWSHandler {
 	return &HotPlexWSHandler{
-		engine: engine,
-		logger: logger,
-		cors:   cors,
+		engine:     engine,
+		controller: NewExecutionController(engine, logger),
+		logger:     logger,
+		cors:       cors,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -148,12 +150,11 @@ func (h *HotPlexWSHandler) handleExecute(connCtx context.Context, cw *connWriter
 		sessionID = uuid.New().String()
 	}
 
-	// Create task-specific context linked to the connection lifecycle
-	taskCtx, taskCancel := context.WithTimeout(connCtx, 10*time.Minute)
+	taskCtx, taskCancel := context.WithCancel(connCtx)
 
 	mu.Lock()
 	if oldCancel, exists := tasks[sessionID]; exists {
-		oldCancel() // Cancel previous execution if same sessionID is re-used concurrently
+		oldCancel()
 	}
 	tasks[sessionID] = taskCancel
 	mu.Unlock()
@@ -165,29 +166,22 @@ func (h *HotPlexWSHandler) handleExecute(connCtx context.Context, cw *connWriter
 		taskCancel()
 	}()
 
-	workDir := req.WorkDir
-	if workDir == "" {
-		workDir = "/tmp/hotplex_sandbox"
-	}
-
-	cfg := &hotplex.Config{
-		WorkDir:          workDir,
-		SessionID:        sessionID,
-		TaskInstructions: req.Instructions,
-	}
-
-	h.logger.Info("Async execute start", "session_id", sessionID)
-
-	// Capture request_id for use in callback
 	requestID := req.RequestID
 	cb := func(eventType string, data any) error {
 		cw.writeJSON(eventType, data, requestID)
 		return nil
 	}
 
-	err := h.engine.Execute(taskCtx, cfg, req.Prompt, cb)
+	execReq := ExecutionRequest{
+		SessionID:    sessionID,
+		Prompt:       req.Prompt,
+		Instructions: req.Instructions,
+		WorkDir:      req.WorkDir,
+		Timeout:      10 * time.Minute,
+	}
+
+	err := h.controller.Execute(taskCtx, execReq, cb)
 	if err != nil {
-		// Only send error if it wasn't a normal cancellation/stop
 		if taskCtx.Err() == nil {
 			cw.writeJSON("error", map[string]string{"message": "Execution failed: " + err.Error()}, requestID)
 		}

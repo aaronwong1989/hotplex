@@ -11,8 +11,8 @@
       <stop offset="100%" stop-color="#58A6FF" /> </linearGradient>
     
     <linearGradient id="text-hot-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF" />
-      <stop offset="100%" stop-color="#E6EDF3" />
+      <stop offset="0%" class="hot-stop-1" />
+      <stop offset="100%" class="hot-stop-2" />
     </linearGradient>
     
     <linearGradient id="text-plex-grad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -46,6 +46,19 @@
     </filter>
 
     <style>
+      :root {
+        --hot-stop-1: #1F2328;
+        --hot-stop-2: #2D333B;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --hot-stop-1: #FFFFFF;
+          --hot-stop-2: #E6EDF3;
+        }
+      }
+      .hot-stop-1 { stop-color: var(--hot-stop-1); }
+      .hot-stop-2 { stop-color: var(--hot-stop-2); }
+
       @keyframes eyePulse {
         0%, 100% { filter: url(#eye-glow) brightness(1); opacity: 0.8; }
         50% { filter: url(#eye-glow) brightness(1.5); opacity: 1; }

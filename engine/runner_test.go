@@ -302,14 +302,7 @@ func TestEngine_DangerDetectorMethods(t *testing.T) {
 	if event := detector.CheckInput("rm -rf /"); event != nil {
 		t.Error("Danger should be bypassed")
 	}
-
-	// Test GetDangerDetector
-	if engine.GetDangerDetector() != detector {
-		t.Error("GetDangerDetector() returned different instance")
-	}
-}
-
-// mockSessionManager for testing
+} // mockSessionManager for testing
 type mockSessionManager struct {
 	sessions map[string]*intengine.Session
 }

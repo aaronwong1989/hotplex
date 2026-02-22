@@ -17,9 +17,10 @@ import (
 
 // OpenCodeHTTPHandler implements a server compatible with OpenCode's HTTP/SSE protocol.
 type OpenCodeHTTPHandler struct {
-	engine hotplex.HotPlexClient
-	logger *slog.Logger
-	cors   *SecurityConfig
+	engine     hotplex.HotPlexClient
+	controller *ExecutionController
+	logger     *slog.Logger
+	cors       *SecurityConfig
 
 	// SSE broadcasting
 	subscribers sync.Map // map[string]chan string
@@ -28,9 +29,10 @@ type OpenCodeHTTPHandler struct {
 // NewOpenCodeHTTPHandler creates a new OpenCodeHTTPHandler instance.
 func NewOpenCodeHTTPHandler(engine hotplex.HotPlexClient, logger *slog.Logger, cors *SecurityConfig) *OpenCodeHTTPHandler {
 	return &OpenCodeHTTPHandler{
-		engine: engine,
-		logger: logger,
-		cors:   cors,
+		engine:     engine,
+		controller: NewExecutionController(engine, logger),
+		logger:     logger,
+		cors:       cors,
 	}
 }
 
@@ -133,17 +135,7 @@ func (s *OpenCodeHTTPHandler) handleConfig(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *OpenCodeHTTPHandler) executeEngineTask(sessionID string, prompt string, agent string, model string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-
-	cfg := &hotplex.Config{
-		SessionID: sessionID,
-		WorkDir:   "/tmp/hotplex", // Default workspace
-	}
-
-	// If model is provided, pass it to the engine via Options
-	// Note: We might need to extend hotplex.Config if we want per-request model override
-	// For now, we use the engine's default.
+	ctx := context.Background()
 
 	messageID := uuid.New().String()
 
@@ -163,7 +155,14 @@ func (s *OpenCodeHTTPHandler) executeEngineTask(sessionID string, prompt string,
 		return nil
 	}
 
-	err := s.engine.Execute(ctx, cfg, prompt, cb)
+	execReq := ExecutionRequest{
+		SessionID: sessionID,
+		Prompt:    prompt,
+		WorkDir:   "/tmp/hotplex", // Default workspace
+		Timeout:   15 * time.Minute,
+	}
+
+	err := s.controller.Execute(ctx, execReq, cb)
 	if err != nil {
 		s.logger.Error("Engine execution failed", "error", err)
 	}

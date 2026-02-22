@@ -14,8 +14,13 @@ NC            := \033[0m
 BINARY_NAME   := hotplexd
 CMD_PATH      := ./cmd/hotplexd/main.go
 DIST_DIR      := ./dist
+VERSION       ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT        ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TIME    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-.PHONY: all help build build-all test lint tidy clean install-hooks run
+LDFLAGS       := -s -w -X 'main.Version=$(VERSION)' -X 'main.Commit=$(COMMIT)' -X 'main.BuildTime=$(BUILD_TIME)'
+
+.PHONY: all help build build-all fmt vet test test-unit test-race test-integration test-all lint tidy clean install-hooks run
 
 # Default target
 all: help
@@ -27,14 +32,32 @@ help: ## Show this help message
 	@printf "Usage: make ${YELLOW}<target>${NC}\n"
 	@printf "\n"
 	@printf "${BOLD}Management Targets:${NC}\n"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  ${YELLOW}%-15s${NC} %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  ${YELLOW}%-18s${NC} %s\n", $$1, $$2}'
 	@printf "\n"
 
-build: ## Compile the hotplexd daemon
-	@printf "${GREEN}🚀 Building HotPlex Daemon...${NC}\n"
+build: fmt vet tidy ## Compile the hotplexd daemon
+	@printf "${GREEN}🚀 Building HotPlex Daemon (${VERSION})...${NC}\n"
 	@mkdir -p $(DIST_DIR)
-	@go build -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_PATH)
+	@go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_PATH)
 	@printf "${GREEN}✅ Build complete: ${DIST_DIR}/$(BINARY_NAME)${NC}\n"
+
+build-all: fmt vet tidy ## Compile for all major platforms (Linux, macOS, Windows)
+	@printf "${GREEN}🚀 Building HotPlex Daemon for all platforms (${VERSION})...${NC}\n"
+	@mkdir -p $(DIST_DIR)
+	@GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 $(CMD_PATH)
+	@GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 $(CMD_PATH)
+	@GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 $(CMD_PATH)
+	@GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 $(CMD_PATH)
+	@GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.exe $(CMD_PATH)
+	@printf "${GREEN}✅ Cross-compilation complete in ${DIST_DIR}/${NC}\n"
+
+fmt: ## Format Go code
+	@printf "${CYAN}🔧 Formatting code...${NC}\n"
+	@go fmt ./...
+
+vet: ## Check for suspicious constructs
+	@printf "${CYAN}🔍 Vetting code...${NC}\n"
+	@go vet ./...
 
 test: test-unit ## Run fast unit tests (default)
 
@@ -53,7 +76,7 @@ test-integration: ## Run heavy integration tests
 	@go test -v -tags=integration ./...
 	@printf "${GREEN}✅ Integration tests passed!${NC}\n"
 
-test-all: test-unit test-integration ## Run all tests
+test-all: test-race test-integration ## Run all tests
 
 lint: ## Run golangci-lint
 	@printf "${PURPLE}🔍 Linting code...${NC}\n"
@@ -73,12 +96,13 @@ tidy: ## Clean up go.mod and dependencies
 clean: ## Remove build artifacts
 	@printf "${RED}🧹 Cleaning up build artifacts...${NC}\n"
 	@rm -rf $(DIST_DIR)
+	@go clean
 	@printf "${GREEN}✅ Cleanup done.${NC}\n"
 
 install-hooks: ## Install local Git hooks
 	@printf "${CYAN}🔗 Installing HotPlex Git Hooks...${NC}\n"
-	@chmod +x scripts/*.sh
-	@./scripts/setup_hooks.sh
+	@chmod +x scripts/*.sh 2>/dev/null || true
+	@if [ -d scripts ] && [ -f scripts/setup_hooks.sh ]; then ./scripts/setup_hooks.sh; fi
 	@printf "${GREEN}✅ Hooks are active.${NC}\n"
 
 run: build ## Start the daemon locally

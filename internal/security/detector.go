@@ -36,12 +36,34 @@ const (
 	DangerLevelModerate
 )
 
-// DangerPattern defines a signature for a dangerous operation, processed via regular expressions.
-type DangerPattern struct {
+// SecurityRule defines an interface for evaluating whether input is dangerous.
+type SecurityRule interface {
+	// Evaluate analyzes the input command. Return non-nil DangerBlockEvent if blocked.
+	Evaluate(input string) *DangerBlockEvent
+}
+
+// RegexRule implements SecurityRule using regular expressions.
+type RegexRule struct {
 	Pattern     *regexp.Regexp // The compiled regex identifying the dangerous sequence
 	Description string         // Human-readable explanation of why this pattern is blocked
 	Level       DangerLevel    // Severity used for logging and alerting
-	Category    string         // Functional category (e.g., "file_delete", "network", "system")
+	Category    string         // Functional category
+}
+
+// Evaluate checks if the regex matches the input.
+func (r *RegexRule) Evaluate(input string) *DangerBlockEvent {
+	if r.Pattern.MatchString(input) {
+		return &DangerBlockEvent{
+			Operation:      extractCommand(input, r.Pattern),
+			Reason:         r.Description,
+			PatternMatched: r.Pattern.String(),
+			Level:          r.Level,
+			Category:       r.Category,
+			BypassAllowed:  false,
+			Suggestions:    getSuggestions(r.Category),
+		}
+	}
+	return nil
 }
 
 // DangerBlockEvent contains detailed forensics after a dangerous operation is successfully intercepted.
@@ -59,9 +81,9 @@ type DangerBlockEvent struct {
 // It inspects LLM-generated commands before they are dispatched to the host shell,
 // enforcing strict security boundaries regardless of the model's own safety alignment.
 type Detector struct {
-	patterns []*DangerPattern // Registry of active security signatures
-	logger   *slog.Logger     // Event logger for security forensics
-	mu       sync.RWMutex     // Protects concurrent configuration updates
+	rules  []SecurityRule // Registry of active security signatures
+	logger *slog.Logger   // Event logger for security forensics
+	mu     sync.RWMutex   // Protects concurrent configuration updates
 
 	// allowPaths defines a whitelist of directories where file operations are permitted.
 	allowPaths []string
@@ -73,21 +95,27 @@ type Detector struct {
 	adminToken string
 }
 
-// NewDetector creates a new danger detector with default patterns.
 func NewDetector(logger *slog.Logger) *Detector {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	dd := &Detector{
-		logger:   logger,
-		patterns: make([]*DangerPattern, 0),
+		logger: logger,
+		rules:  make([]SecurityRule, 0),
 	}
 
 	// Load default dangerous patterns
 	dd.loadDefaultPatterns()
 
 	return dd
+}
+
+// RegisterRule allows injecting custom security rules to extend the WAF.
+func (dd *Detector) RegisterRule(rule SecurityRule) {
+	dd.mu.Lock()
+	defer dd.mu.Unlock()
+	dd.rules = append(dd.rules, rule)
 }
 
 // SetAdminToken sets the token required to toggle bypass mode.
@@ -268,7 +296,7 @@ func (dd *Detector) loadDefaultPatterns() {
 			)
 			continue // Skip invalid patterns instead of panicking
 		}
-		dd.patterns = append(dd.patterns, &DangerPattern{
+		dd.rules = append(dd.rules, &RegexRule{
 			Pattern:     re,
 			Description: p.description,
 			Level:       p.level,
@@ -324,26 +352,16 @@ func (dd *Detector) CheckInput(input string) *DangerBlockEvent {
 		}
 	}
 
-	// Check each pattern
-	for _, pat := range dd.patterns {
-		if pat.Pattern.MatchString(input) {
+	// Check each registered rule
+	for _, rule := range dd.rules {
+		if block := rule.Evaluate(input); block != nil {
 			dd.logger.Warn("Dangerous operation detected",
-				"pattern", pat.Pattern.String(),
-				"description", pat.Description,
-				"level", pat.Level,
-				"category", pat.Category,
+				"reason", block.Reason,
+				"level", block.Level,
+				"category", block.Category,
 				"input", strutil.Truncate(input, MaxPatternLogLength),
 			)
-
-			return &DangerBlockEvent{
-				Operation:      extractCommand(input, pat.Pattern),
-				Reason:         pat.Description,
-				PatternMatched: pat.Pattern.String(),
-				Level:          pat.Level,
-				Category:       pat.Category,
-				BypassAllowed:  false, // Default to no bypass
-				Suggestions:    dd.getSuggestions(pat),
-			}
+			return block
 		}
 	}
 
@@ -365,9 +383,9 @@ func extractCommand(input string, pattern *regexp.Regexp) string {
 	return strutil.Truncate(input, MaxDisplayLength)
 }
 
-// getSuggestions returns safe alternatives for the dangerous operation.
-func (dd *Detector) getSuggestions(pat *DangerPattern) []string {
-	switch pat.Category {
+// getSuggestions returns safe alternatives for the dangerous operation category.
+func getSuggestions(category string) []string {
+	switch category {
 	case "file_delete":
 		return []string{
 			"Use 'rm -i' for interactive deletion with confirmation",
@@ -567,7 +585,7 @@ func (dd *Detector) LoadCustomPatterns(filename string) error {
 			level = DangerLevelModerate
 		}
 
-		dd.patterns = append(dd.patterns, &DangerPattern{
+		dd.rules = append(dd.rules, &RegexRule{
 			Pattern:     re,
 			Description: parts[1],
 			Level:       level,
