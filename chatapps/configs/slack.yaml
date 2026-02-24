@@ -104,8 +104,7 @@ provider:
 # Engine Configuration
 # -----------------------------------------------------------------------------
 #
-engine:
-  work_dir: .
+  work_dir: ~/HotPlex
 
   # ---------------------------------------------------------------------------
   # SECURITY: Path Traversal Protection

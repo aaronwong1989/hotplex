@@ -52,7 +52,11 @@ export default defineConfig({
           ]
         },
         {
+<<<<<<< HEAD
           text: 'Integrations',
+=======
+          text: 'Connectivity',
+>>>>>>> 1b849ff (feat(slack): add permission policy support)
           items: [
             { text: 'WebSocket Protocol', link: '/guide/websocket' },
             { text: 'OpenCode HTTP/SSE', link: '/guide/opencode-http' },
