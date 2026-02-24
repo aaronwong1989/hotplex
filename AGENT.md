@@ -58,11 +58,11 @@ See **[docs/uber-go-style-guide.md](docs/uber-go-style-guide.md)** for the TOP 1
 
 **Quick Reference — Must Follow:**
 
-| Category     | Key Rules                                                                                                         |
-|--------------|------------------------------------------------------------------------------------------------------------------|
-| **Concurrency** | Zero-value mutexes • Defer cleanup • Channel size 0/1 • No fire-and-forget goroutines • Use `go.uber.org/atomic` |
-| **Errors**   | Never panic • Static errors via `var` • Wrap with `%w` • Handle errors once • Safe type assertions               |
-| **Quality**  | Verify interface compliance • No pointers to interfaces • Dependency injection • Use `time.Duration` • Consistency |
+| Category        | Key Rules                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Concurrency** | Zero-value mutexes • Defer cleanup • Channel size 0/1 • No fire-and-forget goroutines • Use `go.uber.org/atomic`   |
+| **Errors**      | Never panic • Static errors via `var` • Wrap with `%w` • Handle errors once • Safe type assertions                 |
+| **Quality**     | Verify interface compliance • No pointers to interfaces • Dependency injection • Use `time.Duration` • Consistency |
 
 ---
 
@@ -136,12 +136,27 @@ When needing to reference or learn from OpenClaw's implementation, the source co
 
 ---
 
-## 7. Action Mode Trigger
+## 7. Operational Safety (数据安全)
+
+**This codebase belongs to the user. Data loss is non-negotiable.**
+
+1. **Check Before Destructive Acts**: Before running `git checkout`, `git reset`, or `git clean`, you **MUST** run `git status`.
+2. **Protect Unstaged Work**: 
+   - If there are modifications not yet committed, **DO NOT** discard them without explicit confirmation.
+   - Use `git stash` to safely move user work aside before performing maintenance.
+3. **The "Checkpointed" Rule**: Encourage the user to `git add` or `git commit` frequently. Even if not committed, `git add` creates a "blob" that can be recovered with `git fsck --lost-found`.
+4. **Micro-Commit Strategy**: Proactively suggest committing (or offer to do it) after completing a logically independent unit of work.
+
+---
+
+## 8. Action Mode Trigger
 
 If the USER asks you to `[Implement]`, `[Extend]`, or `[Fix]` something in HotPlex:
 
 1. **Acknowledge**: Briefly state the plan.
-2. **Verify**: Check this `AGENT.md` for architectural constraints.
-3. **Execute**: Write the code, ensuring concurrency locks and PGID rules are respected.
-4. **Validate**: Ensure it builds (`go build ./...`).
-5. **GitHub Operations**: Prioritize using the `gh` command or MCP tools for any GitHub-related actions (Releases, PRs, Runs, Issues).
+2. **Safety Check**: Check `git status`. If the repo is "dirty", ask the user if you should `stash` or `commit` their changes first.
+3. **Verify**: Check this `AGENT.md` for architectural constraints.
+4. **Execute**: Write the code in **atomic steps**. 
+5. **Auto-Clean**: After each major step, check if it's a good time to commit.
+6. **Validate**: Ensure it builds (`go build ./...`).
+6. **GitHub Operations**: Prioritize using the `gh` command or MCP tools for any GitHub-related actions (Releases, PRs, Runs, Issues).
