@@ -1,5 +1,34 @@
 # CHANGELOG.md
 
+## [v0.11.2] - 2026-02-25
+
+### 🐛 Bug Fixes
+
+This patch release fixes a critical Slack Socket Mode reconnection issue and CI workflow configuration.
+
+### Fixed
+- **Slack Socket Mode Permanent Reconnection** ([Issue #33](https://github.com/hrygo/hotplex/issues/33)): Fixed the bot becoming permanently disconnected when Slack closes the WebSocket connection
+  - Replaced limited retry (5 attempts) with permanent reconnection loop
+  - Added exponential backoff (1s → 30s max) between attempts
+  - Added `SetReconnectCallbacks()` for adapter layer notification
+  - Connection now keeps retrying until context is cancelled (graceful shutdown)
+- **Deploy Docs CI Workflow**: Removed duplicate trigger configuration in `deploy-docs.yml`
+
+### Technical Details
+- **Files Changed**: 2 files
+- **Test Coverage**: All tests passing
+
+### Contributors
+- [@hrygo](https://github.com/hrygo)
+
+### Related
+- **Issue**: [#33](https://github.com/hrygo/hotplex/issues/33)
+- **Release**: [v0.11.2](https://github.com/hrygo/hotplex/releases/tag/v0.11.2)
+
+---
+
+
+
 ## [v0.11.1] - 2026-02-25
 
 ### 🐛 Bug Fixes & Slack Feature Enhancements
