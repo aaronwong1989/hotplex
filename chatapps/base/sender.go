@@ -2,7 +2,7 @@ package base
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 )
 
@@ -47,7 +47,7 @@ func (s *SenderWithMutex) SendMessage(ctx context.Context, sessionID string, msg
 	s.mu.RUnlock()
 
 	if sender == nil {
-		return fmt.Errorf(ErrSenderNotConfigured)
+		return errors.New(ErrSenderNotConfigured)
 	}
 	return sender(ctx, sessionID, msg)
 }
