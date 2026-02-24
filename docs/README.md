@@ -28,6 +28,7 @@ Deep-dive guides for specific AI CLI agents supported by HotPlex.
 
 ## 💬 ChatApps Integration
 - **[ChatApps Guide](chatapps/chatapps-guide.md)**: Architecture design and user manual for chat platform integration.
+- **[Slack Adapter](chatapps/chatapps-slack.md)**: User & developer manual for Slack full-duplex communication.
 
 ## 🛠️ Developer Migration
 - **[Migrating to v0.9.0](migration/migration-guide-v0.9.0.md)** (Latest)

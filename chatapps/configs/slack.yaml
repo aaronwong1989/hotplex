@@ -1,10 +1,37 @@
+# =============================================================================
+# HotPlex Slack Adapter Configuration
+# =============================================================================
+# Complete configuration for Slack full-duplex communication
+#
+# ⚠️  IMPORTANT: Sensitive tokens MUST be configured via environment variables!
+#    See .env file for secrets. Never commit tokens to version control.
+#
+# Recommended for local MacBook development:
+#   - Use Socket Mode (mode: socket) - NO public URL needed!
+#   - See .env.example for setup instructions
+#
+# For production deployment:
+#   - Use HTTP Mode (mode: http) - requires ngrok/public URL for webhook
+# =============================================================================
+
 platform: slack
 provider:
   type: claude-code
   default_model: sonnet
   default_permission_mode: bypass-permissions
 
+# =============================================================================
+# Connection Mode (http or socket)
+# =============================================================================
+# Set via SLACK_MODE env var or edit below:
+#   - http   : HTTP Webhook (default) - requires SigningSecret
+#   - socket : WebSocket Mode - requires AppToken
+# =============================================================================
+mode: ${SLACK_MODE:-http}
 
+# =============================================================================
+# System Prompts
+# =============================================================================
 system_prompt: |
   ## Identity
   You are an AI assistant powered by **HotPlex**, operating within the Slack workspace.
@@ -15,17 +42,39 @@ system_prompt: |
   - **Constraints**: 3000 character limit. Slack Markdown (mrkdwn) is different from standard MD.
   
   ## Slack-Specific Rules (mrkdwn)
-  - **Formatting**: Use `*bold*` for bold, `_italic_` for italic, and `~strike~` for strikethrough.
-  - **Code**: Use ` ``` ` (triple backticks) on their own lines for blocks. NOTE: Slack does not support language hints (e.g., ` ```go `).
-  - **Unfurl**: Avoid excessive links that might trigger large unfurl previews unless helpful.
+  - **Formatting**: Use `*bold*` for bold, `_italic_` for italic.
+  - **Code**: Use ` ``` ` (triple backticks) for code blocks.
   - **Professionalism**: Maintain a helpful, workplace-appropriate tone.
-  
-  ## Guidelines
-  - Be efficient. Professionals use Slack to get things done quickly.
-  - Use bulleted lists for clarity.
-  - If response is long, use "Click to see more" details (using formatting).
-  - Use emoji reactions or context blocks to show status (e.g., :thinking_face: for processing).
 
 task_instructions: |
   You are a helpful AI assistant. Execute user commands and provide clear feedback.
-  Always prioritize safety: confirm destructive operations before execution.
+
+# =============================================================================
+# Feature Configuration (all enabled by default)
+# =============================================================================
+features:
+  chunking:
+    enabled: true
+    max_chars: 4000
+  threading:
+    enabled: true
+  rate_limit:
+    enabled: true
+    max_attempts: 3
+    base_delay_ms: 500
+    max_delay_ms: 5000
+  markdown:
+    enabled: true
+
+# =============================================================================
+# Session Configuration
+# =============================================================================
+session:
+  timeout_minutes: 30
+  cleanup_interval_minutes: 5
+
+# =============================================================================
+# Security
+# =============================================================================
+security:
+  verify_signature: true

@@ -24,9 +24,15 @@ type Adapter struct {
 	interactivePath string
 	sender          *base.SenderWithMutex
 	webhook         *base.WebhookRunner
+	socketMode      *SocketModeConnection
 }
 
 func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) *Adapter {
+	// Validate config
+	if err := config.Validate(); err != nil {
+		logger.Error("Invalid Slack config", "error", err)
+	}
+
 	a := &Adapter{
 		config:          config,
 		eventPath:       "/webhook/events",
@@ -35,17 +41,33 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 		webhook:         base.NewWebhookRunner(logger),
 	}
 
-	a.Adapter = base.NewAdapter("slack", base.Config{
-		ServerAddr:   config.ServerAddr,
-		SystemPrompt: config.SystemPrompt,
-	}, logger,
-		base.WithHTTPHandler(a.eventPath, a.handleEvent),
-		base.WithHTTPHandler(a.interactivePath, a.handleInteractive),
-	)
+	// Initialize Socket Mode if configured
+	if config.IsSocketMode() {
+		a.socketMode = NewSocketModeConnection(SocketModeConfig{
+			AppToken: config.AppToken,
+			BotToken: config.BotToken,
+		}, logger)
 
-	for _, opt := range opts {
-		opt(a.Adapter)
+		// Register message handler
+		a.socketMode.RegisterHandler("message", a.handleSocketModeEvent)
 	}
+
+	handlers := make(map[string]http.HandlerFunc)
+
+	// Only register HTTP handlers if NOT in Socket Mode
+	if !config.IsSocketMode() {
+		handlers[a.eventPath] = a.handleEvent
+		handlers[a.interactivePath] = a.handleInteractive
+	}
+
+	// Build HTTP handler map
+	for path, handler := range handlers {
+		opts = append(opts, base.WithHTTPHandler(path, handler))
+	}
+
+	a.Adapter = base.NewAdapter("slack", base.Config{
+		SystemPrompt: config.SystemPrompt,
+	}, logger, opts...)
 
 	// Set default sender if BotToken is configured
 	if config.BotToken != "" {
@@ -75,7 +97,15 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 		return fmt.Errorf("channel_id not found in session")
 	}
 
-	return a.SendToChannel(ctx, channelID, msg.Content)
+	// Extract thread_ts from metadata if present
+	threadTS := ""
+	if msg.Metadata != nil {
+		if ts, ok := msg.Metadata["thread_ts"].(string); ok {
+			threadTS = ts
+		}
+	}
+
+	return a.SendToChannel(ctx, channelID, msg.Content, threadTS)
 }
 
 // extractChannelID extracts channel_id from session or message metadata
@@ -110,6 +140,8 @@ type MessageEvent struct {
 	EventTS     string `json:"event_ts"`
 	BotID       string `json:"bot_id,omitempty"`
 	SubType     string `json:"subtype,omitempty"`
+	ThreadTS    string `json:"thread_ts,omitempty"`      // Thread identifier
+	ParentUser  string `json:"parent_user_id,omitempty"` // Parent message user
 }
 
 func (a *Adapter) handleEvent(w http.ResponseWriter, r *http.Request) {
@@ -192,13 +224,77 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 		},
 	}
 
+	// Add thread info if present
+	if msgEvent.ThreadTS != "" {
+		msg.Metadata["thread_ts"] = msgEvent.ThreadTS
+	}
+
+	a.webhook.Run(ctx, a.Handler(), msg)
+
 	a.webhook.Run(ctx, a.Handler(), msg)
 }
 
 // Stop waits for pending webhook goroutines to complete
 func (a *Adapter) Stop() error {
+	// Stop Socket Mode if active
+	if a.socketMode != nil {
+		_ = a.socketMode.Stop()
+	}
+
 	a.webhook.Stop()
 	return a.Adapter.Stop()
+}
+
+// Start starts the adapter (overrides base.Adapter.Start to support Socket Mode)
+func (a *Adapter) Start(ctx context.Context) error {
+	// Start Socket Mode if configured
+	if a.socketMode != nil {
+		if err := a.socketMode.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start socket mode: %w", err)
+		}
+	}
+
+	return a.Adapter.Start(ctx)
+}
+
+// handleSocketModeEvent handles incoming events from Socket Mode
+func (a *Adapter) handleSocketModeEvent(eventType string, data json.RawMessage) {
+	var msgEvent MessageEvent
+	if err := json.Unmarshal(data, &msgEvent); err != nil {
+		a.Logger().Error("Parse socket mode message event failed", "error", err)
+		return
+	}
+
+	// Skip bot messages and certain subtypes
+	if msgEvent.BotID != "" || (msgEvent.SubType != "" && msgEvent.SubType != "message_changed") {
+		return
+	}
+
+	if msgEvent.Text == "" {
+		return
+	}
+
+	sessionID := a.GetOrCreateSession(msgEvent.Channel+":"+msgEvent.User, msgEvent.User)
+
+	msg := &base.ChatMessage{
+		Platform:  "slack",
+		SessionID: sessionID,
+		UserID:    msgEvent.User,
+		Content:   msgEvent.Text,
+		MessageID: msgEvent.TS,
+		Timestamp: time.Now(),
+		Metadata: map[string]any{
+			"channel_id":   msgEvent.Channel,
+			"channel_type": msgEvent.ChannelType,
+		},
+	}
+
+	// Add thread info if present
+	if msgEvent.ThreadTS != "" {
+		msg.Metadata["thread_ts"] = msgEvent.ThreadTS
+	}
+
+	a.webhook.Run(context.Background(), a.Handler(), msg)
 }
 
 func (a *Adapter) handleInteractive(w http.ResponseWriter, r *http.Request) {
@@ -240,8 +336,31 @@ func (a *Adapter) verifySignature(body []byte, timestamp, signature string) bool
 	return hmac.Equal([]byte(signatureComputed), []byte(signature))
 }
 
-func (a *Adapter) SendToChannel(ctx context.Context, channelID, text string) error {
-	payload := map[string]any{"channel": channelID, "text": text}
+func (a *Adapter) SendToChannel(ctx context.Context, channelID, text, threadTS string) error {
+	// Retry configuration for rate limiting
+	retryConfig := RetryConfig{
+		MaxAttempts: 3,
+		BaseDelay:   500 * time.Millisecond,
+		MaxDelay:    5 * time.Second,
+	}
+
+	return retryWithBackoff(ctx, retryConfig, func() error {
+		return a.sendToChannelOnce(ctx, channelID, text, threadTS)
+	})
+}
+
+// sendToChannelOnce sends a single message to Slack (without retry)
+func (a *Adapter) sendToChannelOnce(ctx context.Context, channelID, text, threadTS string) error {
+	payload := map[string]any{
+		"channel": channelID,
+		"text":    text,
+	}
+
+	// Add thread_ts if provided to reply in thread
+	if threadTS != "" {
+		payload["thread_ts"] = threadTS
+	}
+
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -259,6 +378,11 @@ func (a *Adapter) SendToChannel(ctx context.Context, channelID, text string) err
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// Check for rate limit (429)
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return fmt.Errorf("rate limited: 429")
+	}
 
 	if resp.StatusCode >= 400 {
 		respBody, err := io.ReadAll(resp.Body)
