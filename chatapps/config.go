@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hrygo/hotplex/config"
+	"github.com/hrygo/hotplex/internal/config"
 	"github.com/hrygo/hotplex/provider"
 	"gopkg.in/yaml.v3"
 )
