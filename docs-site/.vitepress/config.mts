@@ -43,28 +43,21 @@ export default defineConfig({
             { text: 'Quick Start', link: '/guide/quick-start' },
           ]
         },
-        {
-          text: 'Core Concepts',
           items: [
             { text: 'Architecture', link: '/guide/architecture' },
-            { text: 'Security & Isolation', link: '/guide/security' }
+            { text: 'Security & Isolation', link: '/guide/security' },
+            { text: 'Event Hooks System', link: '/guide/hooks' }
           ]
         },
-        {
-          text: 'Connectivity',
           items: [
             { text: 'WebSocket Protocol', link: '/guide/websocket' },
             { text: 'OpenCode HTTP/SSE', link: '/guide/opencode-http' },
             { text: 'ChatApps Overview', link: '/guide/chatapps' },
-            { text: '└─ DingTalk Deep Dive', link: '/guide/chatapps-dingtalk' },
-            { text: '└─ Slack Deep Dive', link: '/guide/chatapps-slack' },
-            { text: '└─ Slack Gap Analysis', link: '/guide/slack-gap-analysis' }
+            { text: 'Slack Deep Dive', link: '/guide/chatapps-slack' },
+            { text: 'Slack Gap Analysis', link: '/guide/slack-gap-analysis' }
           ]
         },
-        {
-          text: 'Advanced Features',
           items: [
-            { text: 'Event Hooks System', link: '/guide/hooks' },
             { text: 'Observability (OTel/Prom)', link: '/guide/observability' },
             { text: 'Docker Execution', link: '/guide/docker' }
           ]

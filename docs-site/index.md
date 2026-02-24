@@ -79,7 +79,11 @@ func main() {
         PermissionMode:  "bypassPermissions",
         AllowedTools:    []string{"Bash", "Edit", "Read"},
     }
-    engine, _ := hotplex.NewEngine(opts)
+    engine, err := hotplex.NewEngine(opts)
+    if err != nil {
+        fmt.Printf("Failed to initialize engine: %v\n", err)
+        return
+    }
     defer engine.Close()
 
     // 2. Configure a persistent session
@@ -89,13 +93,16 @@ func main() {
     }
 
     // 3. Execute with real-time streaming
-    engine.Execute(context.Background(), cfg, "List files in current directory", 
+    err = engine.Execute(context.Background(), cfg, "List files in current directory", 
         func(eventType string, data any) error {
             if eventType == "answer" {
                 fmt.Printf("🤖: %v\n", data)
             }
             return nil
         })
+    if err != nil {
+        fmt.Printf("Execution failed: %v\n", err)
+    }
 }
 ```
 
@@ -116,13 +123,17 @@ HotPlex is designed to live at the center of your AI infrastructure.
 
 ## 🗺️ Roadmap
 
+### Completed
 - [x] **v0.9.0**: Multi-language SDKs (Python, TS) & Docker Execution.
 - [x] **v0.10.0**: ChatApps Platform Integration (Telegram/DingTalk).
-- [ ] **L2/L3 Isolation**: Kernel-level PID/Net namespaces (H2 2026).
-- [ ] **WASM Runtime**: Fully isolated tool execution via WebAssembly.
+- [x] **v0.11.0**: Documentation Site & Observability Stack.
 
+### Planned (H2 2026)
+- [ ] **L2/L3 Isolation**: Kernel-level PID/Net namespaces.
+- [ ] **WASM Runtime**: Fully isolated tool execution via WebAssembly.
 ---
 
 <p align="center">
-  <i>Built with ❤️ for the AI Engineering community.</i>
+  <i>Built with ❤️ for the AI Engineering community.</i><br/>
+  <i>Copyright © 2026 HotPlex Team</i>
 </p>

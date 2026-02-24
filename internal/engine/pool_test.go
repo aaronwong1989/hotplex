@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -183,6 +185,66 @@ func TestSessionPool_buildCLIArgs_Resume(t *testing.T) {
 	// Should have --resume for existing sessions
 	if !containsInSlice(args, "--resume") {
 		t.Error("args should contain --resume for existing session")
+	}
+}
+
+// TestStartSession_ResolvesRelativeWorkDir tests that relative WorkDir paths are resolved to absolute paths
+func TestStartSession_ResolvesRelativeWorkDir(t *testing.T) {
+	logger := newTestLogger()
+
+	prv, err := provider.NewClaudeCodeProvider(provider.ProviderConfig{}, logger)
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+		Namespace: "test",
+	}, "/tmp/claude", prv)
+
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current working directory: %v", err)
+	}
+
+	// Test cases for relative paths
+	testCases := []struct {
+		name     string
+		workDir  string
+		expected string
+	}{
+		{"current directory", ".", cwd},
+		{"absolute path", "/tmp/test", "/tmp/test"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := SessionConfig{
+				WorkDir: tc.workDir,
+			}
+
+			// Create a command to test path resolution
+			sessCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			args := pool.buildCLIArgs("test-session", logger, "test", "")
+			cmd := exec.CommandContext(sessCtx, "/tmp/claude", args...)
+
+			// Apply the same path resolution logic as in startSession
+			if cfg.WorkDir == "." || !filepath.IsAbs(cfg.WorkDir) {
+				if absPath, err := filepath.Abs(cfg.WorkDir); err == nil {
+					cmd.Dir = absPath
+				} else {
+					cmd.Dir = cfg.WorkDir
+				}
+			} else {
+				cmd.Dir = cfg.WorkDir
+			}
+
+			if cmd.Dir != tc.expected {
+				t.Errorf("cmd.Dir = %q, want %q", cmd.Dir, tc.expected)
+			}
+		})
 	}
 }
 

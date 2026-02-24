@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -250,8 +251,16 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 
 	args := sm.buildCLIArgs(providerSessionID, sessLog, prompt, cfg.TaskInstructions)
 	cmd := exec.CommandContext(sessCtx, sm.cliPath, args...)
-	cmd.Dir = cfg.WorkDir
-	cmd.Env = buildSafeEnv()
+	// Resolve relative paths (like ".") to absolute paths
+	if cfg.WorkDir == "." || !filepath.IsAbs(cfg.WorkDir) {
+		if absPath, err := filepath.Abs(cfg.WorkDir); err == nil {
+			cmd.Dir = absPath
+		} else {
+			cmd.Dir = cfg.WorkDir // Fallback to original if error
+		}
+	} else {
+		cmd.Dir = cfg.WorkDir
+	}
 
 	// Setup process attributes and get job handle (Windows) or zero (Unix)
 	jobHandle, err := sys.SetupCmdSysProcAttr(cmd)
