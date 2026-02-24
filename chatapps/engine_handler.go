@@ -133,7 +133,7 @@ func (c *StreamCallback) Handle(eventType string, data any) error {
 	return nil
 }
 
-func (c *StreamCallback) handleThinking(data any) error {
+func (c *StreamCallback) handleThinking(_ any) error {
 	if c.isFirst {
 		c.isFirst = false
 		return c.sendMessage(string(provider.EventTypeThinking), string(provider.EventTypeThinking))

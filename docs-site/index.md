@@ -31,7 +31,7 @@ features:
   
   - icon: 💬
     title: ChatApps Native
-    details: Built-in adapters for Telegram and DingTalk, bringing Agent capabilities to your favorite communication tools.
+    details: Built-in adapters for Telegram, Slack, and DingTalk, bringing Agent capabilities to your favorite communication tools.
   
   - icon: 🔌
     title: Unified Integration

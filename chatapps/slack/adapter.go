@@ -35,8 +35,8 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 
 	a := &Adapter{
 		config:          config,
-		eventPath:       "/webhook/events",
-		interactivePath: "/webhook/interactive",
+		eventPath:       "/events",
+		interactivePath: "/interactive",
 		sender:          base.NewSenderWithMutex(),
 		webhook:         base.NewWebhookRunner(logger),
 	}
@@ -54,11 +54,12 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 
 	handlers := make(map[string]http.HandlerFunc)
 
-	// Only register HTTP handlers if NOT in Socket Mode
-	if !config.IsSocketMode() {
-		handlers[a.eventPath] = a.handleEvent
-		handlers[a.interactivePath] = a.handleInteractive
-	}
+	// Register HTTP handlers - they work as fallback when Socket Mode fails
+	// Slack recommends using both Socket Mode and HTTP webhook together
+	handlers[a.eventPath] = a.handleEvent
+	handlers[a.interactivePath] = a.handleInteractive
+
+	// Build HTTP handler map
 
 	// Build HTTP handler map
 	for path, handler := range handlers {
@@ -110,7 +111,7 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 }
 
 // extractChannelID extracts channel_id from session or message metadata
-func (a *Adapter) extractChannelID(sessionID string, msg *base.ChatMessage) string {
+func (a *Adapter) extractChannelID(_ string, msg *base.ChatMessage) string {
 	if msg.Metadata == nil {
 		return ""
 	}
@@ -231,8 +232,6 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 	}
 
 	a.webhook.Run(ctx, a.Handler(), msg)
-
-	a.webhook.Run(ctx, a.Handler(), msg)
 }
 
 // Stop waits for pending webhook goroutines to complete
@@ -251,7 +250,9 @@ func (a *Adapter) Start(ctx context.Context) error {
 	// Start Socket Mode if configured
 	if a.socketMode != nil {
 		if err := a.socketMode.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start socket mode: %w", err)
+			// Log error but continue - HTTP handlers are registered and will handle events
+			a.Logger().Error("Socket Mode connection failed, using HTTP webhook", "error", err)
+			a.socketMode = nil
 		}
 	}
 

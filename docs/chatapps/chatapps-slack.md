@@ -76,14 +76,14 @@ ngrok http 8080
 
 ### 3.1 环境变量 (.env)
 
-| 变量名 | 必填 | 说明 | 示例 |
-|--------|------|------|------|
-| `CHATAPPS_ENABLED` | ✅ | 启用 ChatApps | `true` |
-| `SLACK_BOT_TOKEN` | ✅ | Bot Token (xoxb-) | `xoxb-xxx` |
-| `SLACK_MODE` | ✅ | 连接模式 | `socket` / `http` |
-| `SLACK_APP_TOKEN` | ⚠️ | App Token (Socket Mode) | `xapp-xxx` |
-| `SLACK_SIGNING_SECRET` | ⚠️ | 签名密钥 (HTTP Mode) | `xxx` |
-| `SLACK_SERVER_ADDR` | - | 服务地址 | `:8080` |
+| 变量名 | 必填 | 说明 | 获取位置 |
+|--------|------|------|----------|
+| `CHATAPPS_ENABLED` | ✅ | 启用 ChatApps | - |
+| `SLACK_MODE` | ✅ | 连接模式 | - |
+| `SLACK_BOT_TOKEN` | ✅ | Bot User OAuth Token | **OAuth & Permissions** → Bot User OAuth Token (xoxb-) |
+| `SLACK_APP_TOKEN` | ⚠️ | App-Level Token (Socket Mode) | **Socket Mode** → Generate Token (xapp-) |
+| `SLACK_SIGNING_SECRET` | ⚠️ | 签名密钥 (HTTP Mode) | **Basic Information** → App Credentials → Signing Secret |
+| `SLACK_SERVER_ADDR` | - | 服务地址 | - |
 
 ### 3.2 YAML 配置 (chatapps/configs/slack.yaml)
 
@@ -194,7 +194,23 @@ chatapps/slack/
 └── config.yaml   # 配置示例
 ```
 
+### 5.3 Session 管理
+
+- **Session Key**: `{channelId}:{userId}`
+- 每个用户在每个频道有独立会话
+- 30 分钟无活动自动清理
+- 清理周期: 5 分钟
+
+### 5.4 API 端点
+
+| 用途 | API 端点 | 认证方式 |
+|------|----------|----------|
+| 发送消息 | `POST /api/chat.postMessage` | Bot Token (xoxb-) |
+| 签名验证 | HMAC-SHA256 | SigningSecret |
+
 ---
+
+## 6. 安全考虑
 
 ## 6. 安全考虑
 
@@ -285,5 +301,4 @@ adapter.SetSender(func(ctx context.Context, sessionID string, msg *base.ChatMess
 - [Slack API 文档](https://api.slack.com/)
 - [Socket Mode 文档](https://api.slack.com/apis/socket-mode)
 - [Slack Events API](https://api.slack.com/apis/connectors)
-- [技术分析文档](./chatapps-slack-analysis.md)
 - [ChatApps 架构指南](./chatapps-guide.md)

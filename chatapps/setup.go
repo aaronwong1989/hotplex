@@ -104,7 +104,7 @@ func Setup(ctx context.Context, logger *slog.Logger) (http.Handler, *AdapterMana
 }
 
 func setupPlatform(
-	ctx context.Context,
+	_ context.Context,
 	platform string,
 	loader *ConfigLoader,
 	manager *AdapterManager,

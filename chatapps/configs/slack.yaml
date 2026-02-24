@@ -1,37 +1,143 @@
 # =============================================================================
 # HotPlex Slack Adapter Configuration
 # =============================================================================
-# Complete configuration for Slack full-duplex communication
+# 
+# This file contains the complete configuration for HotPlex Slack adapter.
+# 
+# =============================================================================
+# QUICK START
+# =============================================================================
 #
-# ⚠️  IMPORTANT: Sensitive tokens MUST be configured via environment variables!
-#    See .env file for secrets. Never commit tokens to version control.
+# 1. Create Slack App:
+#    https://api.slack.com/apps → Create New App → From scratch
 #
-# Recommended for local MacBook development:
-#   - Use Socket Mode (mode: socket) - NO public URL needed!
-#   - See .env.example for setup instructions
+# 2. Choose Connection Mode:
+#    ┌─────────────────────────────────────────────────────────────────────┐
+#    │  Mode      │ Pros                              │ Cons             │
+#    ├─────────────────────────────────────────────────────────────────────┤
+#    │  Socket    │ ✅ Works locally without public IP │ Needs App Token  │
+#    │            │ ✅ Lower latency                  │                  │
+#    │            │ ✅ No ngrok needed                │                  │
+#    ├─────────────────────────────────────────────────────────────────────┤
+#    │  HTTP      │ Simple setup                     │ ❌ Needs public   │
+#    │  (Webhook) │ Familiar pattern                  │    URL/ngrok     │
+#    └─────────────────────────────────────────────────────────────────────┘
 #
-# For production deployment:
-#   - Use HTTP Mode (mode: http) - requires ngrok/public URL for webhook
+# 3. Configure Environment Variables (.env):
+#    CHATAPPS_ENABLED=true
+#    SLACK_BOT_TOKEN=xoxb-xxx    # Required for both modes
+#    SLACK_MODE=socket           # or "http"
+#    SLACK_APP_TOKEN=xapp-xxx    # Required for Socket Mode
+#    SLACK_SIGNING_SECRET=xxx    # Required for HTTP Mode
+#
+# =============================================================================
+# TOKEN ACQUISITION GUIDE
+# =============================================================================
+#
+# Step 1: Create Slack App
+#   → https://api.slack.com/apps
+#   → "Create New App" → "From scratch"
+#   → Choose workspace → "Create App"
+#
+# Step 2: Bot User OAuth Token (xoxb-*)
+#   Required for: Both Socket Mode and HTTP Mode
+#   Location: OAuth & Permissions → OAuth Tokens for Your Workspace
+#   Action: "Install to Workspace" if not done yet
+#   Copy: Bot User OAuth Token (starts with xoxb-)
+#
+# Step 3a: For Socket Mode - App-Level Token (xapp-*)
+#   Required for: Socket Mode only
+#   Location: Socket Mode (left sidebar) → "Enable Socket Mode"
+#   Action: Click "Generate Token" button
+#   Copy: xapp-... token (starts with xapp-)
+#
+# Step 3b: For HTTP Mode - Signing Secret
+#   Required for: HTTP Mode only
+#   Location: Basic Information → App Credentials
+#   Copy: "Signing Secret"
+#
+# Step 4: Subscribe to Events
+#   Location: Event Subscriptions → "Enable Events"
+#   Subscribe to:
+#     - app_mention        (when someone @mentions the bot)
+#     - message.channels   (messages in public channels)
+#     - message.groups     (messages in private channels)
+#   Action: "Save Changes" → "Reinstall App" (if needed)
+#
+# Step 5: Add Bot to Channel
+#   Go to your Slack channel → /invite @your_bot_name
+#   Or: Channel settings → Apps → Add apps
+#
+# =============================================================================
+# CONFIGURATION REFERENCE
 # =============================================================================
 
+# -----------------------------------------------------------------------------
+# Required Configuration
+# -----------------------------------------------------------------------------
+
+# Platform identifier (must be "slack")
 platform: slack
+
+# Provider configuration for AI backend
 provider:
+  # AI provider type: claude-code, opencode
   type: claude-code
+  
+  # Model to use: sonnet, haiku, opus, etc.
   default_model: sonnet
+  
+  # Permission mode: bypass-permissions, ask, etc.
   default_permission_mode: bypass-permissions
 
-# =============================================================================
-# Connection Mode (http or socket)
-# =============================================================================
-# Set via SLACK_MODE env var or edit below:
-#   - http   : HTTP Webhook (default) - requires SigningSecret
-#   - socket : WebSocket Mode - requires AppToken
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Connection Mode
+# -----------------------------------------------------------------------------
+# 
+# This determines how Slack events are received.
+#
+# OPTIONS:
+#   "socket" - WebSocket connection (RECOMMENDED for local development)
+#              - Works without public URL
+#              - Lower latency
+#              - Requires AppToken
+#
+#   "http"   - HTTP Webhook (RECOMMENDED for production)
+#              - Requires public URL (ngrok, cloudflare tunnel, etc.)
+#              - Uses traditional webhook pattern
+#              - Requires SigningSecret
+#
+# DEFAULT: http
+#
+# ENVIRONMENT VARIABLE: SLACK_MODE
 mode: ${SLACK_MODE:-http}
 
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Server Configuration
+# -----------------------------------------------------------------------------
+#
+# HTTP server address for receiving Slack events (HTTP Mode only).
+# For Socket Mode, this is used for health checks.
+#
+# FORMAT: host:port
+#   - ":8080"         → listen on all interfaces, port 8080
+#   - "localhost:8080" → listen on localhost only
+#   - "0.0.0.0:8080"  → explicit all interfaces
+#
+# DEFAULT: :8080
+#
+# ENVIRONMENT VARIABLE: SLACK_SERVER_ADDR
+server_addr: ${SLACK_SERVER_ADDR:-:8080}
+
+# -----------------------------------------------------------------------------
 # System Prompts
-# =============================================================================
+# -----------------------------------------------------------------------------
+#
+# These prompts define the AI assistant's behavior and personality.
+#
+
+# System prompt - defines the AI's identity and behavior guidelines
+# This is sent to the AI model at the start of each conversation
 system_prompt: |
   ## Identity
   You are an AI assistant powered by **HotPlex**, operating within the Slack workspace.
@@ -45,36 +151,236 @@ system_prompt: |
   - **Formatting**: Use `*bold*` for bold, `_italic_` for italic.
   - **Code**: Use ` ``` ` (triple backticks) for code blocks.
   - **Professionalism**: Maintain a helpful, workplace-appropriate tone.
+  
+  ## Guidelines
+  - Be efficient. Professionals use Slack to get things done quickly.
+  - Use bulleted lists for clarity.
+  - If response is long, use "Click to see more" details (using formatting).
+  - Use emoji reactions or context blocks to show status (e.g., :thinking_face: for processing).
 
+# Task instructions - specific commands the AI should follow
 task_instructions: |
   You are a helpful AI assistant. Execute user commands and provide clear feedback.
+  Always prioritize safety: confirm destructive operations before execution.
 
-# =============================================================================
-# Feature Configuration (all enabled by default)
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Feature Configuration
+# -----------------------------------------------------------------------------
+#
+# Advanced features that can be enabled/disabled
+#
+
 features:
+  # -------------------------------------------------------------------------
+  # Message Chunking
+  # -------------------------------------------------------------------------
+  # Slack has a 4000 character limit per message.
+  # When enabled, long messages are automatically split into multiple chunks.
+  #
+  # EXAMPLE:
+  #   User asks: "Explain the entire history of computing"
+  #   AI response: 8000 characters
+  #   
+  #   Without chunking: ❌ Message fails to send
+  #   With chunking:    ✅ Sent as [1/2], [2/2]
+  #
   chunking:
+    # Enable automatic message splitting
+    # TYPE: boolean
+    # DEFAULT: true
     enabled: true
+    
+    # Maximum characters per chunk
+    # NOTE: Slack limit is 4000, recommend keeping below for prefix overhead
+    # TYPE: integer
+    # DEFAULT: 4000
     max_chars: 4000
+
+  # -------------------------------------------------------------------------
+  # Thread Support
+  # -------------------------------------------------------------------------
+  # When enabled, the bot will:
+  # - Detect if user message is in a thread
+  # - Reply in the same thread
+  # - Maintain conversation context
+  #
+  # EXAMPLE:
+  #   User: "@bot help me with coding"     (in thread #1)
+  #   Bot:  "Sure, what do you need?"      (reply in thread #1)
+  #   User: "Write a function"             (in thread #1)  
+  #   Bot:  "Here's a function..."          (reply in thread #1)
+  #
   threading:
-    enabled: true
-  rate_limit:
-    enabled: true
-    max_attempts: 3
-    base_delay_ms: 500
-    max_delay_ms: 5000
-  markdown:
+    # Enable thread-aware replies
+    # TYPE: boolean
+    # DEFAULT: true
     enabled: true
 
-# =============================================================================
-# Session Configuration
-# =============================================================================
+  # -------------------------------------------------------------------------
+  # Rate Limit Handling
+  # -------------------------------------------------------------------------
+  # Slack API has rate limits. When exceeded, Slack returns HTTP 429.
+  # This feature automatically retries with exponential backoff.
+  #
+  # TIMING EXAMPLE:
+  #   Attempt 1: immediate
+  #   Attempt 2: 500ms later
+  #   Attempt 3: 1000ms later  
+  #   Attempt 4: 2000ms later
+  #   Total wait: ~3.5 seconds
+  #
+  rate_limit:
+    # Enable automatic retry on rate limit
+    # TYPE: boolean
+    # DEFAULT: true
+    enabled: true
+    
+    # Maximum retry attempts before giving up
+    # TYPE: integer
+    # DEFAULT: 3
+    max_attempts: 3
+    
+    # Initial delay between retries (milliseconds)
+    # TYPE: integer (milliseconds)
+    # DEFAULT: 500
+    base_delay_ms: 500
+    
+    # Maximum delay between retries (milliseconds)
+    # TYPE: integer (milliseconds)
+    # DEFAULT: 5000
+    max_delay_ms: 5000
+
+  # -------------------------------------------------------------------------
+  # Markdown Conversion
+  # -------------------------------------------------------------------------
+  # Slack uses "mrkdwn" format, not standard Markdown.
+  # This feature automatically converts Markdown to mrkdwn.
+  #
+  # CONVERSION TABLE:
+  #   Markdown           → mrkdwn
+  #   -----------------   -----------------
+  #   **bold**           → *bold*
+  #   *italic*           → _italic_
+  #   `code`             → `code`
+  #   ```lang            → ```
+  #   [link](url)        → <url|text>
+  #
+  markdown:
+    # Enable Markdown to mrkdwn conversion
+    # TYPE: boolean
+    # DEFAULT: true
+    enabled: true
+
+# -----------------------------------------------------------------------------
+# Session Management
+# -----------------------------------------------------------------------------
+#
+# HotPlex maintains sessions to preserve conversation context.
+#
+
 session:
+  # How long to keep a session alive without user activity
+  # TYPE: integer (minutes)
+  # DEFAULT: 30
+  # RECOMMENDATION: 30-60 minutes for typical usage
   timeout_minutes: 30
+  
+  # How often to check for and clean up expired sessions
+  # TYPE: integer (minutes)
+  # DEFAULT: 5
+  # RECOMMENDATION: 5-15 minutes
   cleanup_interval_minutes: 5
 
-# =============================================================================
-# Security
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Security Configuration
+# -----------------------------------------------------------------------------
+#
+# Security-related settings
+#
+
 security:
+  # Verify Slack request signatures (HTTP Mode only)
+  #
+  # This prevents attackers from sending fake events to your server.
+  # Slack signs each request with HMAC-SHA256 using your Signing Secret.
+  #
+  # ENABLE FOR: Production deployments
+  # DISABLE FOR: Local development testing only
+  #
+  # TYPE: boolean
+  # DEFAULT: true
   verify_signature: true
+
+# =============================================================================
+# COMPLETE EXAMPLE CONFIGURATIONS
+# =============================================================================
+#
+# Example 1: Socket Mode (Local Development - Recommended)
+# ------------------------------------------------
+# mode: socket
+# features:
+#   chunking:
+#     enabled: true
+#   threading:
+#     enabled: true
+#   rate_limit:
+#     enabled: true
+# session:
+#   timeout_minutes: 30
+# security:
+#   verify_signature: false  # Disable for local testing
+#
+# Required .env:
+#   CHATAPPS_ENABLED=true
+#   SLACK_MODE=socket
+#   SLACK_BOT_TOKEN=xoxb-xxx
+#   SLACK_APP_TOKEN=xapp-xxx
+#
+# ------------------------------------------------
+# Example 2: HTTP Mode (Production - Requires Public URL)
+# ------------------------------------------------
+# mode: http
+# features:
+#   chunking:
+#     enabled: true
+# session:
+#   timeout_minutes: 60
+# security:
+#   verify_signature: true
+#
+# Required .env:
+#   CHATAPPS_ENABLED=true
+#   SLACK_MODE=http
+#   SLACK_BOT_TOKEN=xoxb-xxx
+#   SLACK_SIGNING_SECRET=xxx
+#
+# =============================================================================
+# TROUBLESHOOTING
+# =============================================================================
+#
+# Issue: "I don't receive any messages"
+# Solution:
+#   1. Verify SLACK_BOT_TOKEN is set correctly
+#   2. Check Slack App is installed to workspace
+#   3. For Socket Mode: Verify SLACK_APP_TOKEN starts with "xapp-"
+#   4. For HTTP Mode: Verify ngrok URL is set in Slack Event Subscriptions
+#   5. Add bot to channel: /invite @your_bot
+#
+# Issue: "Messages fail to send"
+# Solution:
+#   1. Check bot has chat:write scope
+#   2. Reinstall app: OAuth & Permissions → "Reinstall to Workspace"
+#   3. Check rate_limit.enabled: true
+#
+# Issue: "Signature verification failed" (HTTP Mode)
+# Solution:
+#   1. Verify SLACK_SIGNING_SECRET matches Slack's "Signing Secret"
+#   2. Check server time is accurate (within 5 minutes of Slack servers)
+#
+# Issue: "Socket Mode connection fails"
+# Solution:
+#   1. Verify SLACK_APP_TOKEN is set (starts with xapp-)
+#   2. Check "Enable Socket Mode" is checked in Slack dashboard
+#   3. Firewall not blocking wss://wss.slack.com
+#
+# =============================================================================

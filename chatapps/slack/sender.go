@@ -143,7 +143,7 @@ func convertLinks(text string) string {
 }
 
 // replacePattern is a simple regex replacement helper
-func replacePattern(text, pattern, replacement string) string {
+func replacePattern(text, pattern, _ string) string {
 	// For simplicity, we'll do basic string operations
 	// In production, you'd use regexp
 	result := text

@@ -112,7 +112,7 @@ func (q *MessageQueue) Start(adapterGetter func(string) (ChatAdapter, bool), sen
 	}
 }
 
-func (q *MessageQueue) worker(id int, adapterGetter func(string) (ChatAdapter, bool), sendFn func(context.Context, string, string, *ChatMessage) error) {
+func (q *MessageQueue) worker(_ int, _ func(string) (ChatAdapter, bool), sendFn func(context.Context, string, string, *ChatMessage) error) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {

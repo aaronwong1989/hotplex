@@ -91,17 +91,25 @@ func (s *SocketModeConnection) IsConnected() bool {
 	return s.connected
 }
 
-// connect establishes a WebSocket connection to Slack
 func (s *SocketModeConnection) connect() error {
-	s.logger.Info("Connecting to Slack Socket Mode", "url", SocketModeURL)
+	s.logger.Info("Connecting to Slack Socket Mode", "url", SocketModeURL, "has_app_token", s.config.AppToken != "", "token_prefix", func() string {
+		if len(s.config.AppToken) > 5 {
+			return s.config.AppToken[:5]
+		}
+		return ""
+	}())
 
 	header := http.Header{}
 	header.Set("Authorization", "Bearer "+s.config.AppToken)
-	header.Set("X-Slack-User", "bot")
 
-	conn, _, err := websocket.DefaultDialer.Dial(SocketModeURL, header)
+	conn, resp, err := websocket.DefaultDialer.Dial(SocketModeURL, header)
 	if err != nil {
-		s.logger.Error("Failed to connect to Slack", "error", err)
+		s.logger.Error("Failed to connect to Slack", "error", err, "status_code", func() int {
+			if resp != nil {
+				return resp.StatusCode
+			}
+			return 0
+		}())
 		return fmt.Errorf("websocket dial failed: %w", err)
 	}
 

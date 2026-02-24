@@ -142,7 +142,27 @@ msg := &chatapps.ChatMessage{
 }
 ```
 
-### 5.2 钉钉 (DingTalk)
+### 5.2 Slack
+Slack 是国际企业协作的首选平台，支持两种连接模式。
+
+#### 1. 连接模式
+
+| 模式 | 连接方式 | 公网 URL | 延迟 | 适用场景 |
+|------|----------|----------|------|----------|
+| **Socket Mode** | WebSocket | 不需要 | 低 | 本地开发、内部工具 |
+| **HTTP Webhook** | HTTP POST | 需要 | 较高 | 生产环境 |
+
+#### 2. 核心特性
+- **Socket Mode**: 防火墙内可直接运行，无需 ngrok
+- **消息分片**: 自动分割 >4000 字符消息
+- **线程支持**: 自动解析 thread_ts，在线程中回复
+- **Rate Limit**: 429 错误自动重试 (指数退避)
+- **Markdown**: 自动转换 Markdown 到 mrkdwn 格式
+
+#### 3. 详细配置
+详见 [Slack 适配器手册](./chatapps-slack.md)
+
+### 5.3 钉钉 (DingTalk)
 #### 1. 接入模式
 钉钉支持两种主要的双向通信模式：
 - **Webhook 模式**: 仅用于单向通知 (HotPlex 已在 Hooks 层实现)。
@@ -224,4 +244,6 @@ A: 请检查：
 - [Hooks 事件系统](../hooks-architecture.md)
 - [服务器 API 指南](../server/api.md)
 - [SDK 快速集成](../sdk-guide.md)
+- [Slack 适配器用户手册](./chatapps-slack.md) - 完整的 Slack 配置与部署指南
+- [Slack 技术分析](./chatapps-slack-analysis.md) - 深入的技术实现分析
 - [钉钉双向通讯技术方案](./chatapps-dingtalk-analysis.md)

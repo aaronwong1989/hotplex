@@ -39,7 +39,7 @@ cp docs/production-guide_zh.md docs-site/guide/deployment_zh.md
 cp docs/benchmark-report.md docs-site/guide/performance.md
 cp docs/benchmark-report_zh.md docs-site/guide/performance_zh.md
 cp docs/chatapps/chatapps-guide.md docs-site/guide/chatapps.md
-cp docs/chatapps/chatapps-dingtalk-analysis.md docs-site/guide/chatapps-dingtalk.md
+cp docs/chatapps/chatapps-slack.md docs-site/guide/chatapps-slack.md
 # Note: Roadmap 2026 has been archived and is excluded from sync.
 
 # --- SDKs ---
@@ -107,6 +107,7 @@ find docs-site -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?benc
 # Roadmap links are redirected to GitHub (see Redirect section)
 find docs-site -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?(chatapps/)?chatapps-guide(_zh)?(\.md)?\)|](/guide/chatapps.md)|g' {} +
 find docs-site -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?(chatapps/)?chatapps-dingtalk-analysis(_zh)?(\.md)?\)|](/guide/chatapps-dingtalk.md)|g' {} +
+YW|find docs-site -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?(chatapps/)?chatapps-slack(_zh)?(\.md)?\)|](/guide/chatapps-slack.md)|g' {} +
 find docs-site -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?(plan/)?technical-plan-draft(_zh)?(\.md)?\)|](/plan/technical-plan.md)|g' {} +
 find docs-site -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?chatapps-design(_zh)?(\.md)?\)|](/guide/chatapps.md)|g' {} +
 find docs-site -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?hooks-architecture(_zh)?(\.md)?\)|](/guide/hooks\2.md)|g' {} +

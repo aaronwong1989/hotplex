@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -166,13 +167,13 @@ func (m *AdapterManager) RegisterRoutes(router *mux.Router) {
 		// Check if adapter implements WebhookProvider
 		if provider, ok := adapter.(base.WebhookProvider); ok {
 			handler := provider.WebhookHandler()
-			path := provider.WebhookPath()
 
 			// Register under /webhook/{platform} prefix
-			fullPath := fmt.Sprintf("/webhook/%s%s", platform, path)
-			router.Handle(fullPath, handler)
+			// We use PathPrefix and StripPrefix to allow the adapter's internal mux to handle multiple sub-paths
+			prefix := fmt.Sprintf("/webhook/%s/", platform)
+			router.PathPrefix(prefix).Handler(http.StripPrefix(strings.TrimSuffix(prefix, "/"), handler))
 
-			m.logger.Info("Registered webhook", "platform", platform, "path", fullPath)
+			m.logger.Info("Registered webhooks", "platform", platform, "prefix", prefix)
 		} else {
 			m.logger.Warn("Adapter does not support webhooks", "platform", platform)
 		}
