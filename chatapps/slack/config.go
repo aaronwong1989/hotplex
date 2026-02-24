@@ -9,6 +9,8 @@ type Config struct {
 	SystemPrompt  string
 	// Mode: "http" (default) or "socket" for WebSocket connection
 	Mode string
+	// ServerAddr: HTTP server address (e.g., ":8080")
+	ServerAddr string
 }
 
 // Validate checks the configuration based on the selected mode

@@ -33,7 +33,7 @@ func (a *Adapter) SendMessageWithOptions(ctx context.Context, sessionID string, 
 
 	// Handle message chunking if needed
 	if utf8.RuneCountInString(text) > SlackTextLimit {
-		return a.sendWithChunking(ctx, opts.ChannelID, text, opts.ThreadTS)
+		return a.sendWithChunking(ctx, opts.ChannelID, text, opts.ThreadTS, opts.Markdown)
 	}
 
 	// Send single message
@@ -41,8 +41,13 @@ func (a *Adapter) SendMessageWithOptions(ctx context.Context, sessionID string, 
 }
 
 // sendWithChunking sends a long message in chunks
-func (a *Adapter) sendWithChunking(ctx context.Context, channelID, text, threadTS string) error {
-	chunks := chunkMessage(text, SlackTextLimit)
+func (a *Adapter) sendWithChunking(ctx context.Context, channelID, text, threadTS string, isMarkdown bool) error {
+	var chunks []string
+	if isMarkdown {
+		chunks = chunkMessageMarkdown(text, SlackTextLimit)
+	} else {
+		chunks = chunkMessage(text, SlackTextLimit)
+	}
 
 	for i, chunk := range chunks {
 		// For the first chunk, don't use thread_ts unless it's a reply

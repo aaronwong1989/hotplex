@@ -59,10 +59,16 @@ func Setup(ctx context.Context, logger *slog.Logger) (http.Handler, *AdapterMana
 	// Slack
 	if token := os.Getenv("SLACK_BOT_TOKEN"); token != "" {
 		setupPlatform(ctx, "slack", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
+			mode := os.Getenv("SLACK_MODE")
+			if mode == "" {
+				mode = "http" // default to http
+			}
 			return slack.NewAdapter(slack.Config{
 				BotToken:      token,
 				AppToken:      os.Getenv("SLACK_APP_TOKEN"),
 				SigningSecret: os.Getenv("SLACK_SIGNING_SECRET"),
+				Mode:          mode,
+				ServerAddr:    os.Getenv("SLACK_SERVER_ADDR"),
 			}, logger, base.WithoutServer())
 		})
 	}

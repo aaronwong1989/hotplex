@@ -66,6 +66,7 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 	}
 
 	a.Adapter = base.NewAdapter("slack", base.Config{
+		ServerAddr:   config.ServerAddr,
 		SystemPrompt: config.SystemPrompt,
 	}, logger, opts...)
 
