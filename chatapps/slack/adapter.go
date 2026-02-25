@@ -148,6 +148,11 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 		return nil
 	}
 
+	// Send Block Kit blocks if present
+	if msg.RichContent != nil && len(msg.RichContent.Blocks) > 0 {
+		return a.sendBlocks(ctx, channelID, msg.RichContent.Blocks, threadTS, msg.Content)
+	}
+
 	return a.SendToChannel(ctx, channelID, msg.Content, threadTS)
 }
 
@@ -173,6 +178,65 @@ func (a *Adapter) SendAttachment(ctx context.Context, channelID, threadTS string
 
 	// For now, just log that we received an attachment request
 	a.Logger().Debug("Attachment received", "type", attachment.Type, "title", attachment.Title)
+	return nil
+}
+
+// sendBlocks sends Block Kit blocks to Slack
+func (a *Adapter) sendBlocks(ctx context.Context, channelID string, blocks []any, threadTS, fallbackText string) error {
+	payload := map[string]any{
+		"channel": channelID,
+		"text":    fallbackText,
+		"blocks":  blocks,
+	}
+	if threadTS != "" {
+		payload["thread_ts"] = threadTS
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://slack.com/api/chat.postMessage", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+a.config.BotToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return fmt.Errorf("rate limited: 429")
+	}
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("send failed: %d %s", resp.StatusCode, string(respBody))
+	}
+
+	var slackResp struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error,omitempty"`
+		TS    string `json:"ts,omitempty"`
+	}
+	if err := json.Unmarshal(respBody, &slackResp); err != nil {
+		a.Logger().Warn("Failed to parse Slack response", "body", string(respBody))
+		return nil
+	}
+
+	if !slackResp.OK {
+		return fmt.Errorf("slack API error: %s", slackResp.Error)
+	}
+
+	a.Logger().Debug("Blocks sent successfully", "channel", channelID, "ts", slackResp.TS)
 	return nil
 }
 
