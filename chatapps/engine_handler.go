@@ -96,7 +96,6 @@ type StreamCallback struct {
 	mu           sync.Mutex
 	isFirst      bool
 	thinkingSent bool            // Tracks if thinking message was sent
-	thinkingTS   string          // Timestamp of the thinking message for updates
 	metadata     map[string]any  // Original message metadata (channel_id, thread_ts, etc.)
 	processor    *ProcessorChain // Message processor chain
 	blockBuilder *slack.BlockBuilder

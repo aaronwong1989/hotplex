@@ -52,114 +52,158 @@ func NewMrkdwnFormatter() *MrkdwnFormatter {
 }
 
 // Format converts Markdown text to Slack mrkdwn format
-// Handles: bold, italic, code blocks, links
+// Handles: bold, italic, strikethrough, code blocks, links
 func (f *MrkdwnFormatter) Format(text string) string {
+	if text == "" {
+		return ""
+	}
+
 	result := text
 
-	// First, escape special characters
+	// 1. Escape special characters first (except inside code blocks)
 	result = f.escapeSpecialChars(result)
 
-	// Convert bold: **text** -> *text*
+	// 2. Convert Bold: **text** or __text__ -> *text*
 	result = f.convertBold(result)
 
-	// Convert italic: *text* -> _text_ (but not already converted bold markers)
+	// 3. Convert Italic: *text* or _text_ -> _text_
 	result = f.convertItalic(result)
 
-	// Convert links: [text](url) -> <url|text>
+	// 4. Convert Strikethrough: ~~text~~ -> ~text~
+	result = f.convertStrikethrough(result)
+
+	// 5. Convert Links: [text](url) -> <url|text>
 	result = f.convertLinks(result)
 
 	return result
 }
 
-// escapeSpecialChars escapes & < > for mrkdwn
+// escapeSpecialChars escapes & < > for mrkdwn safely
 func (f *MrkdwnFormatter) escapeSpecialChars(text string) string {
+	// Simple replacement is safe if done before other conversions
 	result := strings.ReplaceAll(text, "&", "&amp;")
 	result = strings.ReplaceAll(result, "<", "&lt;")
 	result = strings.ReplaceAll(result, ">", "&gt;")
 	return result
 }
 
-// convertBold converts **text** to *text*
+// convertBold converts **text** or __text__ to *text*
 func (f *MrkdwnFormatter) convertBold(text string) string {
-	// Replace ** with * (but not ``` code blocks)
 	var result strings.Builder
 	inCodeBlock := false
 	i := 0
 	for i < len(text) {
-		// Check for code block markers
-		if i+3 <= len(text) && text[i:i+3] == "```" {
+		// Toggle code block state
+		if strings.HasPrefix(text[i:], "```") {
 			inCodeBlock = !inCodeBlock
 			result.WriteString("```")
 			i += 3
 			continue
 		}
-
 		if inCodeBlock {
 			result.WriteByte(text[i])
 			i++
 			continue
 		}
 
-		// Check for **
-		if i+1 < len(text) && text[i:i+2] == "**" {
-			result.WriteByte('*')
-			i += 2
-			continue
+		// Handle ** or __
+		if (strings.HasPrefix(text[i:], "**") || strings.HasPrefix(text[i:], "__")) && i+2 < len(text) {
+			marker := text[i : i+2]
+			endIdx := strings.Index(text[i+2:], marker)
+			if endIdx != -1 {
+				content := text[i+2 : i+2+endIdx]
+				result.WriteByte('*')
+				result.WriteString(content)
+				result.WriteByte('*')
+				i += 4 + endIdx
+				continue
+			}
 		}
-
 		result.WriteByte(text[i])
 		i++
 	}
 	return result.String()
 }
 
-// convertItalic converts *text* to _text_ (single asterisks only)
+// convertItalic converts *text* or _text_ to _text_
 func (f *MrkdwnFormatter) convertItalic(text string) string {
 	var result strings.Builder
 	inCodeBlock := false
-	inBold := false
 	i := 0
 	for i < len(text) {
-		// Check for code block markers
-		if i+3 <= len(text) && text[i:i+3] == "```" {
+		if strings.HasPrefix(text[i:], "```") {
 			inCodeBlock = !inCodeBlock
 			result.WriteString("```")
 			i += 3
 			continue
 		}
-
 		if inCodeBlock {
 			result.WriteByte(text[i])
 			i++
 			continue
 		}
 
-		// Track bold state (already converted to single *)
-		if text[i] == '*' {
-			if i+1 < len(text) && text[i+1] == '*' {
-				// Double asterisk, skip (shouldn't happen after bold conversion)
-				result.WriteString("**")
-				i += 2
-				continue
-			}
-			// Single asterisk - check if it's bold marker or italic
-			if !inBold {
-				// Check if this is likely a bold marker (non-whitespace before/after)
-				isBoldMarker := (i > 0 && text[i-1] != ' ' && text[i-1] != '\n') ||
-					(i+1 < len(text) && text[i+1] != ' ' && text[i+1] != '\n')
-				if isBoldMarker {
-					inBold = !inBold
-					result.WriteByte('*')
-					i++
-					continue
+		// Handle * or _ (but avoid matching markers that are part of other words if possible)
+		if (text[i] == '*' || text[i] == '_') && i+1 < len(text) {
+			marker := string(text[i])
+			// Find next marker, but ensure it's not immediately followed by the same marker (which would be bold)
+			endIdx := -1
+			for j := i + 1; j < len(text); j++ {
+				if string(text[j]) == marker {
+					// Check if it's double
+					if j+1 < len(text) && string(text[j+1]) == marker {
+						j++ // skip
+						continue
+					}
+					endIdx = j
+					break
 				}
 			}
-			// Convert to italic
-			result.WriteByte('_')
+
+			if endIdx != -1 {
+				content := text[i+1 : endIdx]
+				result.WriteByte('_')
+				result.WriteString(content)
+				result.WriteByte('_')
+				i = endIdx + 1
+				continue
+			}
+		}
+		result.WriteByte(text[i])
+		i++
+	}
+	return result.String()
+}
+
+// convertStrikethrough converts ~~text~~ to ~text~
+func (f *MrkdwnFormatter) convertStrikethrough(text string) string {
+	var result strings.Builder
+	inCodeBlock := false
+	i := 0
+	for i < len(text) {
+		if strings.HasPrefix(text[i:], "```") {
+			inCodeBlock = !inCodeBlock
+			result.WriteString("```")
+			i += 3
+			continue
+		}
+		if inCodeBlock {
+			result.WriteByte(text[i])
 			i++
 			continue
 		}
 
+		if strings.HasPrefix(text[i:], "~~") && i+2 < len(text) {
+			endIdx := strings.Index(text[i+2:], "~~")
+			if endIdx != -1 {
+				content := text[i+2 : i+2+endIdx]
+				result.WriteByte('~')
+				result.WriteString(content)
+				result.WriteByte('~')
+				i += 4 + endIdx
+				continue
+			}
+		}
 		result.WriteByte(text[i])
 		i++
 	}
@@ -171,24 +215,19 @@ func (f *MrkdwnFormatter) convertLinks(text string) string {
 	var result strings.Builder
 	i := 0
 	for i < len(text) {
-		// Look for [
 		if text[i] == '[' {
-			// Find closing ]
-			textEnd := strings.Index(text[i:], "]")
-			if textEnd != -1 && i+textEnd+1 < len(text) && text[i+textEnd+1] == '(' {
-				// Find closing )
-				urlStart := i + textEnd + 2
-				urlEnd := strings.Index(text[urlStart:], ")")
-				if urlEnd != -1 {
-					linkText := text[i+1 : i+textEnd]
-					linkURL := text[urlStart : urlStart+urlEnd]
-					// Write <url|text>
-					result.WriteString("<")
+			closeBracket := strings.Index(text[i:], "]")
+			if closeBracket != -1 && i+closeBracket+1 < len(text) && text[i+closeBracket+1] == '(' {
+				closeParen := strings.Index(text[i+closeBracket+1:], ")")
+				if closeParen != -1 {
+					linkText := text[i+1 : i+closeBracket]
+					linkURL := text[i+closeBracket+2 : i+closeBracket+1+closeParen]
+					result.WriteByte('<')
 					result.WriteString(linkURL)
-					result.WriteString("|")
+					result.WriteByte('|')
 					result.WriteString(linkText)
-					result.WriteString(">")
-					i = urlStart + urlEnd + 1
+					result.WriteByte('>')
+					i += closeBracket + closeParen + 2
 					continue
 				}
 			}
@@ -268,18 +307,14 @@ func (b *BlockBuilder) BuildToolResultBlock(success bool, durationMs int64, outp
 		statusText = "*Failed*"
 	}
 
-	// Format duration
-	durationStr := formatDuration(durationMs)
-
-	// Main result block
 	resultBlock := map[string]any{
 		"type": "section",
-		"text": mrkdwnText(fmt.Sprintf("%s %s (%s)", statusEmoji, statusText, durationStr)),
+		"text": mrkdwnText(fmt.Sprintf("%s %s", statusEmoji, statusText)),
 	}
 
-	// Add output preview if available (truncated to 200 chars)
+	// Add output preview if available (truncated to 300 chars for better context)
 	if output != "" {
-		previewLen := 200
+		previewLen := 300
 		preview := output
 		if len(output) > previewLen {
 			preview = output[:previewLen] + "..."
@@ -290,6 +325,16 @@ func (b *BlockBuilder) BuildToolResultBlock(success bool, durationMs int64, outp
 	}
 
 	blocks = append(blocks, resultBlock)
+
+	// Add metadata context block (Duration)
+	if durationMs > 0 {
+		blocks = append(blocks, map[string]any{
+			"type": "context",
+			"elements": []map[string]any{
+				mrkdwnText(fmt.Sprintf(":timer_clock: *Duration:* %s", formatDuration(durationMs))),
+			},
+		})
+	}
 
 	// Add action button if requested
 	if hasButton && success {
@@ -323,15 +368,15 @@ func (b *BlockBuilder) BuildErrorBlock(message string, isDangerBlock bool) []map
 	}
 
 	headerBlock := map[string]any{
-		"type": "header",
-		"text": plainText(fmt.Sprintf("%s Error", headerEmoji)),
+		"type": "section",
+		"text": mrkdwnText(fmt.Sprintf("*%s Execution Error*", headerEmoji)),
 	}
 	blocks = append(blocks, headerBlock)
 
 	// Error message as section with mrkdwn
 	errorBlock := map[string]any{
 		"type": "section",
-		"text": mrkdwnText(fmt.Sprintf("```\n%s\n```", message)),
+		"text": mrkdwnText(fmt.Sprintf("> %s", message)),
 	}
 	blocks = append(blocks, errorBlock)
 
