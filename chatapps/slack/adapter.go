@@ -329,6 +329,25 @@ func (a *Adapter) sendEphemeralMessage(responseURL, text string) error {
 	return nil
 }
 
+// sendCommandResponse sends a response to a command, using response_url if available,
+// or falling back to sending directly to the channel.
+// This is used when commands can be triggered from both slash commands (with response_url)
+// and thread messages (without response_url).
+func (a *Adapter) sendCommandResponse(responseURL, channelID, text string) error {
+	// If response_url is available, use it for ephemeral message
+	if responseURL != "" {
+		return a.sendEphemeralMessage(responseURL, text)
+	}
+
+	// Fallback: send directly to channel
+	if channelID == "" {
+		return fmt.Errorf("cannot send response: both response_url and channel_id are empty")
+	}
+
+	a.Logger().Debug("No response_url, sending to channel directly", "channel_id", channelID)
+	return a.SendToChannel(context.Background(), channelID, text, "")
+}
+
 // extractChannelID extracts channel_id from session or message metadata
 func (a *Adapter) extractChannelID(_ string, msg *base.ChatMessage) string {
 	if msg.Metadata == nil {
@@ -622,9 +641,9 @@ func (a *Adapter) handleSocketModeEvent(eventType string, data json.RawMessage) 
 		a.Logger().Debug("Converted # prefix to / prefix", "original", msgEvent.Text, "converted", processedText)
 	}
 
-	// Special handling for #reset command in threads (HTTP webhook path)
+	// Special handling for #reset command in threads (Socket Mode path)
 	if processedText == "/reset" || strings.HasPrefix(processedText, "/reset ") {
-		a.Logger().Info("Detected reset command in thread message (HTTP webhook)",
+		a.Logger().Info("Detected reset command in thread message (Socket Mode)",
 			"original", msgEvent.Text, "converted", processedText)
 		cmd := SlashCommand{
 			Command:     "/reset",
@@ -1218,14 +1237,14 @@ func (a *Adapter) processSlashCommand(cmd SlashCommand) {
 func (a *Adapter) handleResetCommand(cmd SlashCommand) error {
 	if a.eng == nil {
 		a.Logger().Error("Engine is nil")
-		return a.sendEphemeralMessage(cmd.ResponseURL, "❌ Internal error: Engine not initialized")
+		return a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, "❌ Internal error: Engine not initialized")
 	}
 
 	baseSession := a.FindSessionByUserAndChannel(cmd.UserID, cmd.ChannelID)
 	if baseSession == nil {
 		a.Logger().Error("No active session found for /reset",
 			"channel_id", cmd.ChannelID, "user_id", cmd.UserID)
-		return a.sendEphemeralMessage(cmd.ResponseURL, "ℹ️ No active session found")
+		return a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, "ℹ️ No active session found")
 	}
 
 	sessionID := baseSession.SessionID
@@ -1255,7 +1274,7 @@ func (a *Adapter) handleResetCommand(cmd SlashCommand) error {
 	if err := a.eng.StopSession(sessionID, "user_requested_reset"); err != nil {
 		a.Logger().Error("Failed to terminate session",
 			"session_id", sessionID, "error", err)
-		return a.sendEphemeralMessage(cmd.ResponseURL,
+		return a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID,
 			fmt.Sprintf("⚠️ Session termination failed: %v", err))
 	}
 
@@ -1264,7 +1283,7 @@ func (a *Adapter) handleResetCommand(cmd SlashCommand) error {
 		"claude_session_deleted", deletedCount > 0,
 		"marker_deleted", markerDeleted)
 
-	return a.sendEphemeralMessage(cmd.ResponseURL,
+	return a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID,
 		"✅ Context reset. Ready for fresh start!")
 }
 
