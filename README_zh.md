@@ -4,11 +4,8 @@
   <p><b>将顶尖 AI CLI 智能体转化为“生产就绪”交互服务的执行基座</b></p>
   <p><i>打破一次性 CLI 任务的局限，通过全双工、可追加指令的有状态模式，实现毫秒级交互、安全隔离与极简系统集成。</i></p>
 
-*查看其他语言: [English](README.md), [简体中文](README_zh.md).*
   <p>
-    <a href="https://github.com/hrygo/hotplex/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/hrygo/hotplex/ci.yml?branch=main&style=for-the-badge&logo=github&label=Build" alt="Build Status"></a>
     <a href="https://github.com/hrygo/hotplex/releases"><img src="https://img.shields.io/github/v/release/hrygo/hotplex?style=for-the-badge&logo=go&color=00ADD8" alt="Latest Release"></a>
-    <a href="https://pkg.go.dev/github.com/hrygo/hotplex"><img src="https://img.shields.io/badge/Go-Reference-00ADD8?style=for-the-badge&logo=go" alt="Go Reference"></a>
     <a href="https://goreportcard.com/report/github.com/hrygo/hotplex"><img src="https://goreportcard.com/badge/github/hrygo/hotplex?style=for-the-badge" alt="Go Report Card"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/hrygo/hotplex?style=for-the-badge&color=blue" alt="License"></a>
   </p>
