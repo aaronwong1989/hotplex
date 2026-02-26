@@ -53,6 +53,7 @@ func NewMrkdwnFormatter() *MrkdwnFormatter {
 
 // Format converts Markdown text to Slack mrkdwn format
 // Handles: bold, italic, strikethrough, code blocks, links
+// Order: links -> bold -> italic -> strikethrough -> escape (to preserve URLs and code)
 func (f *MrkdwnFormatter) Format(text string) string {
 	if text == "" {
 		return ""
@@ -60,8 +61,8 @@ func (f *MrkdwnFormatter) Format(text string) string {
 
 	result := text
 
-	// 1. Escape special characters first (except inside code blocks)
-	result = f.escapeSpecialChars(result)
+	// 1. Convert Links first (before escaping, to preserve URLs)
+	result = f.convertLinks(result)
 
 	// 2. Convert Bold: **text** or __text__ -> *text*
 	result = f.convertBold(result)
@@ -72,19 +73,74 @@ func (f *MrkdwnFormatter) Format(text string) string {
 	// 4. Convert Strikethrough: ~~text~~ -> ~text~
 	result = f.convertStrikethrough(result)
 
-	// 5. Convert Links: [text](url) -> <url|text>
-	result = f.convertLinks(result)
+	// 5. Escape special characters last (preserves code blocks)
+	result = f.escapeSpecialChars(result)
 
 	return result
 }
 
-// escapeSpecialChars escapes & < > for mrkdwn safely
+// escapeSpecialChars escapes & < > for mrkdwn safely, preserving code blocks and Slack syntax
+// Only skips valid Slack syntax: <!...>, <@...>, <#...>, <url|text>
 func (f *MrkdwnFormatter) escapeSpecialChars(text string) string {
-	// Simple replacement is safe if done before other conversions
-	result := strings.ReplaceAll(text, "&", "&amp;")
-	result = strings.ReplaceAll(result, "<", "&lt;")
-	result = strings.ReplaceAll(result, ">", "&gt;")
-	return result
+	var result strings.Builder
+	inCodeBlock := false
+	inInlineCode := false
+
+	for i := 0; i < len(text); i++ {
+		// Check for code block boundaries (```)
+		if strings.HasPrefix(text[i:], "```") {
+			inCodeBlock = !inCodeBlock
+			result.WriteString("```")
+			i += 2 // Skip the next two backticks
+			continue
+		}
+
+		// Check for inline code boundaries (`)
+		if text[i] == '`' && (i == 0 || text[i-1] != '\\') {
+			inInlineCode = !inInlineCode
+		}
+
+		// Skip Slack special syntax: <!here>, <@user>, <#channel>, <url|text>
+		if text[i] == '<' && !inCodeBlock && !inInlineCode {
+			// Find closing >
+			endIdx := -1
+			for j := i + 1; j < len(text); j++ {
+				if text[j] == '>' {
+					endIdx = j
+					break
+				}
+			}
+			if endIdx != -1 {
+				inner := text[i+1 : endIdx]
+				// Only skip if it's valid Slack syntax
+				if len(inner) > 0 && (inner[0] == '!' || inner[0] == '@' || inner[0] == '#' || 
+				    strings.Contains(inner, "|")) {
+					result.WriteString(text[i : endIdx+1])
+					i = endIdx
+					continue
+				}
+			}
+		}
+
+		// Only escape special characters outside of code
+		if !inCodeBlock && !inInlineCode {
+			switch text[i] {
+			case '&':
+				result.WriteString("&amp;")
+			case '<':
+				result.WriteString("&lt;")
+			case '>':
+				result.WriteString("&gt;")
+			default:
+				result.WriteByte(text[i])
+			}
+			continue
+		}
+
+		// Preserve characters inside code as-is
+		result.WriteByte(text[i])
+	}
+	return result.String()
 }
 
 // convertBold converts **text** or __text__ to *text*
@@ -125,12 +181,14 @@ func (f *MrkdwnFormatter) convertBold(text string) string {
 	return result.String()
 }
 
-// convertItalic converts *text* or _text_ to _text_
+// convertItalic converts _text_ to _text_
+// Does NOT convert *text* (Slack uses * for bold, not italic)
 func (f *MrkdwnFormatter) convertItalic(text string) string {
 	var result strings.Builder
 	inCodeBlock := false
 	i := 0
 	for i < len(text) {
+		// Toggle code block state
 		if strings.HasPrefix(text[i:], "```") {
 			inCodeBlock = !inCodeBlock
 			result.WriteString("```")
@@ -143,32 +201,19 @@ func (f *MrkdwnFormatter) convertItalic(text string) string {
 			continue
 		}
 
-		// Handle * or _ (but avoid matching markers that are part of other words if possible)
-		if (text[i] == '*' || text[i] == '_') && i+1 < len(text) {
-			marker := string(text[i])
-			// Find next marker, but ensure it's not immediately followed by the same marker (which would be bold)
-			endIdx := -1
-			for j := i + 1; j < len(text); j++ {
-				if string(text[j]) == marker {
-					// Check if it's double
-					if j+1 < len(text) && string(text[j+1]) == marker {
-						j++ // skip
-						continue
-					}
-					endIdx = j
-					break
-				}
-			}
-
+		// Handle _ for italic only (Slack uses * for bold, not italic)
+		if text[i] == '_' && i+1 < len(text) {
+			endIdx := strings.Index(text[i+1:], "_")
 			if endIdx != -1 {
-				content := text[i+1 : endIdx]
+				content := text[i+1 : i+1+endIdx]
 				result.WriteByte('_')
 				result.WriteString(content)
 				result.WriteByte('_')
-				i = endIdx + 1
+				i = i + 1 + endIdx + 1
 				continue
 			}
 		}
+
 		result.WriteByte(text[i])
 		i++
 	}
@@ -210,7 +255,7 @@ func (f *MrkdwnFormatter) convertStrikethrough(text string) string {
 	return result.String()
 }
 
-// convertLinks converts [text](url) to <url|text>
+// convertLinks converts [text](url) to <url|text> with URL validation
 func (f *MrkdwnFormatter) convertLinks(text string) string {
 	var result strings.Builder
 	i := 0
@@ -222,11 +267,31 @@ func (f *MrkdwnFormatter) convertLinks(text string) string {
 				if closeParen != -1 {
 					linkText := text[i+1 : i+closeBracket]
 					linkURL := text[i+closeBracket+2 : i+closeBracket+1+closeParen]
-					result.WriteByte('<')
-					result.WriteString(linkURL)
-					result.WriteByte('|')
-					result.WriteString(linkText)
-					result.WriteByte('>')
+					
+					// Validate URL scheme for security
+					validScheme := false
+					allowedSchemes := []string{"http://", "https://", "mailto:", "ftp://"}
+					for _, scheme := range allowedSchemes {
+						if strings.HasPrefix(linkURL, scheme) {
+							validScheme = true
+							break
+						}
+					}
+					
+					if validScheme {
+						// Safe URL - convert to Slack format
+						result.WriteByte('<')
+						result.WriteString(linkURL)
+						result.WriteByte('|')
+						result.WriteString(linkText)
+						result.WriteByte('>')
+					} else {
+						// Unsafe URL - keep as text
+						result.WriteString(linkText)
+						result.WriteString(" (")
+						result.WriteString(linkURL)
+						result.WriteString(")")
+					}
 					i += closeBracket + closeParen + 2
 					continue
 				}
@@ -373,10 +438,11 @@ func (b *BlockBuilder) BuildErrorBlock(message string, isDangerBlock bool) []map
 	}
 	blocks = append(blocks, headerBlock)
 
-	// Error message as section with mrkdwn
+	// Error message as section with mrkdwn (sanitized)
+	safeMessage := SanitizeErrorMessage(fmt.Errorf("%s", message))
 	errorBlock := map[string]any{
 		"type": "section",
-		"text": mrkdwnText(fmt.Sprintf("> %s", message)),
+		"text": mrkdwnText(fmt.Sprintf("> %s", safeMessage)),
 	}
 	blocks = append(blocks, errorBlock)
 
@@ -783,10 +849,11 @@ func TruncateText(text string, maxLen int) string {
 func BuildPermissionRequestBlocks(req *provider.PermissionRequest, sessionID string) []map[string]any {
 	tool, input := req.GetToolAndInput()
 
-	// Truncate long commands for preview
-	displayInput := input
-	if len(displayInput) > 500 {
-		displayInput = displayInput[:497] + "..."
+	// Sanitize and truncate commands for preview
+	safeInput := SanitizeCommand(input)
+	displayInput := safeInput
+	if RuneCount(displayInput) > 500 {
+		displayInput = TruncateByRune(displayInput, 497) + "..."
 	}
 
 	blocks := []map[string]any{}
@@ -831,10 +898,11 @@ func BuildPermissionRequestBlocks(req *provider.PermissionRequest, sessionID str
 		},
 	})
 
-	// Action buttons
+	// Action buttons with validated block_id
+	blockID := ValidateBlockID(fmt.Sprintf("perm_%s", req.MessageID))
 	blocks = append(blocks, map[string]any{
 		"type":     "actions",
-		"block_id": fmt.Sprintf("perm_%s", req.MessageID),
+		"block_id": blockID,
 		"elements": []map[string]any{
 			{
 				"type":      "button",
@@ -897,4 +965,65 @@ func BuildPermissionDeniedBlocks(tool, input, reason string) []map[string]any {
 	}
 
 	return blocks
+}
+
+// =============================================================================
+// Chunking Integration
+// =============================================================================
+
+// BuildChunkedAnswerBlocks builds answer blocks with automatic chunking
+// If content exceeds SlackTextLimit, it will be split into multiple blocks
+func (b *BlockBuilder) BuildChunkedAnswerBlocks(content string) [][]map[string]any {
+	if len(content) <= SlackTextLimit {
+		return [][]map[string]any{b.BuildAnswerBlock(content)}
+	}
+
+	// Use chunker to split content
+	chunks := ChunkMessageMarkdown(content, SlackTextLimit)
+	
+	var allBlocks [][]map[string]any
+	for i, chunk := range chunks {
+		// Add chunk indicator for multi-chunk messages
+		if len(chunks) > 1 {
+			chunkWithIndicator := fmt.Sprintf("%s\n\n*(Part %d of %d)*", chunk, i+1, len(chunks))
+			allBlocks = append(allBlocks, b.BuildAnswerBlock(chunkWithIndicator))
+		} else {
+			allBlocks = append(allBlocks, b.BuildAnswerBlock(chunk))
+		}
+	}
+	
+	return allBlocks
+}
+
+// BuildChunkedSectionBlocks builds section blocks with automatic chunking
+func (b *BlockBuilder) BuildChunkedSectionBlocks(text string) [][]map[string]any {
+	if len(text) <= MaxSectionTextLen {
+		return [][]map[string]any{BuildSectionBlock(text, nil, nil)}
+	}
+
+	truncated := TruncateMrkdwn(text, MaxSectionTextLen)
+	return [][]map[string]any{BuildSectionBlock(truncated, nil, nil)}
+}
+
+// ValidateAndTruncateBlocks validates blocks and truncates if necessary
+func ValidateAndTruncateBlocks(blocks []map[string]any) ([]map[string]any, error) {
+	if err := ValidateBlocks(blocks, false); err != nil {
+		// Try to fix by truncating text
+		for i, block := range blocks {
+			if text, ok := block["text"].(map[string]any); ok {
+				if textStr, ok := text["text"].(string); ok {
+					if len(textStr) > MaxSectionTextLen {
+						blocks[i]["text"] = mrkdwnText(TruncateMrkdwn(textStr, MaxSectionTextLen))
+					}
+				}
+			}
+		}
+		
+		// Validate again
+		if err := ValidateBlocks(blocks, false); err != nil {
+			return blocks, err
+		}
+	}
+	
+	return blocks, nil
 }

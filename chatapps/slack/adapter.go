@@ -729,17 +729,13 @@ func (a *Adapter) handlePermissionCallback(callback *SlackInteractionCallback, a
 		"action_id", action.ActionID,
 	)
 
-	// Parse value: "allow:sessionID:messageID" or "deny:sessionID:messageID"
-	parts := strings.Split(value, ":")
-	if len(parts) < 3 {
-		a.Logger().Error("Invalid permission value format", "value", value)
+	// Parse and validate value: "allow:sessionID:messageID" or "deny:sessionID:messageID"
+	behavior, sessionID, messageID, err := ValidateButtonValue(value)
+	if err != nil {
+		a.Logger().Error("Invalid permission button value", "value", value, "error", err)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-
-	behavior := parts[0] // "allow" or "deny"
-	sessionID := parts[1]
-	messageID := parts[2]
 
 	// Update the message to remove buttons and show result
 	var blocks []map[string]any

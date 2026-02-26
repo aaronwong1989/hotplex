@@ -20,7 +20,7 @@ func TestMrkdwnFormatter_Format(t *testing.T) {
 		{
 			name:  "Italic conversion",
 			input: "This is *italic* and _italic_ text.",
-			want:  "This is _italic_ and _italic_ text.",
+			want:  "This is *italic* and _italic_ text.", // *text* is bold in Slack, _text_ is italic
 		},
 		{
 			name:  "Strikethrough conversion",
