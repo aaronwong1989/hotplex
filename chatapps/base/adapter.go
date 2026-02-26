@@ -206,7 +206,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 	if a.disableServer {
 		go a.cleanupSessions()
 		a.running = true
-		a.logger.Info("Adapter started (serverless mode)", "platform", a.platformName)
+		a.logger.Debug("Adapter started (serverless mode)", "platform", a.platformName)
 		return nil
 	}
 

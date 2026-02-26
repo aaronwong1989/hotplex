@@ -305,15 +305,10 @@ func (s *SocketModeConnection) handleMessage(data []byte) {
 		"envelope_id", msg.EnvelopeID,
 		"payload_len", len(msg.Payload),
 		"body_len", len(msg.Body))
-	s.logger.Info("[SLACK_WS_MESSAGE] Received WebSocket message",
-		"type", msg.Type,
-		"envelope_id", msg.EnvelopeID,
-		"payload_len", len(msg.Payload),
-		"body_len", len(msg.Body))
 
 	switch msg.Type {
 	case "hello":
-		s.logger.Info("Received hello from Slack")
+		s.logger.Debug("Received hello from Slack")
 
 	case "disconnect":
 		s.logger.Warn("Received disconnect from Slack")
