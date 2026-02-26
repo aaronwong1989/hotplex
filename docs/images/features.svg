@@ -2,122 +2,145 @@
   <defs>
     <style>
       .bg { fill: #f8f9fa; }
-      .feature-card { fill: #ffffff; stroke: #e1e4e8; stroke-width: 2; }
-      .text-title { font-family: -apple-system, system-ui, sans-serif; font-weight: bold; font-size: 14px; fill: #24292e; }
-      .text-sub { font-family: -apple-system, sans-serif; font-size: 11px; fill: #586069; }
+      .feature-card { fill: #ffffff; stroke: #e1e4e8; stroke-width: 1.5; transition: all 0.3s ease; }
+      .text-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 600; font-size: 14px; fill: #24292e; }
+      .text-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; fill: #586069; }
       
-      .icon-bg { opacity: 0.1; }
-      .icon-stroke { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .icon-bg { opacity: 0.12; }
+      .icon-stroke { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .icon-fill { stroke: none; }
       
-      .c1-fill { fill: #d73a49; } .c1-stroke { stroke: #d73a49; }
-      .c2-fill { fill: #28a745; } .c2-stroke { stroke: #28a745; }
-      .c3-fill { fill: #0366d6; } .c3-stroke { stroke: #0366d6; }
-      .c4-fill { fill: #6f42c1; } .c4-stroke { stroke: #6f42c1; }
-      .c5-fill { fill: #f66a0a; } .c5-stroke { stroke: #f66a0a; }
-      .c6-fill { fill: #0969da; } .c6-stroke { stroke: #0969da; }
+      /* Color Palette */
+      .c-red { fill: #d73a49; stroke: #d73a49; }
+      .c-green { fill: #28a745; stroke: #28a745; }
+      .c-blue { fill: #0366d6; stroke: #0366d6; }
+      .c-purple { fill: #6f42c1; stroke: #6f42c1; }
+      .c-orange { fill: #f66a0a; stroke: #f66a0a; }
+      .c-teal { fill: #0969da; stroke: #0969da; }
     </style>
   </defs>
 
   <rect width="100%" height="100%" class="bg" rx="16"/>
 
   <!-- Row 1 -->
+  <!-- 1. Hot Start (Lightning Bolt) -->
   <g transform="translate(45, 40)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c1-fill" />
-    <path d="M110 35 L100 60 L108 60 L104 80 L118 52 L110 52 Z" class="c1-fill" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-red" />
+    <path d="M112 35 L98 58 H110 L104 80 L118 52 H106 L112 35 Z" class="icon-fill c-red" />
     <text x="108" y="115" text-anchor="middle" class="text-title">200ms Hot-Start</text>
     <text x="108" y="135" text-anchor="middle" class="text-sub">Instant CLI Execution</text>
   </g>
 
+  <!-- 2. Session Pool (Layered Stack) -->
   <g transform="translate(285, 40)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c2-fill" />
-    <rect x="93" y="40" width="30" height="8" rx="2" class="c2-fill" opacity="0.4" />
-    <rect x="88" y="52" width="40" height="8" rx="2" class="c2-fill" opacity="0.6" />
-    <rect x="83" y="64" width="50" height="8" rx="2" class="c2-fill" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-green" />
+    <path d="M93 45 L108 52 L123 45 L108 38 Z" class="icon-stroke c-green" />
+    <path d="M93 52 L108 59 L123 52 M93 59 L108 66 L123 59" class="icon-stroke c-green" />
     <text x="108" y="115" text-anchor="middle" class="text-title">Session Pool</text>
     <text x="108" y="135" text-anchor="middle" class="text-sub">Stateful Persistence</text>
   </g>
 
+  <!-- 3. WAF Security (Shield with Lock) -->
   <g transform="translate(525, 40)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c3-fill" />
-    <path d="M108 35 L118 42 L118 55 C118 65 113 72 108 75 C103 72 98 65 98 55 L98 42 Z" class="icon-stroke c3-stroke" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-blue" />
+    <path d="M108 35 C115 35 123 38 123 42 V55 C123 65 118 72 108 75 C98 72 93 65 93 55 V42 C93 38 101 35 108 35 Z" class="icon-stroke c-blue" />
+    <rect x="103" y="52" width="10" height="8" rx="1" class="icon-fill c-blue" />
+    <path d="M105 52 V49 A3 3 0 0 1 111 49 V52" class="icon-stroke c-blue" />
     <text x="108" y="115" text-anchor="middle" class="text-title">WAF Security</text>
-    <text x="108" y="135" text-anchor="middle" class="text-sub">Regex Command Defense</text>
+    <text x="108" y="135" text-anchor="middle" class="text-sub">Regex Attack Defense</text>
   </g>
 
+  <!-- 4. Full-Duplex (Bi-directional Stream) -->
   <g transform="translate(765, 40)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c4-fill" />
-    <path d="M98 48 L118 48 M108 40 L118 48 L108 56" class="icon-stroke c4-stroke" />
-    <path d="M118 62 L98 62 M108 54 L98 62 L108 70" class="icon-stroke c4-stroke" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-purple" />
+    <path d="M96 48 H120 M114 42 L120 48 L114 54" class="icon-stroke c-purple" />
+    <path d="M120 62 H96 M102 56 L96 62 L102 68" class="icon-stroke c-purple" />
     <text x="108" y="115" text-anchor="middle" class="text-title">Full-Duplex I/O</text>
-    <text x="108" y="135" text-anchor="middle" class="text-sub">Slack, TG, DingTalk</text>
+    <text x="108" y="135" text-anchor="middle" class="text-sub">Async Token Streaming</text>
   </g>
 
   <!-- Row 2 -->
+  <!-- 5. ChatApps (Message Circles) -->
   <g transform="translate(45, 230)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c5-fill" />
-    <path d="M98 40 H118 V60 H98 Z" class="c5-fill" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-orange" />
+    <path d="M95 45 A10 10 0 0 1 115 45 A10 10 0 0 1 95 45 M110 60 A8 8 0 0 1 126 60 A8 8 0 0 1 110 60" class="icon-stroke c-orange" />
+    <path d="M105 55 L100 60 M118 68 L122 72" class="icon-stroke c-orange" />
     <text x="108" y="115" text-anchor="middle" class="text-title">ChatApps</text>
-    <text x="108" y="135" text-anchor="middle" class="text-sub">Slack, TG, DingTalk</text>
+    <text x="108" y="135" text-anchor="middle" class="text-sub">Slack, TG, Discord</text>
   </g>
 
+  <!-- 6. SDK + Daemon (Term + Bridge) -->
   <g transform="translate(285, 230)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c6-fill" />
-    <path d="M98 45 L88 55 L98 65 M118 45 L128 55 L118 65" class="icon-stroke c6-stroke" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-teal" />
+    <rect x="92" y="42" width="32" height="26" rx="3" class="icon-stroke c-teal" />
+    <path d="M98 52 L103 55 L98 58" class="icon-stroke c-teal" />
     <text x="108" y="115" text-anchor="middle" class="text-title">Go SDK + Proxy</text>
-    <text x="108" y="135" text-anchor="middle" class="text-sub">WebSocket API</text>
+    <text x="108" y="135" text-anchor="middle" class="text-sub">Seamless Integration</text>
   </g>
 
+  <!-- 7. Observability (Bar Chart) -->
   <g transform="translate(525, 230)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c1-fill" />
-    <path d="M98 65 V45 L118 45 V65 Z" class="c1-fill" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-red" />
+    <rect x="96" y="58" width="6" height="12" rx="1" class="icon-fill c-red" />
+    <rect x="105" y="45" width="6" height="25" rx="1" class="icon-fill c-red" />
+    <rect x="114" y="52" width="6" height="18" rx="1" class="icon-fill c-red" />
     <text x="108" y="115" text-anchor="middle" class="text-title">Observability</text>
     <text x="108" y="135" text-anchor="middle" class="text-sub">OTel &amp; Metrics</text>
   </g>
 
+  <!-- 8. PGID Isolation (Lock in Circle) -->
   <g transform="translate(765, 230)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c2-fill" />
-    <rect x="98" y="45" width="20" height="15" rx="3" class="icon-stroke c2-stroke" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-green" />
+    <circle cx="108" cy="55" r="18" class="icon-stroke c-green" />
+    <path d="M104 53 H112 V60 H104 Z" class="icon-fill c-green" />
+    <path d="M105 53 V50 A3 3 0 0 1 111 50 V53" class="icon-stroke c-green" />
     <text x="108" y="115" text-anchor="middle" class="text-title">PGID Isolation</text>
-    <text x="108" y="135" text-anchor="middle" class="text-sub">System-Level Sandbox</text>
+    <text x="108" y="135" text-anchor="middle" class="text-sub">Process Sandboxing</text>
   </g>
 
   <!-- Row 3 -->
+  <!-- 9. Multi-Provider (Puzzle Pieces) -->
   <g transform="translate(45, 420)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c3-fill" />
-    <path d="M93 55 A15 15 0 1 1 123 55 A15 15 0 1 1 93 55" class="icon-stroke c3-stroke" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-blue" />
+    <path d="M100 42 H110 V52 H100 Z M110 52 H120 V62 H110 Z" class="icon-stroke c-blue" />
     <text x="108" y="115" text-anchor="middle" class="text-title">Multi-Provider</text>
     <text x="108" y="135" text-anchor="middle" class="text-sub">Claude &amp; OpenCode</text>
   </g>
 
+  <!-- 10. Docker Sandbox (Cube/Package) -->
   <g transform="translate(285, 420)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c4-fill" />
-    <path d="M93 45 L123 45 L123 65 L93 65 Z" class="icon-stroke c4-stroke" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-purple" />
+    <path d="M108 38 L124 45 V63 L108 70 L92 63 V45 L108 38 Z" class="icon-stroke c-purple" />
+    <path d="M92 45 L108 52 L124 45 M108 52 V70" class="icon-stroke c-purple" />
     <text x="108" y="115" text-anchor="middle" class="text-title">Docker Sandbox</text>
-    <text x="108" y="135" text-anchor="middle" class="text-sub">Remote Execution</text>
+    <text x="108" y="135" text-anchor="middle" class="text-sub">Isolated Environment</text>
   </g>
 
+  <!-- 11. Multi-Language (Globe/Tags) -->
   <g transform="translate(525, 420)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c5-fill" />
-    <path d="M93 55 H123 M108 40 V70" class="icon-stroke c5-stroke" />
-    <text x="108" y="115" text-anchor="middle" class="text-title">Multi-Language SDK</text>
+    <circle cx="108" cy="55" r="32" class="icon-bg c-orange" />
+    <path d="M95 55 A13 13 0 1 1 121 55 A13 13 0 1 1 95 55" class="icon-stroke c-orange" />
+    <path d="M95 55 H121 M108 42 V68" class="icon-stroke c-orange" />
+    <text x="108" y="115" text-anchor="middle" class="text-title">SDK Ecology</text>
     <text x="108" y="135" text-anchor="middle" class="text-sub">Go, Python, TS</text>
   </g>
 
+  <!-- 12. Auto-Recovery (Heartbeat/Replay) -->
   <g transform="translate(765, 420)">
     <rect width="215" height="160" rx="12" class="feature-card" />
-    <circle cx="108" cy="55" r="35" class="icon-bg c6-fill" />
-    <path d="M93 60 L108 40 L123 60" class="icon-stroke c6-stroke" />
+    <circle cx="108" cy="55" r="32" class="icon-bg c-teal" />
+    <path d="M92 55 H100 L104 42 L112 68 L116 55 H124" class="icon-stroke c-teal" />
     <text x="108" y="115" text-anchor="middle" class="text-title">Auto-Recovery</text>
     <text x="108" y="135" text-anchor="middle" class="text-sub">Session Durability</text>
   </g>
