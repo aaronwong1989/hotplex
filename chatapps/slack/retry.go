@@ -56,7 +56,9 @@ func classifySlackError(err string) ErrorClass {
 		"message_not_found", "file_not_found", "comment_not_found",
 		"group_not_found", "not_allowed_type", "read_only",
 		"channel_is_archived", "user_group_not_found",
-		"404", "validation_error",
+		"404", "validation_error", "validation",
+		"422", "unprocessable", "invalid input", "malformed",
+		"not found", "resource not found",
 	}
 	for _, e := range userErrors {
 		if strings.Contains(errLower, e) {
