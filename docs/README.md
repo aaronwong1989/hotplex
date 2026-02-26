@@ -14,7 +14,6 @@ Welcome to the HotPlex documentation. This directory contains comprehensive guid
 - **[Docker Deployment](docker-deployment.md)**: Container and Kubernetes deployment guide.
 - **[Production Guide](production-guide.md)**: Production deployment best practices.
 - **[Benchmark Report](benchmark-report.md)**: Detailed performance metrics and analysis.
-- **[Roadmap 2026](archive/roadmap-2026.md)**: Future vision and upcoming milestones.
 
 ## 🖥️ Server Mode (Agent Control Plane)
 Developer guides for interacting with HotPlex in server mode (WebSocket & OpenCode protocols).
