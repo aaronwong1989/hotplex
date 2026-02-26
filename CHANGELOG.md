@@ -1,5 +1,80 @@
 # CHANGELOG.md
 
+## [v0.12.1] - 2026-02-26
+
+### ✨ Major Features: Slack Block Kit Implementation
+
+This release delivers a complete Slack Block Kit implementation for HotPlex ChatApps, transforming how AI agent messages are displayed in Slack with rich, interactive UI components.
+
+### Added
+- **Slack Block Kit Mapping** - Complete event-to-Block Kit transformation
+  - `Thinking` event: Context block with streaming updates
+  - `Tool Use` event: Section block with tool-specific emoji mapping
+  - `Tool Result` event: Enhanced display with duration threshold (500ms) and file path display
+  - `Answer` event: Section block with markdown formatting and throttled streaming (1/sec)
+  - `Error` event: Visual border styling with quoted error messages
+  - `Session Stats` event: Compact style showing only Duration + Tokens
+  - `Permission Request` event: Allow/Deny interactive buttons
+- **Tool Emoji Mapping** - Automatic emoji assignment by tool type
+  - `Bash` → `:computer:`, `Edit` → `:pencil:`, `Read` → `:books:`
+  - `FileSearch` → `:mag:`, `WebFetch` → `:globe_with_meridians:`
+  - 15+ tool types supported
+- **Enhanced Error Handling** - Corrected retry classification logic
+  - 422, validation errors classified as non-retryable (UserError)
+  - "Not found" errors properly classified as non-retryable
+  - Prevents unnecessary retries on client errors
+- **Multi-Agent Git Safety** - CRITICAL protocol for shared development
+  - Forbidden commands: `git checkout -- .`, `git reset --hard`
+  - Mandatory `git status` check before destructive operations
+  - Safe alternatives: `git checkout HEAD -- <file>`, `git stash`
+
+### Changed
+- **Tool Use Aggregation** - Increased time window from 100ms to 500ms
+  - Reduces message spam from rapid consecutive tool calls
+  - Added per-event-type `MinContent` threshold (200 → 50 for tool_use)
+- **Tool Result Display** - Smart duration display
+  - Only shows duration when >500ms threshold
+  - File path display with truncation (50 chars max)
+- **Session Stats** - Simplified Compact style
+  - Shows only Duration + Tokens (In/Out)
+  - Removes Cost/Tools/Files from default view
+
+### Documentation
+- **Design Specification** - Complete UI/UX design doc (`docs/chatapps/engine-events-slack-mapping.md`)
+  - 8 event types with Block Kit mappings
+  - Slack official docs integration
+  - Token counting mechanism (Claude Code research)
+  - Permission request types research
+- **AGENT.md Updates** - Multi-agent safety guidelines
+  - Git destructive operation warnings
+  - Forbidden commands table with alternatives
+  - Mandatory protocol for shared development
+
+### Technical Details
+- **Files Changed**: 15+ files
+  - `chatapps/slack/block_builder.go` - Block Kit implementation
+  - `chatapps/engine_handler.go` - Event handling updates
+  - `chatapps/processor_aggregator.go` - Aggregation config
+  - `chatapps/processor_chain.go` - Window time update
+  - `chatapps/slack/retry.go` - Error classification fix
+  - `CLAUDE.md` / `AGENT.md` - Safety guidelines
+- **Test Coverage**: All 22 packages passing
+- **Research**: Token counting, Permission request types (Claude Code)
+
+### Breaking Changes
+- None - Backward compatible
+
+### Contributors
+- [@hrygo](https://github.com/hrygo)
+
+### Related
+- **Issue**: [#38](https://github.com/hrygo/hotplex/issues/38) - Engine Events → Slack Block Kit
+- **Documentation**: [Slack Block Kit Mapping](docs/chatapps/engine-events-slack-mapping.md)
+
+---
+
+## [v0.11.5] - 2026-02-26
+
 ## [v0.11.5] - 2026-02-26
 
 ### ♻️ Documentation Restoration & Site Optimization
