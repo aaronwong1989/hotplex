@@ -455,7 +455,7 @@ func (b *BlockBuilder) BuildToolResultBlock(success bool, durationMs int64, outp
 	}
 
 	// Add metadata context block (Duration)
-
+	// Only show duration if it exceeds threshold
 	// Add metadata context block (Duration)
 	// Only show duration if it exceeds threshold
 	if durationMs > toolResultDurationThreshold {
