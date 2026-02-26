@@ -39,7 +39,6 @@ export default defineConfig({
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'Architecture', link: '/guide/architecture' },
-            { text: 'Security', link: '/guide/security' },
             { text: 'Hooks System', link: '/guide/hooks' },
           ]
         },
@@ -56,7 +55,6 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'WebSocket', link: '/guide/websocket' },
-            { text: 'OpenCode HTTP/SSE', link: '/guide/opencode-http' },
           ]
         },
         {
@@ -65,9 +63,7 @@ export default defineConfig({
           items: [
             { text: 'Overview', link: '/guide/chatapps' },
             { text: 'Slack Integration', link: '/guide/chatapps-slack' },
-            { text: 'Feishu / Lark', link: '/guide/chatapps-feishu' },
             { text: 'DingTalk', link: '/guide/chatapps-dingtalk' },
-            { text: 'Gap Analysis', link: '/guide/slack-gap-analysis' },
           ]
         },
         {

@@ -55,7 +55,6 @@ safe_cp "$DOCS_DIR/quick-start.md" "$TARGET_ROOT/guide/quick-start.md"
 safe_cp "$DOCS_DIR/quick-start_zh.md" "$TARGET_ROOT/guide/quick-start_zh.md"
 safe_cp "$DOCS_DIR/architecture.md" "$TARGET_ROOT/guide/architecture.md"
 safe_cp "$DOCS_DIR/architecture_zh.md" "$TARGET_ROOT/guide/architecture_zh.md"
-safe_cp "SECURITY.md" "$TARGET_ROOT/guide/security.md"
 safe_cp "$DOCS_DIR/server/api.md" "$TARGET_ROOT/guide/websocket.md"
 safe_cp "$DOCS_DIR/hooks-architecture.md" "$TARGET_ROOT/guide/hooks.md"
 safe_cp "$DOCS_DIR/hooks-architecture_zh.md" "$TARGET_ROOT/guide/hooks_zh.md"
@@ -69,7 +68,6 @@ safe_cp "$DOCS_DIR/benchmark-report.md" "$TARGET_ROOT/guide/performance.md"
 safe_cp "$DOCS_DIR/benchmark-report_zh.md" "$TARGET_ROOT/guide/performance_zh.md"
 safe_cp "$DOCS_DIR/chatapps/chatapps-architecture.md" "$TARGET_ROOT/guide/chatapps.md"
 safe_cp "$DOCS_DIR/chatapps/chatapps-slack.md" "$TARGET_ROOT/guide/chatapps-slack.md"
-safe_cp "$DOCS_DIR/chatapps/slack-gap-analysis.md" "$TARGET_ROOT/guide/slack-gap-analysis.md"
 safe_cp "$DOCS_DIR/chatapps/chatapps-dingtalk-analysis.md" "$TARGET_ROOT/guide/chatapps-dingtalk.md"
 safe_cp "$DOCS_DIR/chatapps/engine-events-slack-mapping.md" "$TARGET_ROOT/guide/slack-block-mapping.md"
 
@@ -165,7 +163,6 @@ find "$TARGET_ROOT" -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)
 find "$TARGET_ROOT" -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?(plan/)?technical-plan-draft(_zh)?(\.md)?\)|](/plan/technical-plan.md)|g' {} +
 find "$TARGET_ROOT" -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?chatapps-design(_zh)?(\.md)?\)|](/guide/chatapps.md)|g' {} +
 find "$TARGET_ROOT" -name "*.md" -type f -exec sed -E -i.bak 's|\]\(\.?/?(docs/)?hooks-architecture(_zh)?(\.md)?\)|](/guide/hooks\2.md)|g' {} +
-find "$TARGET_ROOT" -name "*.md" -type f -exec sed -E -i.bak 's!\]\(\.?/?SECURITY(\.md)?\)!](/guide/security.md)!g' {} +
 
 # Redirect GitHub-only URLs (Examples, CONTRIBUTING, LICENSE, Roadmap, ClaudeCode)
 # 1. Transform specific folders to GitHub tree links (only if not already a URL)

@@ -570,7 +570,7 @@ This version marks a significant evolution of HotPlex into a production-grade **
 ### Added
 - **CI/CD Pipelines**: Integrated GitHub Actions for automated Builds, Tests (with Race detection), and Linters.
 - **Automated Releases**: Configured `GoReleaser` to automatically build and release multi-platform binaries (Linux, macOS, Windows) upon tag push.
-- **Community Standards**: Added `LICENSE` (MIT), `CONTRIBUTING.md`, `SECURITY.md`, and Issue/PR templates to follow open-source best practices.
+- **Community Standards**: Added `LICENSE` (MIT), `CONTRIBUTING.md`, and Issue/PR templates to follow open-source best practices.
 - **Documentation Localization**: Added a full English version of the architecture design document (`docs/architecture.md`) with cross-language navigation.
 - **Unit Testing**: Added comprehensive unit tests for the `Danger Detector` (WAF) to verify security boundaries.
 

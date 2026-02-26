@@ -1096,7 +1096,7 @@ func (a *Adapter) handleResetCommand(cmd SlashCommand) error {
 // The workspace directory name is derived from the working directory path.
 func (a *Adapter) deleteClaudeCodeSessionFile(sessionID string) int {
 	projectsDir := filepath.Join(os.Getenv("HOME"), ".claude", "projects")
-	
+
 	// Use current working directory as workspace key
 	// Format: /Users/huangzhonghui/HotPlex -> -Users-huangzhonghui-HotPlex
 	cwd, err := os.Getwd()
@@ -1105,7 +1105,7 @@ func (a *Adapter) deleteClaudeCodeSessionFile(sessionID string) int {
 	}
 	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
 	workspaceDir := filepath.Join(projectsDir, workspaceKey)
-	
+
 	sessionFile := filepath.Join(workspaceDir, sessionID+".jsonl")
 	if err := os.Remove(sessionFile); err == nil {
 		return 1
