@@ -1,0 +1,171 @@
+package command
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/hrygo/hotplex/engine"
+	"github.com/hrygo/hotplex/event"
+)
+
+// ResetExecutor implements the /reset command
+type ResetExecutor struct {
+	engine  *engine.Engine
+	workDir string
+}
+
+// Verify ResetExecutor implements Executor at compile time
+var _ Executor = (*ResetExecutor)(nil)
+
+// NewResetExecutor creates a new reset command executor
+func NewResetExecutor(eng *engine.Engine, workDir string) *ResetExecutor {
+	return &ResetExecutor{
+		engine:  eng,
+		workDir: workDir,
+	}
+}
+
+// Command returns the command name
+func (e *ResetExecutor) Command() string {
+	return "/reset"
+}
+
+// Description returns the command description
+func (e *ResetExecutor) Description() string {
+	return "Reset conversation context and start fresh"
+}
+
+// Execute runs the reset command
+func (e *ResetExecutor) Execute(ctx context.Context, req *Request, callback event.Callback) (*Result, error) {
+	// Define progress steps
+	steps := []ProgressStep{
+		{Name: "find_session", Message: "Finding session...", Status: "pending"},
+		{Name: "delete_claude", Message: "Deleting session file...", Status: "pending"},
+		{Name: "delete_marker", Message: "Deleting marker...", Status: "pending"},
+		{Name: "terminate", Message: "Terminating process...", Status: "pending"},
+	}
+
+	emitter := NewProgressEmitter(e.Command(), callback, steps)
+
+	// Step 1: Find session (10%)
+	emitter.Running(0)
+	emitter.Emit("Resetting Context")
+
+	sessionID := req.SessionID
+	var providerSessionID string
+
+	sess, exists := e.engine.GetSession(sessionID)
+	if !exists {
+		emitter.Error(0, "No active session found")
+		emitter.Emit("Reset Failed")
+		return &Result{
+			Success: false,
+			Message: "No active session found",
+		}, nil
+	}
+	providerSessionID = sess.ProviderSessionID
+
+	emitter.Success(0, "Session located")
+	emitter.Emit("Resetting Context")
+
+	// Step 2: Delete Claude Code session file (40%)
+	emitter.Running(1)
+	emitter.Emit("Resetting Context")
+
+	deletedCount := e.deleteClaudeCodeSessionFile(providerSessionID)
+	emitter.Success(1, fmt.Sprintf("Deleted %d file(s)", deletedCount))
+	emitter.Emit("Resetting Context")
+
+	// Step 3: Delete HotPlex marker (60%)
+	emitter.Running(2)
+	emitter.Emit("Resetting Context")
+
+	markerDeleted := e.deleteHotPlexMarker(providerSessionID)
+	if markerDeleted {
+		emitter.Success(2, "Marker deleted")
+	} else {
+		emitter.Success(2, "Marker cleanup done")
+	}
+	emitter.Emit("Resetting Context")
+
+	// Step 4: Terminate session (80%)
+	emitter.Running(3)
+	emitter.Emit("Resetting Context")
+
+	if err := e.engine.StopSession(sessionID, "user_requested_reset"); err != nil {
+		emitter.Error(3, fmt.Sprintf("Failed: %v", err))
+		emitter.Emit("Reset Failed")
+		return &Result{
+			Success: false,
+			Message: fmt.Sprintf("Failed to terminate session: %v", err),
+		}, nil
+	}
+
+	emitter.Success(3, "Process terminated")
+	emitter.Emit("Resetting Context")
+
+	// Complete
+	emitter.Complete("Context reset. Ready for fresh start!")
+
+	return &Result{
+		Success: true,
+		Message: "Context reset. Ready for fresh start!",
+		Metadata: map[string]any{
+			"files_deleted":        deletedCount,
+			"marker_deleted":       markerDeleted,
+			"provider_session_id":  providerSessionID,
+		},
+	}, nil
+}
+
+// deleteClaudeCodeSessionFile renames the Claude Code session file
+func (e *ResetExecutor) deleteClaudeCodeSessionFile(providerSessionID string) int {
+	if providerSessionID == "" {
+		return 0
+	}
+
+	projectsDir := filepath.Join(os.Getenv("HOME"), ".claude", "projects")
+
+	// Derive workspace directory from workDir
+	cwd := e.workDir
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
+	workspaceDir := filepath.Join(projectsDir, workspaceKey)
+
+	sessionPath := filepath.Join(workspaceDir, providerSessionID+".jsonl")
+	deletedPath := sessionPath + ".deleted"
+
+	if _, err := os.Stat(sessionPath); err == nil {
+		if err := os.Rename(sessionPath, deletedPath); err == nil {
+			return 1
+		}
+	}
+	return 0
+}
+
+// deleteHotPlexMarker deletes the HotPlex session marker file
+func (e *ResetExecutor) deleteHotPlexMarker(providerSessionID string) bool {
+	if providerSessionID == "" {
+		return false
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+
+	markerPath := filepath.Join(homeDir, ".hotplex", "sessions", providerSessionID+".lock")
+	deletedPath := markerPath + ".deleted"
+
+	if _, err := os.Stat(markerPath); err == nil {
+		if err := os.Rename(markerPath, deletedPath); err == nil {
+			return true
+		}
+	}
+	return false
+}

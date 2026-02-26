@@ -1275,3 +1275,99 @@ func (b *BlockBuilder) BuildAskUserQuestionBlock(question string, options []map[
 
 	return blocks
 }
+
+// =============================================================================
+// Command Progress Blocks
+// =============================================================================
+
+// BuildCommandProgressBlock builds a progress display for slash commands
+func (b *BlockBuilder) BuildCommandProgressBlock(title string, steps []map[string]any, progress int32) []map[string]any {
+	var elements []map[string]any
+
+	// Header with emoji
+	emoji := ":hourglass_flowing_sand:"
+	if progress >= 100 {
+		emoji = ":white_check_mark:"
+	}
+	elements = append(elements, mrkdwnText(fmt.Sprintf("%s *%s*", emoji, title)))
+
+	// Add progress bar
+	if progress > 0 && progress < 100 {
+		elements = append(elements, mrkdwnText(b.buildProgressBar(progress)))
+	}
+
+	// Add step list
+	for _, step := range steps {
+		stepEmoji := getStepEmojiFromMap(step)
+		stepMsg := getStepMessageFromMap(step)
+		elements = append(elements, mrkdwnText(fmt.Sprintf("%s %s", stepEmoji, stepMsg)))
+	}
+
+	return []map[string]any{
+		{
+			"type":     "context",
+			"elements": elements,
+		},
+	}
+}
+
+// BuildCommandCompleteBlock builds the completion block for slash commands
+func (b *BlockBuilder) BuildCommandCompleteBlock(title, message string) []map[string]any {
+	return []map[string]any{
+		{
+			"type": "header",
+			"text": plainText("✅ " + title),
+		},
+		{
+			"type": "section",
+			"text": mrkdwnText(message),
+		},
+	}
+}
+
+// BuildCommandErrorBlock builds the error block for slash commands
+func (b *BlockBuilder) BuildCommandErrorBlock(title, message string) []map[string]any {
+	return []map[string]any{
+		{
+			"type": "header",
+			"text": plainText("❌ " + title),
+		},
+		{
+			"type": "section",
+			"text": mrkdwnText(fmt.Sprintf("> %s", message)),
+		},
+	}
+}
+
+// buildProgressBar creates a text-based progress bar
+func (b *BlockBuilder) buildProgressBar(progress int32) string {
+	const barWidth = 10
+	filled := int(progress) * barWidth / 100
+	empty := barWidth - filled
+
+	bar := strings.Repeat("▓", filled) + strings.Repeat("░", empty)
+	return fmt.Sprintf("`[%s] %d%%`", bar, progress)
+}
+
+// getStepEmojiFromMap extracts emoji from step map
+func getStepEmojiFromMap(step map[string]any) string {
+	if status, ok := step["status"].(string); ok {
+		switch status {
+		case "success":
+			return ":white_check_mark:"
+		case "error":
+			return ":x:"
+		case "running":
+			return ":hourglass_flowing_sand:"
+		}
+	}
+	return ":white_circle:"
+}
+
+// getStepMessageFromMap extracts message from step map
+func getStepMessageFromMap(step map[string]any) string {
+	if msg, ok := step["message"].(string); ok {
+		return msg
+	}
+	return ""
+}

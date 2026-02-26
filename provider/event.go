@@ -75,6 +75,13 @@ const (
 	// Note: This feature is primarily for interactive mode; headless mode may not support stdin responses.
 	// HotPlex handles this as a degraded text prompt (user replies via message).
 	EventTypeAskUserQuestion ProviderEventType = "ask_user_question"
+
+	// EventTypeCommandProgress indicates a slash command is executing with progress updates.
+	// Used by /reset, /dc, and future slash commands to show step-by-step execution status.
+	EventTypeCommandProgress ProviderEventType = "command_progress"
+
+	// EventTypeCommandComplete indicates a slash command has completed successfully.
+	EventTypeCommandComplete ProviderEventType = "command_complete"
 )
 
 // ProviderEvent represents a normalized event from any AI CLI provider.
