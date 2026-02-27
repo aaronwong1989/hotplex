@@ -237,7 +237,7 @@ func (f *MrkdwnFormatter) convertLinks(text string) string {
 					closeParen := strings.Index(text[openParen+1:], ")")
 					if closeParen != -1 {
 						url := text[openParen+1 : openParen+1+closeParen]
-						fmt.Fprintf(&result, "<%s|%s>", url, linkText)
+						result.WriteString(fmt.Sprintf("<%s|%s>", url, linkText))
 						i = openParen + 1 + closeParen + 1
 						continue
 					}
