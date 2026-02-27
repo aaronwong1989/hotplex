@@ -3,9 +3,6 @@ package slack
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -387,9 +384,7 @@ func (a *Adapter) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if a.config.SigningSecret != "" {
-		signature := r.Header.Get("X-Slack-Signature")
-		timestamp := r.Header.Get("X-Slack-Request-Timestamp")
-		if signature == "" || timestamp == "" || !a.verifySignature(body, timestamp, signature) {
+		if !a.verifySignature(r, body) {
 			a.Logger().Warn("Invalid signature")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -1110,26 +1105,37 @@ type SlackAction struct {
 	Style    string `json:"style"`
 }
 
-func (a *Adapter) verifySignature(body []byte, timestamp, signature string) bool {
-	parsedTS := strings.TrimPrefix(timestamp, "v0=")
-	var ts int64
-	if _, err := fmt.Sscanf(parsedTS, "%d", &ts); err != nil {
-		a.Logger().Warn("Failed to parse timestamp", "timestamp", parsedTS)
+// verifySignature verifies the request signature using Slack SDK's SecretsVerifier
+func (a *Adapter) verifySignature(r *http.Request, body []byte) bool {
+	signature := r.Header.Get("X-Slack-Signature")
+	timestamp := r.Header.Get("X-Slack-Request-Timestamp")
+
+	if signature == "" || timestamp == "" {
 		return false
 	}
 
-	now := time.Now().Unix()
-	if now-ts > 60*5 {
-		a.Logger().Warn("Timestamp too old")
+	header := http.Header{
+		"X-Slack-Signature":         []string{signature},
+		"X-Slack-Request-Timestamp": []string{timestamp},
+	}
+
+	sv, err := slack.NewSecretsVerifier(header, a.config.SigningSecret)
+	if err != nil {
+		a.Logger().Warn("Failed to create SecretsVerifier", "error", err)
 		return false
 	}
 
-	baseString := fmt.Sprintf("v0:%s:%s", parsedTS, string(body))
-	h := hmac.New(sha256.New, []byte(a.config.SigningSecret))
-	h.Write([]byte(baseString))
-	signatureComputed := "v0=" + hex.EncodeToString(h.Sum(nil))
+	if _, err := sv.Write(body); err != nil {
+		a.Logger().Warn("Failed to write to SecretsVerifier", "error", err)
+		return false
+	}
 
-	return hmac.Equal([]byte(signatureComputed), []byte(signature))
+	if err := sv.Ensure(); err != nil {
+		a.Logger().Warn("Signature verification failed", "error", err)
+		return false
+	}
+
+	return true
 }
 
 func (a *Adapter) SendToChannel(ctx context.Context, channelID, text, threadTS string) error {

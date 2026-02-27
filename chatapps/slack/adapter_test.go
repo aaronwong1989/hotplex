@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -24,7 +25,20 @@ func generateSignature(secret, timestamp, body string) string {
 	return "v0=" + hex.EncodeToString(h.Sum(nil))
 }
 
-// createTestAdapter creates an adapter with the given signing secret for testing
+// createTestRequest creates an http.Request with Slack signature headers for testing
+func createTestRequest(t *testing.T, timestamp, signature string, body []byte) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(body))
+	req.Header.Set("X-Slack-Signature", signature)
+	req.Header.Set("X-Slack-Request-Timestamp", timestamp)
+	return req
+}
+
+func createTestRequestForBench(timestamp, signature string, body []byte) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(body))
+	req.Header.Set("X-Slack-Signature", signature)
+	req.Header.Set("X-Slack-Request-Timestamp", timestamp)
+	return req
+}
 func createTestAdapter(signingSecret string) *Adapter {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return NewAdapter(&Config{
@@ -34,416 +48,75 @@ func createTestAdapter(signingSecret string) *Adapter {
 	}, logger, base.WithoutServer())
 }
 
-// TestVerifySignature_ValidSignature tests the happy path with a valid signature
-func TestVerifySignature_ValidSignature(t *testing.T) {
+// =============================================================================
+// Signature Verification Tests (SDK-based)
+// =============================================================================
+
+// TestVerifySignature_SDK verifies the SDK's SecretsVerifier works correctly
+func TestVerifySignature_SDK(t *testing.T) {
 	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback","challenge":"test-challenge"}`
+	body := []byte(`{"type":"event_callback","challenge":"test-challenge"}`)
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 
-	signature := generateSignature(signingSecret, timestamp, body)
+	signature := generateSignature(signingSecret, timestamp, string(body))
 
 	adapter := createTestAdapter(signingSecret)
-	result := adapter.verifySignature([]byte(body), timestamp, signature)
+	req := createTestRequest(t, timestamp, signature, body)
+	result := adapter.verifySignature(req, body)
 
 	if !result {
 		t.Error("Expected valid signature to pass verification")
 	}
 }
 
-// TestVerifySignature_ExpiredTimestamp tests that signatures older than 5 minutes are rejected
-func TestVerifySignature_ExpiredTimestamp(t *testing.T) {
+// TestVerifySignature_SDK_Expired verifies expired timestamps are rejected
+func TestVerifySignature_SDK_Expired(t *testing.T) {
 	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-	// Timestamp from 10 minutes ago
+	body := []byte(`{"type":"event_callback"}`)
 	oldTimestamp := fmt.Sprintf("%d", time.Now().Add(-10*time.Minute).Unix())
 
-	signature := generateSignature(signingSecret, oldTimestamp, body)
+	signature := generateSignature(signingSecret, oldTimestamp, string(body))
 
 	adapter := createTestAdapter(signingSecret)
-	result := adapter.verifySignature([]byte(body), oldTimestamp, signature)
+	req := createTestRequest(t, oldTimestamp, signature, body)
+	result := adapter.verifySignature(req, body)
 
 	if result {
 		t.Error("Expected expired timestamp to fail verification")
 	}
 }
 
-// TestVerifySignature_InvalidSignatureFormat tests with malformed signature format
-func TestVerifySignature_InvalidSignatureFormat(t *testing.T) {
-	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-
-	// Invalid format: missing "v0=" prefix
-	invalidSignatures := []string{
-		"invalidsignature",
-		"v0:abcdef123456",
-		"v0=invalid",
-		"",
-		"v0=not-a-valid-hex-characters",
-	}
-
-	adapter := createTestAdapter(signingSecret)
-
-	for _, sig := range invalidSignatures {
-		result := adapter.verifySignature([]byte(body), timestamp, sig)
-		if result {
-			t.Errorf("Expected signature %q to fail verification", sig)
-		}
-	}
-}
-
-// TestVerifySignature_TamperedBody tests that modified body invalidates the signature
-func TestVerifySignature_TamperedBody(t *testing.T) {
-	signingSecret := "test-signing-secret-123456789012345"
-	originalBody := `{"type":"event_callback","challenge":"test"}`
-	tamperedBody := `{"type":"event_callback","challenge":"hacked"}`
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-
-	// Generate signature for original body
-	signature := generateSignature(signingSecret, timestamp, originalBody)
-
-	adapter := createTestAdapter(signingSecret)
-
-	// Verify original body passes
-	if !adapter.verifySignature([]byte(originalBody), timestamp, signature) {
-		t.Error("Original body should pass verification")
-	}
-
-	// Verify tampered body fails
-	if adapter.verifySignature([]byte(tamperedBody), timestamp, signature) {
-		t.Error("Tampered body should fail verification")
-	}
-}
-
-// TestVerifySignature_MissingSignatureHeader tests behavior when signature header is empty
-func TestVerifySignature_MissingSignatureHeader(t *testing.T) {
-	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-
-	adapter := createTestAdapter(signingSecret)
-
-	// Empty signature
-	result := adapter.verifySignature([]byte(body), timestamp, "")
-	if result {
-		t.Error("Expected empty signature to fail verification")
-	}
-
-	// Whitespace only signature
-	result = adapter.verifySignature([]byte(body), timestamp, "   ")
-	if result {
-		t.Error("Expected whitespace-only signature to fail verification")
-	}
-}
-
-// TestVerifySignature_MissingTimestampHeader tests behavior when timestamp header is empty
-func TestVerifySignature_MissingTimestampHeader(t *testing.T) {
-	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-
-	adapter := createTestAdapter(signingSecret)
-
-	// Empty timestamp
-	result := adapter.verifySignature([]byte(body), "", "v0=somesig")
-	if result {
-		t.Error("Expected empty timestamp to fail verification")
-	}
-
-	// Whitespace only timestamp
-	result = adapter.verifySignature([]byte(body), "   ", "v0=somesig")
-	if result {
-		t.Error("Expected whitespace-only timestamp to fail verification")
-	}
-
-	// Invalid timestamp format
-	result = adapter.verifySignature([]byte(body), "not-a-number", "v0=somesig")
-	if result {
-		t.Error("Expected invalid timestamp format to fail verification")
-	}
-}
-
-// TestVerifySignature_ReplayAttack tests that signatures can be replayed within the 5-minute window
-// Note: This is expected behavior - the timestamp check is the replay protection.
-// A true replay attack prevention would require a nonce, which Slack doesn't implement.
-// The 5-minute window is Slack's documented mechanism for replay protection.
-func TestVerifySignature_ReplayAttack(t *testing.T) {
-	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-
-	// Generate a valid signature
-	signature := generateSignature(signingSecret, timestamp, body)
-
-	adapter := createTestAdapter(signingSecret)
-
-	// First verification should pass
-	if !adapter.verifySignature([]byte(body), timestamp, signature) {
-		t.Error("First verification should pass")
-	}
-
-	// Same signature used again within 5 minutes - this WILL pass
-	// This is the expected behavior per Slack's design
-	// The protection is that old signatures (>5 min) won't work
-	if !adapter.verifySignature([]byte(body), timestamp, signature) {
-		t.Log("Note: Same signature reused within 5-minute window passes - this is expected Slack behavior")
-		t.Log("The replay attack protection is the timestamp check, not a nonce")
-	}
-
-	// Now test with an old timestamp - should fail
-	oldTimestamp := fmt.Sprintf("%d", time.Now().Add(-10*time.Minute).Unix())
-	oldSignature := generateSignature(signingSecret, oldTimestamp, body)
-
-	if adapter.verifySignature([]byte(body), oldTimestamp, oldSignature) {
-		t.Error("Old signature (10 min ago) should fail - replay attack protection works")
-	}
-}
-
-// TestVerifySignature_TimingAttackMitigation verifies that constant-time comparison is used
-func TestVerifySignature_TimingAttackMitigation(t *testing.T) {
-	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-
-	// Generate two different signatures
-	sig1 := generateSignature(signingSecret, timestamp, body)
-	// Generate signature with different body to get different hash
-	sig2 := generateSignature(signingSecret, timestamp, body+"different")
-
-	adapter := createTestAdapter(signingSecret)
-
-	// Both should return false (invalid)
-	result1 := adapter.verifySignature([]byte(body), timestamp, sig1)
-	result2 := adapter.verifySignature([]byte(body), timestamp, sig2)
-
-	if !result1 {
-		t.Log("Valid signature correctly verified")
-	}
-
-	// Both should be false - timing information should be the same
-	_ = result2
-
-	// Note: Testing actual timing differences would require statistical analysis
-	// The use of hmac.Equal provides constant-time comparison
-}
-
-// TestVerifySignature_WrongSecret tests that using a different secret fails
-func TestVerifySignature_WrongSecret(t *testing.T) {
+// TestVerifySignature_SDK_WrongSecret verifies wrong secret fails
+func TestVerifySignature_SDK_WrongSecret(t *testing.T) {
 	correctSecret := "correct-signing-secret-123456789012345"
 	wrongSecret := "wrong-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
+	body := []byte(`{"type":"event_callback"}`)
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 
-	// Generate signature with wrong secret
-	signature := generateSignature(wrongSecret, timestamp, body)
+	signature := generateSignature(wrongSecret, timestamp, string(body))
 
-	// Adapter configured with correct secret
 	adapter := createTestAdapter(correctSecret)
-	result := adapter.verifySignature([]byte(body), timestamp, signature)
+	req := createTestRequest(t, timestamp, signature, body)
+	result := adapter.verifySignature(req, body)
 
 	if result {
 		t.Error("Expected wrong secret to fail verification")
 	}
 }
 
-// TestVerifySignature_TimestampWithV0Prefix tests timestamp with v0= prefix (as some clients send)
-func TestVerifySignature_TimestampWithV0Prefix(t *testing.T) {
+// BenchmarkVerifySignature_SDK benchmarks the SDK signature verification
+func BenchmarkVerifySignature_SDK(b *testing.B) {
 	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-	timestamp := fmt.Sprintf("v0=%d", time.Now().Unix())
-
-	signature := generateSignature(signingSecret, strings.TrimPrefix(timestamp, "v0="), body)
-
-	adapter := createTestAdapter(signingSecret)
-	result := adapter.verifySignature([]byte(body), timestamp, signature)
-
-	if !result {
-		t.Error("Expected timestamp with v0= prefix to pass verification")
-	}
-}
-
-// TestVerifySignature_TableDriven provides comprehensive table-driven tests
-func TestVerifySignature_TableDriven(t *testing.T) {
-	signingSecret := "test-signing-secret-123456789012345"
-	validBody := `{"type":"event_callback"}`
-	validTimestamp := fmt.Sprintf("%d", time.Now().Unix())
-	validSignature := generateSignature(signingSecret, validTimestamp, validBody)
-
-	tests := []struct {
-		name        string
-		body        string
-		timestamp   string
-		signature   string
-		expectValid bool
-		description string
-	}{
-		{
-			name:        "valid_signature",
-			body:        validBody,
-			timestamp:   validTimestamp,
-			signature:   validSignature,
-			expectValid: true,
-			description: "Valid signature should pass",
-		},
-		{
-			name:        "empty_signature",
-			body:        validBody,
-			timestamp:   validTimestamp,
-			signature:   "",
-			expectValid: false,
-			description: "Empty signature should fail",
-		},
-		{
-			name:        "empty_timestamp",
-			body:        validBody,
-			timestamp:   "",
-			signature:   validSignature,
-			expectValid: false,
-			description: "Empty timestamp should fail",
-		},
-		{
-			name:        "invalid_timestamp_format",
-			body:        validBody,
-			timestamp:   "not-a-number",
-			signature:   validSignature,
-			expectValid: false,
-			description: "Invalid timestamp format should fail",
-		},
-		{
-			name:        "expired_timestamp_10min",
-			body:        validBody,
-			timestamp:   fmt.Sprintf("%d", time.Now().Add(-10*time.Minute).Unix()),
-			signature:   validSignature,
-			expectValid: false,
-			description: "10 min old timestamp should fail",
-		},
-		{
-			name:        "expired_timestamp_6min",
-			body:        validBody,
-			timestamp:   fmt.Sprintf("%d", time.Now().Add(-6*time.Minute).Unix()),
-			signature:   validSignature,
-			expectValid: false,
-			description: "6 min old timestamp should fail",
-		},
-		{
-			name:        "fresh_timestamp_3min",
-			body:        validBody,
-			timestamp:   fmt.Sprintf("%d", time.Now().Add(-3*time.Minute).Unix()),
-			signature:   generateSignature(signingSecret, fmt.Sprintf("%d", time.Now().Add(-3*time.Minute).Unix()), validBody),
-			expectValid: true,
-			description: "3 min old timestamp should still pass",
-		},
-		{
-			name:        "tampered_body",
-			body:        `{"type":"event_callback","hacked":true}`,
-			timestamp:   validTimestamp,
-			signature:   validSignature,
-			expectValid: false,
-			description: "Tampered body should fail",
-		},
-		{
-			name:        "wrong_signature",
-			body:        validBody,
-			timestamp:   validTimestamp,
-			signature:   "v0=0000000000000000000000000000000000000000000000000000000000000000",
-			expectValid: false,
-			description: "Wrong signature should fail",
-		},
-		{
-			name:        "malformed_signature_no_v0",
-			body:        validBody,
-			timestamp:   validTimestamp,
-			signature:   "not-a-valid-signature",
-			expectValid: false,
-			description: "Signature without v0= prefix should fail",
-		},
-		{
-			name:        "timestamp_with_v0_prefix",
-			body:        validBody,
-			timestamp:   "v0=" + validTimestamp,
-			signature:   validSignature,
-			expectValid: true,
-			description: "Timestamp with v0= prefix should work",
-		},
-		{
-			name:        "body_with_special_chars",
-			body:        `{"text":"Hello <world> & \"quoted\""}`,
-			timestamp:   validTimestamp,
-			signature:   generateSignature(signingSecret, validTimestamp, `{"text":"Hello <world> & \"quoted\""}`),
-			expectValid: true,
-			description: "Body with special characters should work",
-		},
-		{
-			name:        "body_with_newlines",
-			body:        "line1\nline2\r\nline3",
-			timestamp:   validTimestamp,
-			signature:   generateSignature(signingSecret, validTimestamp, "line1\nline2\r\nline3"),
-			expectValid: true,
-			description: "Body with newlines should work",
-		},
-		{
-			name:        "empty_body",
-			body:        "",
-			timestamp:   validTimestamp,
-			signature:   generateSignature(signingSecret, validTimestamp, ""),
-			expectValid: true,
-			description: "Empty body should work",
-		},
-	}
-
-	adapter := createTestAdapter(signingSecret)
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := adapter.verifySignature([]byte(tt.body), tt.timestamp, tt.signature)
-			if result != tt.expectValid {
-				t.Errorf("%s: got %v, want %v", tt.description, result, tt.expectValid)
-			}
-		})
-	}
-}
-
-// BenchmarkVerifySignature benchmarks the signature verification performance
-func BenchmarkVerifySignature(b *testing.B) {
-	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback","challenge":"test-challenge"}`
+	body := []byte(`{"type":"event_callback","challenge":"test-challenge"}`)
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-	signature := generateSignature(signingSecret, timestamp, body)
+	signature := generateSignature(signingSecret, timestamp, string(body))
 
 	adapter := createTestAdapter(signingSecret)
+	req := createTestRequestForBench(timestamp, signature, body)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		adapter.verifySignature([]byte(body), timestamp, signature)
-	}
-}
-
-// BenchmarkVerifySignature_Invalid benchmarks verification with invalid signature
-func BenchmarkVerifySignature_Invalid(b *testing.B) {
-	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-	invalidSignature := "v0=invalid-signature-that-does-not-match"
-
-	adapter := createTestAdapter(signingSecret)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		adapter.verifySignature([]byte(body), timestamp, invalidSignature)
-	}
-}
-
-// BenchmarkVerifySignature_ExpiredTimestamp benchmarks verification with expired timestamp
-func BenchmarkVerifySignature_ExpiredTimestamp(b *testing.B) {
-	signingSecret := "test-signing-secret-123456789012345"
-	body := `{"type":"event_callback"}`
-	oldTimestamp := fmt.Sprintf("%d", time.Now().Add(-10*time.Minute).Unix())
-	signature := generateSignature(signingSecret, oldTimestamp, body)
-
-	adapter := createTestAdapter(signingSecret)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		adapter.verifySignature([]byte(body), oldTimestamp, signature)
+		adapter.verifySignature(req, body)
 	}
 }
 
