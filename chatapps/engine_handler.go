@@ -98,13 +98,12 @@ type StreamCallback struct {
 	thinkingSent bool            // Tracks if thinking/status message was sent
 	metadata     map[string]any  // Original message metadata (channel_id, thread_ts, etc.)
 	processor    *ProcessorChain // Message processor chain
-	blockBuilder *slack.BlockBuilder
 
 	// Status message state for dynamic event type indicator
 	// Reuses thinking message infrastructure for in-place updates
 	thinkingChannelID string           // Channel ID for status message updates
 	thinkingMessageTS string           // Message TS for status message updates
-	currentStatus     slack.StatusType // Current status type (thinking, tool_use, answer)
+	currentStatus     base.MessageType // Current status type (thinking, tool_use, answer)
 
 	// Stream state for throttled updates
 	streamState *StreamState
@@ -121,15 +120,14 @@ type StreamState struct {
 // NewStreamCallback creates a new StreamCallback
 func NewStreamCallback(ctx context.Context, sessionID, platform string, adapters *AdapterManager, logger *slog.Logger, metadata map[string]any) *StreamCallback {
 	cb := &StreamCallback{
-		ctx:          ctx,
-		sessionID:    sessionID,
-		platform:     platform,
-		adapters:     adapters,
-		logger:       logger,
-		isFirst:      true,
-		metadata:     metadata,
-		processor:    NewDefaultProcessorChain(logger),
-		blockBuilder: slack.NewBlockBuilder(),
+		ctx:       ctx,
+		sessionID: sessionID,
+		platform:  platform,
+		adapters:  adapters,
+		logger:    logger,
+		isFirst:   true,
+		metadata:  metadata,
+		processor: NewDefaultProcessorChain(logger),
 	}
 
 	// Set callback as the sender for aggregated messages
@@ -210,30 +208,7 @@ func (c *StreamCallback) handleThinking(data any) error {
 
 	// Use updateStatusMessage for dynamic status indicator
 	// This reuses thinking message infrastructure for in-place updates
-	return c.updateStatusMessage(slack.StatusThinking, thinkingContent)
-}
-
-// buildThinkingMessage constructs a thinking message with proper metadata
-func (c *StreamCallback) buildThinkingMessage(blocks []map[string]any, isFirst bool) (*ChatMessage, error) {
-	metadata := c.copyMessageMetadata()
-	metadata["stream"] = true
-	metadata["event_type"] = string(provider.EventTypeThinking)
-	metadata["is_final"] = isFirst
-
-	var blocksAny []any
-	for _, b := range blocks {
-		blocksAny = append(blocksAny, b)
-	}
-
-	return &ChatMessage{
-		Platform:  c.platform,
-		SessionID: c.sessionID,
-		Content:   string(provider.EventTypeThinking),
-		Metadata:  metadata,
-		RichContent: &base.RichContent{
-			Blocks: blocksAny,
-		},
-	}, nil
+	return c.updateStatusMessage(base.MessageTypeThinking, thinkingContent)
 }
 
 // sendMessageAndGetTS sends a message and populates message_ts in metadata
@@ -301,16 +276,16 @@ func (c *StreamCallback) deleteThinkingMessage() error {
 		return fmt.Errorf("adapter is not a Slack adapter")
 	}
 
-	return slackAdapter.DeleteMessage(c.ctx, c.thinkingChannelID, c.thinkingMessageTS)
+	return slackAdapter.DeleteMessageSDK(c.ctx, c.thinkingChannelID, c.thinkingMessageTS)
 }
 
 // updateStatusMessage updates the status indicator message in-place
-// It reuses the thinking message infrastructure for efficient updates
-// Supported status types: "thinking", "tool_use", "answer"
+// It sends a base.ChatMessage with the appropriate MessageType
+// The Adapter's MessageBuilder will handle conversion to platform-specific blocks
 // NOTE: Caller must hold c.mu lock before calling this method
-func (c *StreamCallback) updateStatusMessage(statusType slack.StatusType, displayText string) error {
+func (c *StreamCallback) updateStatusMessage(statusType base.MessageType, displayText string) error {
 	// Skip if status hasn't changed (avoid redundant updates)
-	if c.currentStatus == statusType && statusType != slack.StatusThinking {
+	if c.currentStatus == statusType && statusType != base.MessageTypeThinking {
 		return nil
 	}
 
@@ -320,8 +295,14 @@ func (c *StreamCallback) updateStatusMessage(statusType slack.StatusType, displa
 		"is_first", c.isFirst,
 		"thinking_sent", c.thinkingSent)
 
-	// Build status blocks using the new BuildStatusBlock method
-	blocks := c.blockBuilder.BuildStatusBlock(statusType, displayText)
+	// Create message with platform-agnostic MessageType
+	// The Adapter's MessageBuilder will convert this to Slack blocks
+	msg := &base.ChatMessage{
+		Type:     statusType,
+		Content:  displayText,
+		Metadata: c.copyMessageMetadata(),
+	}
+	msg.Metadata["stream"] = true
 
 	if c.isFirst {
 		// First status event - create new message
@@ -330,12 +311,7 @@ func (c *StreamCallback) updateStatusMessage(statusType slack.StatusType, displa
 		c.currentStatus = statusType
 
 		// Send new message and capture ts for future updates
-		msg, err := c.buildThinkingMessage(blocks, true)
-		if err != nil {
-			return err
-		}
-
-		if err := c.sendMessageAndGetTS(msg); err != nil {
+		if err := c.sendMessageAndGetTS(convertToChatMessage(msg)); err != nil {
 			return err
 		}
 
@@ -355,21 +331,31 @@ func (c *StreamCallback) updateStatusMessage(statusType slack.StatusType, displa
 
 		if c.thinkingMessageTS != "" && c.thinkingChannelID != "" {
 			// Use message_ts to update existing message
-			msg, err := c.buildThinkingMessage(blocks, false)
-			if err != nil {
-				return err
-			}
 			msg.Metadata["message_ts"] = c.thinkingMessageTS
 			msg.Metadata["channel_id"] = c.thinkingChannelID
 
-			return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, msg)
+			return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 		}
 
-		// Fallback: send as new message if we don't have ts
-		return c.sendBlockMessage(string(provider.EventTypeThinking), blocks, false)
+		// Fallback: send as new message
+		return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 	}
 
 	return nil
+}
+
+// convertToChatMessage converts base.ChatMessage to ChatMessage (local type)
+func convertToChatMessage(msg *base.ChatMessage) *ChatMessage {
+	return &ChatMessage{
+		Platform:    msg.Platform,
+		SessionID:   msg.SessionID,
+		UserID:      msg.UserID,
+		Content:     msg.Content,
+		MessageID:   msg.MessageID,
+		Timestamp:   msg.Timestamp,
+		Metadata:    msg.Metadata,
+		RichContent: msg.RichContent,
+	}
 }
 
 func (c *StreamCallback) handleToolUse(data any) error {
@@ -397,13 +383,25 @@ func (c *StreamCallback) handleToolUse(data any) error {
 
 	// Update status indicator to show current tool being used
 	// This updates the thinking message in-place with "Tool: Read" etc.
-	if err := c.updateStatusMessage(slack.StatusToolUse, toolName); err != nil {
+	if err := c.updateStatusMessage(base.MessageTypeToolUse, toolName); err != nil {
 		c.logger.Warn("Failed to update status for tool_use", "error", err)
 	}
 
 	c.logger.Debug("[TOOL] handleToolUse sending", "tool_name", toolName, "input_len", len(input))
-	blocks := c.blockBuilder.BuildToolUseBlock(toolName, input, truncated)
-	return c.sendBlockMessage(toolName, blocks, false)
+
+	// Send tool use message with platform-agnostic MessageType
+	// The Adapter's MessageBuilder will convert to platform-specific blocks
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeToolUse,
+		Content: toolName,
+		Metadata: map[string]any{
+			"input":      input,
+			"truncated":  truncated,
+			"event_type": string(provider.EventTypeToolUse),
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }
 
 func (c *StreamCallback) handleToolResult(data any) error {
@@ -441,8 +439,21 @@ func (c *StreamCallback) handleToolResult(data any) error {
 	}
 
 	c.logger.Debug("[TOOL] handleToolResult sending", "success", success, "duration_ms", durationMs, "output_len", len(output))
-	blocks := c.blockBuilder.BuildToolResultBlock(success, durationMs, output, false, toolName, filePath)
-	return c.sendBlockMessage(string(provider.EventTypeToolResult), blocks, false)
+
+	// Send tool result message with platform-agnostic MessageType
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeToolResult,
+		Content: output,
+		Metadata: map[string]any{
+			"success":     success,
+			"duration_ms": durationMs,
+			"tool_name":   toolName,
+			"file_path":   filePath,
+			"event_type":  string(provider.EventTypeToolResult),
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }
 
 func (c *StreamCallback) handleAnswer(data any) error {
@@ -476,14 +487,23 @@ func (c *StreamCallback) handleAnswer(data any) error {
 		return nil
 	}
 
+	// Create platform-agnostic message with MessageType
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeAnswer,
+		Content: answerContent,
+		Metadata: map[string]any{
+			"event_type": string(provider.EventTypeAnswer),
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+
 	// Use throttled streaming update if we have a message to update
 	if c.streamState != nil {
-		return c.streamState.updateThrottled(c.ctx, c.adapters, c.platform, c.sessionID, answerContent, c.blockBuilder, c.metadata)
+		return c.streamState.updateThrottled(c.ctx, c.adapters, c.platform, c.sessionID, msg)
 	}
 
 	// Otherwise send as new message
-	blocks := c.blockBuilder.BuildAnswerBlock(answerContent)
-	return c.sendBlockMessage(string(provider.EventTypeAnswer), blocks, false)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }
 
 func (c *StreamCallback) handleError(data any) error {
@@ -508,8 +528,16 @@ func (c *StreamCallback) handleError(data any) error {
 		errMsg = fmt.Sprintf("%v", data)
 	}
 
-	blocks := c.blockBuilder.BuildErrorBlock(errMsg, false)
-	return c.sendBlockMessage(string(provider.EventTypeError), blocks, true)
+	// Send error message with platform-agnostic MessageType
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeError,
+		Content: errMsg,
+		Metadata: map[string]any{
+			"event_type": string(provider.EventTypeError),
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }
 
 func (c *StreamCallback) handleDangerBlock(data any) error {
@@ -520,8 +548,17 @@ func (c *StreamCallback) handleDangerBlock(data any) error {
 	default:
 		reason = "security_block"
 	}
-	blocks := c.blockBuilder.BuildErrorBlock(reason, true)
-	return c.sendBlockMessage("security_block", blocks, true)
+
+	// Send danger block message with platform-agnostic MessageType
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeDangerBlock,
+		Content: reason,
+		Metadata: map[string]any{
+			"event_type": "security_block",
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }
 
 // handleSessionStats handles session statistics events
@@ -532,73 +569,61 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 		return nil
 	}
 
-	// Build rich session stats UI using card style (recommended default)
-	blocks := c.blockBuilder.BuildSessionStatsBlock(stats, slack.StatsStyleCompact)
-	if len(blocks) == 0 {
-		return nil
-	}
+	// Format stats as string content
+	content := fmt.Sprintf("Session: %s | Duration: %dms | Tokens: %d | Tools: %d",
+		stats.SessionID, stats.TotalDurationMs, stats.TotalTokens, stats.ToolCallCount)
 
-	// Send stats as informational message (not final)
-	return c.sendBlockMessage("session_stats", blocks, false)
-}
-
-// sendBlockMessage sends a message with Slack blocks
-func (c *StreamCallback) sendBlockMessage(content string, blocks []map[string]any, isFinal bool) error {
-	if c.adapters == nil {
-		c.logger.Debug("No adapters, skipping message send", "platform", c.platform)
-		return nil
-	}
-
-	// Build metadata with original message's platform-specific data
-	metadata := c.copyMessageMetadata()
-	metadata["stream"] = true
-	metadata["event_type"] = content
-	metadata["is_final"] = isFinal
-
-	// Initialize stream state on first non-thinking message
-	if content != string(provider.EventTypeThinking) && c.streamState == nil {
-		c.streamState = &StreamState{}
-	}
-
-	// Convert blocks to []any for RichContent
-	var blocksAny []any
-	for _, b := range blocks {
-		blocksAny = append(blocksAny, b)
-	}
-
-	msg := &ChatMessage{
-		Platform:  c.platform,
-		SessionID: c.sessionID,
-		Content:   content,
-		Metadata:  metadata,
-		RichContent: &base.RichContent{
-			Blocks: blocksAny,
+	// Send stats message with platform-agnostic MessageType
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeSessionStats,
+		Content: content,
+		Metadata: map[string]any{
+			"event_type":           "session_stats",
+			"session_id":           stats.SessionID,
+			"total_duration_ms":    stats.TotalDurationMs,
+			"thinking_duration_ms": stats.ThinkingDurationMs,
+			"tool_duration_ms":     stats.ToolDurationMs,
+			"input_tokens":         stats.InputTokens,
+			"output_tokens":        stats.OutputTokens,
+			"total_tokens":         stats.TotalTokens,
+			"tool_call_count":      stats.ToolCallCount,
+			"tools_used":           stats.ToolsUsed,
+			"files_modified":       stats.FilesModified,
 		},
 	}
-
-	// Process message through processor chain
-	processedMsg, err := c.processor.Process(c.ctx, msg)
-	if err != nil {
-		c.logger.Error("Message processing failed",
-			"platform", c.platform,
-			"session_id", c.sessionID,
-			"error", err)
-		processedMsg = msg
-	}
-
-	if processedMsg == nil {
-		c.logger.Debug("Message dropped by processor",
-			"platform", c.platform,
-			"session_id", c.sessionID)
-		return nil
-	}
-
-	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, processedMsg)
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }
 
 // copyMessageMetadata copies important metadata from original message
 func (c *StreamCallback) copyMessageMetadata() map[string]any {
 	metadata := make(map[string]any)
+	if c.metadata != nil {
+		if channelID, ok := c.metadata["channel_id"]; ok {
+			metadata["channel_id"] = channelID
+		}
+		if channelType, ok := c.metadata["channel_type"]; ok {
+			metadata["channel_type"] = channelType
+		}
+		if threadTS, ok := c.metadata["thread_ts"]; ok {
+			metadata["thread_ts"] = threadTS
+		}
+		if userID, ok := c.metadata["user_id"]; ok {
+			metadata["user_id"] = userID
+		}
+		if messageID, ok := c.metadata["message_id"]; ok {
+			metadata["message_id"] = messageID
+		}
+	}
+	return metadata
+}
+
+// mergeMetadata merges the callback's stored metadata with the provided metadata
+func (c *StreamCallback) mergeMetadata(metadata map[string]any) map[string]any {
+	if metadata == nil {
+		metadata = make(map[string]any)
+	}
+	// Copy over important metadata from stored metadata
 	if c.metadata != nil {
 		if channelID, ok := c.metadata["channel_id"]; ok {
 			metadata["channel_id"] = channelID
@@ -757,7 +782,7 @@ func (h *EngineMessageHandler) Handle(ctx context.Context, msg *ChatMessage) err
 
 // updateThrottled sends throttled streaming updates to Slack
 // Limits updates to 1 per second to avoid rate limiting
-func (s *StreamState) updateThrottled(ctx context.Context, adapters *AdapterManager, platform, sessionID, content string, blockBuilder *slack.BlockBuilder, metadata map[string]any) error {
+func (s *StreamState) updateThrottled(ctx context.Context, adapters *AdapterManager, platform, sessionID string, msg *base.ChatMessage) error {
 	s.mu.Lock()
 
 	// Throttle: max 1 update per second
@@ -768,33 +793,11 @@ func (s *StreamState) updateThrottled(ctx context.Context, adapters *AdapterMana
 	s.LastUpdated = time.Time{} // Mark as updating
 	s.mu.Unlock()
 
-	// Build blocks with content
-	blocks := blockBuilder.BuildAnswerBlock(content)
-
-	// Convert blocks to []any
-	var blocksAny []any
-	for _, b := range blocks {
-		blocksAny = append(blocksAny, b)
+	// Add thread_ts and channel_id if present in metadata
+	if msg.Metadata == nil {
+		msg.Metadata = make(map[string]any)
 	}
-
-	// Create chat message for update
-	msg := &ChatMessage{
-		Platform:  platform,
-		SessionID: sessionID,
-		Content:   content,
-		RichContent: &RichContent{
-			Blocks: blocksAny,
-		},
-		Metadata: make(map[string]any),
-	}
-
-	// Copy metadata
-	for k, v := range metadata {
-		msg.Metadata[k] = v
-	}
-
-	// Add thread_ts if present
-	if threadTS, ok := metadata["thread_ts"]; ok {
+	if threadTS, ok := msg.Metadata["thread_ts"]; ok {
 		msg.Metadata["thread_ts"] = threadTS
 	}
 
@@ -804,8 +807,20 @@ func (s *StreamState) updateThrottled(ctx context.Context, adapters *AdapterMana
 		msg.Metadata["channel_id"] = s.ChannelID
 	}
 
+	// Convert base.ChatMessage to ChatMessage for adapter
+	chatMsg := &ChatMessage{
+		Platform:    msg.Platform,
+		SessionID:   msg.SessionID,
+		UserID:      msg.UserID,
+		Content:     msg.Content,
+		MessageID:   msg.MessageID,
+		Timestamp:   msg.Timestamp,
+		Metadata:    msg.Metadata,
+		RichContent: msg.RichContent,
+	}
+
 	// Send update
-	err := adapters.SendMessage(ctx, platform, sessionID, msg)
+	err := adapters.SendMessage(ctx, platform, sessionID, chatMsg)
 
 	// Update timestamp on success
 	s.mu.Lock()
@@ -839,8 +854,16 @@ func (c *StreamCallback) handlePlanMode(data any) error {
 		return nil
 	}
 
-	blocks := c.blockBuilder.BuildPlanModeBlock(planContent)
-	return c.sendBlockMessage(string(provider.EventTypePlanMode), blocks, false)
+	// Send plan mode message with platform-agnostic MessageType
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypePlanMode,
+		Content: planContent,
+		Metadata: map[string]any{
+			"event_type": string(provider.EventTypePlanMode),
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }
 
 // handleExitPlanMode handles exit plan mode requests (tool_use with name=ExitPlanMode)
@@ -859,8 +882,17 @@ func (c *StreamCallback) handleExitPlanMode(data any) error {
 		planSummary = "Plan content will be executed upon approval."
 	}
 
-	blocks := c.blockBuilder.BuildExitPlanModeBlock(c.sessionID, planSummary)
-	return c.sendBlockMessage(string(provider.EventTypeExitPlanMode), blocks, false)
+	// Send exit plan mode message with platform-agnostic MessageType
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeExitPlanMode,
+		Content: planSummary,
+		Metadata: map[string]any{
+			"event_type": string(provider.EventTypeExitPlanMode),
+			"session_id": c.sessionID,
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }
 
 // =============================================================================
@@ -885,7 +917,14 @@ func (c *StreamCallback) handleAskUserQuestion(data any) error {
 		return nil
 	}
 
-	// Options are not available in this context, display question only
-	blocks := c.blockBuilder.BuildAskUserQuestionBlock(question, nil)
-	return c.sendBlockMessage(string(provider.EventTypeAskUserQuestion), blocks, false)
+	// Send ask user question message with platform-agnostic MessageType
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeAskUserQuestion,
+		Content: question,
+		Metadata: map[string]any{
+			"event_type": string(provider.EventTypeAskUserQuestion),
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, convertToChatMessage(msg))
 }

@@ -6,7 +6,38 @@ import (
 	"time"
 )
 
+// MessageType defines the normalized message types across all chat platforms
+type MessageType string
+
+const (
+	// MessageTypeThinking indicates the AI is reasoning or thinking
+	MessageTypeThinking MessageType = "thinking"
+	// MessageTypeAnswer indicates text output from the AI
+	MessageTypeAnswer MessageType = "answer"
+	// MessageTypeToolUse indicates a tool invocation is starting
+	MessageTypeToolUse MessageType = "tool_use"
+	// MessageTypeToolResult indicates a tool execution result
+	MessageTypeToolResult MessageType = "tool_result"
+	// MessageTypeError indicates an error occurred
+	MessageTypeError MessageType = "error"
+	// MessageTypePlanMode indicates AI is in plan mode and generating a plan
+	MessageTypePlanMode MessageType = "plan_mode"
+	// MessageTypeExitPlanMode indicates AI completed planning and requests user approval
+	MessageTypeExitPlanMode MessageType = "exit_plan_mode"
+	// MessageTypeAskUserQuestion indicates AI is asking a clarifying question
+	MessageTypeAskUserQuestion MessageType = "ask_user_question"
+	// MessageTypeDangerBlock indicates a dangerous operation confirmation block
+	MessageTypeDangerBlock MessageType = "danger_block"
+	// MessageTypeSessionStats indicates session statistics
+	MessageTypeSessionStats MessageType = "session_stats"
+	// MessageTypeCommandProgress indicates a slash command is executing with progress updates
+	MessageTypeCommandProgress MessageType = "command_progress"
+	// MessageTypeCommandComplete indicates a slash command has completed
+	MessageTypeCommandComplete MessageType = "command_complete"
+)
+
 type ChatMessage struct {
+	Type        MessageType // Message type for rendering decisions
 	Platform    string
 	SessionID   string
 	UserID      string
