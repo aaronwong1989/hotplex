@@ -19,7 +19,7 @@ func TestZoneOrderProcessor_AnnotatesZoneIndex(t *testing.T) {
 		{"tool_use", ZoneAction},
 		{"tool_result", ZoneAction},
 		{"permission_request", ZoneAction},
-		{"session_start", ZoneAction},
+		{"session_start", ZoneInitialization},
 		{"answer", ZoneOutput},
 		{"error", ZoneOutput},
 		{"ask_user_question", ZoneOutput},

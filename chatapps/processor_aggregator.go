@@ -24,10 +24,11 @@ type ZoneConfig struct {
 
 // zoneConfigs maps zone index to its configuration.
 var zoneConfigs = map[int]ZoneConfig{
-	ZoneThinking: {MaxMsgs: 5, MaxBytes: 1500}, // 思考区: 5 messages, 1500 bytes
-	ZoneAction:   {MaxMsgs: 8, MaxBytes: 2000}, // 行动区: 8 messages, 2000 bytes
-	ZoneOutput:   {MaxMsgs: 0, MaxBytes: 4000}, // 展示区: no msg limit, 4000 byte pages
-	ZoneSummary:  {MaxMsgs: 1, MaxBytes: 0},    // 总结区: only latest
+	ZoneInitialization: {MaxMsgs: 2, MaxBytes: 1000}, // 初始化: 2 messages (start + engine_starting)
+	ZoneThinking:       {MaxMsgs: 5, MaxBytes: 1500}, // 思考区: 5 messages
+	ZoneAction:         {MaxMsgs: 8, MaxBytes: 2000}, // 行动区: 8 messages
+	ZoneOutput:         {MaxMsgs: 0, MaxBytes: 4000}, // 展示区: no msg limit, 4000 byte pages
+	ZoneSummary:        {MaxMsgs: 1, MaxBytes: 0},    // 总结区: only latest
 }
 
 // EventConfig defines aggregation behavior for specific event types
@@ -622,6 +623,34 @@ func (p *MessageAggregatorProcessor) mergeRichContent(messages []*base.ChatMessa
 	}
 
 	return merged
+}
+
+// ResetSession clears all buffers for a specific session.
+func (p *MessageAggregatorProcessor) ResetSession(platform, sessionID string) {
+	sessionKey := platform + ":" + sessionID
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	buf, exists := p.buffers[sessionKey]
+	if !exists {
+		return
+	}
+
+	if buf.timer != nil {
+		buf.timer.Stop()
+	}
+
+	// Record dropped messages
+	for _, msg := range buf.messages {
+		eventType, _ := msg.Metadata["event_type"].(string)
+		if eventType == "" {
+			eventType = "unknown"
+		}
+		MessagesDroppedTotal.WithLabelValues(eventType, msg.Platform, "reset").Inc()
+	}
+
+	delete(p.buffers, sessionKey)
+	p.logger.Debug("Message aggregator: session buffers cleared", "platform", platform, "session_id", sessionID)
 }
 
 // Stop stops the aggregator and cleans up buffers

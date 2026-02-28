@@ -119,14 +119,16 @@ type StreamCallback struct {
 	// Starting message records for 3s delayed deletion (session_start + engine_starting)
 	startingMsgRecords []msgRecord
 
-	// Action Zone message records for 3s delayed deletion on Answer
-	actionMsgRecords []msgRecord
+	// Tracking records for 3s delayed deletion on Answer (Zone 0 & 1)
+	cleanupMsgRecords []msgRecord
 }
 
-// msgRecord tracks a sent message for later deletion
+// msgRecord tracks a sent message for later deletion or sliding window management.
 type msgRecord struct {
 	ChannelID string
 	MessageTS string
+	ZoneIndex int    // Zone index (0-3) for filtering and sliding window
+	EventType string // Event type (tool_use, session_start, etc.) to protection markers
 }
 
 // StreamState tracks the state for streaming updates
@@ -176,7 +178,15 @@ func (c *StreamCallback) SendAggregatedMessage(ctx context.Context, msg *ChatMes
 		return nil
 	}
 
-	return c.adapters.SendMessage(ctx, c.platform, c.sessionID, msg)
+	if err := c.adapters.SendMessage(ctx, c.platform, c.sessionID, msg); err != nil {
+		return err
+	}
+
+	// Track action/thinking zone messages for sliding window and cleanup.
+	// Aggregated messages bypass the normal path because the aggregator buffers them.
+	c.trackMessage((*base.ChatMessage)(msg))
+
+	return nil
 }
 
 // Handle implements event.Callback
@@ -263,11 +273,9 @@ func (c *StreamCallback) handleThinking(data any) error {
 	// Reaction lifecycle: 📥 → 🧠
 	c.setReaction("brain")
 
-	// Schedule deletion of starting session message (3s delay)
-	c.scheduleDeleteStartingMessage()
-
-	// Check if session_start has been sent
+	c.mu.Lock()
 	sessionStartSent := c.sessionStartSent
+	c.mu.Unlock()
 
 	if !sessionStartSent {
 		c.logger.Warn("thinking event received before session_start - proceeding anyway",
@@ -309,6 +317,9 @@ func (c *StreamCallback) sendMessageAndGetTS(msg *ChatMessage) error {
 		return err
 	}
 
+	// Automatic tracking via zone metadata (Thinking or Action zones)
+	c.trackMessage(processedMsg)
+
 	// Copy message_ts back to original msg metadata if present in processedMsg
 	if processedMsg.Metadata != nil {
 		if ts, ok := processedMsg.Metadata["message_ts"].(string); ok && ts != "" {
@@ -343,10 +354,18 @@ func (c *StreamCallback) setReaction(emoji string) {
 		return
 	}
 
+	c.mu.Lock()
+	prevReaction := c.currentReaction
+	if prevReaction == emoji {
+		c.mu.Unlock()
+		return
+	}
+	c.mu.Unlock()
+
 	// Remove previous reaction (ignore errors — may not exist)
-	if c.currentReaction != "" && c.currentReaction != emoji {
+	if prevReaction != "" {
 		_ = slackAdapter.RemoveReactionSDK(c.ctx, base.Reaction{
-			Name:      c.currentReaction,
+			Name:      prevReaction,
 			Channel:   c.reactionChannelID,
 			Timestamp: c.reactionMessageTS,
 		})
@@ -358,7 +377,9 @@ func (c *StreamCallback) setReaction(emoji string) {
 		Channel:   c.reactionChannelID,
 		Timestamp: c.reactionMessageTS,
 	}); err == nil {
+		c.mu.Lock()
 		c.currentReaction = emoji
+		c.mu.Unlock()
 	} else {
 		c.logger.Warn("Failed to set reaction", "emoji", emoji, "error", err)
 	}
@@ -367,11 +388,14 @@ func (c *StreamCallback) setReaction(emoji string) {
 // scheduleDeleteStartingMessage schedules a 3-second delayed deletion
 // for all startup-phase messages (session_start + engine_starting).
 func (c *StreamCallback) scheduleDeleteStartingMessage() {
+	c.mu.Lock()
 	if len(c.startingMsgRecords) == 0 {
+		c.mu.Unlock()
 		return
 	}
 	records := c.startingMsgRecords
 	c.startingMsgRecords = nil // Clear immediately to prevent double-delete
+	c.mu.Unlock()
 
 	time.AfterFunc(3*time.Second, func() {
 		adapter, ok := c.adapters.GetAdapter(c.platform)
@@ -390,58 +414,120 @@ func (c *StreamCallback) scheduleDeleteStartingMessage() {
 	})
 }
 
-// maxActionMessages is the maximum number of action zone messages visible in Slack.
-// When exceeded, oldest messages are deleted immediately (sliding window effect).
-const maxActionMessages = 5
+const maxSlidingMessages = 5
 
-// trackActionMessage records an action zone message and enforces sliding window.
-// When the number of tracked messages exceeds maxActionMessages, the oldest
-// messages are deleted via Slack API immediately for a fixed-size window effect.
-func (c *StreamCallback) trackActionMessage(msg *base.ChatMessage) {
-	if msg.Metadata == nil {
+// trackMessage records a message for sliding window management and final cleanup.
+func (c *StreamCallback) trackMessage(msg *base.ChatMessage) {
+	if msg == nil || msg.Metadata == nil {
 		return
 	}
+
+	zone, hasZone := msg.Metadata["zone_index"].(int)
+	if !hasZone || (zone != ZoneInitialization && zone != ZoneThinking && zone != ZoneAction) {
+		return
+	}
+
 	ts, _ := msg.Metadata["message_ts"].(string)
 	ch, _ := msg.Metadata["channel_id"].(string)
+	eventType, _ := msg.Metadata["event_type"].(string)
 	if ts == "" || ch == "" {
 		return
 	}
-	c.actionMsgRecords = append(c.actionMsgRecords, msgRecord{ChannelID: ch, MessageTS: ts})
 
-	// Sliding window: delete oldest messages when exceeding limit
-	if len(c.actionMsgRecords) > maxActionMessages {
-		excess := len(c.actionMsgRecords) - maxActionMessages
-		toDelete := make([]msgRecord, excess)
-		copy(toDelete, c.actionMsgRecords[:excess])
-		c.actionMsgRecords = c.actionMsgRecords[excess:]
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-		// Delete old messages in background (best-effort)
-		go func() {
-			adapter, ok := c.adapters.GetAdapter(c.platform)
-			if !ok {
-				return
-			}
-			sa, ok := adapter.(*slack.Adapter)
-			if !ok {
-				return
-			}
-			for _, rec := range toDelete {
-				if err := sa.DeleteMessageSDK(context.Background(), rec.ChannelID, rec.MessageTS); err != nil {
-					c.logger.Debug("Sliding window: failed to delete old action message", "ts", rec.MessageTS, "error", err)
-				}
-			}
-		}()
+	// Check if this TS is already tracked to handle in-place updates gracefully
+	for _, rec := range c.cleanupMsgRecords {
+		if rec.MessageTS == ts {
+			return
+		}
 	}
+
+	// Record the message
+	c.cleanupMsgRecords = append(c.cleanupMsgRecords, msgRecord{
+		ChannelID: ch,
+		MessageTS: ts,
+		ZoneIndex: zone,
+		EventType: eventType,
+	})
+
+	// Enforce sliding window independently for Thinking and Action zones
+	c.enforceSlidingWindow(zone)
+}
+
+// enforceSlidingWindow deletes oldest messages when the limit is exceeded.
+// NOTE: Caller must hold c.mu lock before calling this method
+func (c *StreamCallback) enforceSlidingWindow(zone int) {
+	var zoneRecords []msgRecord
+	var otherRecords []msgRecord
+
+	// Split records into current zone and others
+	for _, rec := range c.cleanupMsgRecords {
+		if rec.ZoneIndex == zone {
+			zoneRecords = append(zoneRecords, rec)
+		} else {
+			otherRecords = append(otherRecords, rec)
+		}
+	}
+
+	if len(zoneRecords) <= maxSlidingMessages {
+		return
+	}
+
+	// Find the oldest evictable record (skip startup messages in Zone 1)
+	var toEvict msgRecord
+	var remainingInZone []msgRecord
+	found := false
+
+	for _, rec := range zoneRecords {
+		if !found && (zone == ZoneAction || zone == ZoneInitialization) {
+			// Protection: never evict startup markers from sliding window
+			if rec.EventType == string(provider.EventTypeSessionStart) ||
+				rec.EventType == string(provider.EventTypeEngineStarting) {
+				remainingInZone = append(remainingInZone, rec)
+				continue
+			}
+		}
+
+		if !found {
+			toEvict = rec
+			found = true
+			continue
+		}
+		remainingInZone = append(remainingInZone, rec)
+	}
+
+	if !found {
+		return
+	}
+
+	// Rebuild the final records slice
+	c.cleanupMsgRecords = append(remainingInZone, otherRecords...)
+
+	// Delete evicted message in background
+	go func() {
+		adapter, ok := c.adapters.GetAdapter(c.platform)
+		if !ok {
+			return
+		}
+		if sa, ok := adapter.(*slack.Adapter); ok {
+			_ = sa.DeleteMessageSDK(context.Background(), toEvict.ChannelID, toEvict.MessageTS)
+		}
+	}()
 }
 
 // scheduleDeleteActionMessages schedules 3-second delayed deletion
-// of all tracked Action Zone messages (tool_use, tool_result, etc.)
+// of all tracked Thinking and Action Zone messages.
 func (c *StreamCallback) scheduleDeleteActionMessages() {
-	if len(c.actionMsgRecords) == 0 {
+	c.mu.Lock()
+	if len(c.cleanupMsgRecords) == 0 {
+		c.mu.Unlock()
 		return
 	}
-	records := c.actionMsgRecords
-	c.actionMsgRecords = nil // Clear immediately
+	records := c.cleanupMsgRecords
+	c.cleanupMsgRecords = nil // Clear immediately
+	c.mu.Unlock()
 
 	time.AfterFunc(3*time.Second, func() {
 		adapter, ok := c.adapters.GetAdapter(c.platform)
@@ -452,10 +538,9 @@ func (c *StreamCallback) scheduleDeleteActionMessages() {
 		if !ok {
 			return
 		}
-		// Use context.Background() — the original c.ctx is likely cancelled by now
 		for _, rec := range records {
 			if err := sa.DeleteMessageSDK(context.Background(), rec.ChannelID, rec.MessageTS); err != nil {
-				c.logger.Debug("Failed to delete action message", "ts", rec.MessageTS, "error", err)
+				c.logger.Debug("Failed to delete tracked message", "ts", rec.MessageTS, "error", err)
 			}
 		}
 	})
@@ -466,8 +551,10 @@ func (c *StreamCallback) scheduleDeleteActionMessages() {
 // The Adapter's MessageBuilder will handle conversion to platform-specific blocks
 // NOTE: Caller must hold c.mu lock before calling this method
 func (c *StreamCallback) updateStatusMessage(statusType base.MessageType, displayText string) error {
+	c.mu.Lock()
 	// Skip if status hasn't changed (avoid redundant updates)
 	if c.currentStatus == statusType && statusType != base.MessageTypeThinking {
+		c.mu.Unlock()
 		return nil
 	}
 
@@ -478,61 +565,65 @@ func (c *StreamCallback) updateStatusMessage(statusType base.MessageType, displa
 		"thinking_sent", c.thinkingSent)
 
 	// Create message with platform-agnostic MessageType
-	// The Adapter's MessageBuilder will convert this to Slack blocks
 	msg := &base.ChatMessage{
 		Type:     statusType,
 		Content:  displayText,
 		Metadata: c.copyMessageMetadata(),
 	}
 	msg.Metadata["stream"] = true
-	msg.Metadata["event_type"] = string(statusType) // Critical for aggregator to know event type
+	msg.Metadata["event_type"] = string(statusType)
 
-	if c.isFirst {
-		// First status event - create new message
-		c.isFirst = false
+	isFirst := c.isFirst
+	isUpdate := !isFirst && c.thinkingSent && c.thinkingMessageTS != "" && c.thinkingChannelID != ""
+
+	if isFirst {
+		c.isFirst = false // Optimistic update
 		c.currentStatus = statusType
+	} else {
+		c.currentStatus = statusType
+	}
 
-		// Send new message and capture ts for future updates
+	msgTS := c.thinkingMessageTS
+	channelID := c.thinkingChannelID
+	c.mu.Unlock()
+
+	if isFirst {
+		// First status event - create new message
 		if err := c.sendMessageAndGetTS(convertToChatMessage(msg)); err != nil {
-			// Reset state on send failure to allow retry
+			// Rollback state on send failure
+			c.mu.Lock()
 			c.isFirst = true
 			c.currentStatus = ""
+			c.mu.Unlock()
 			return err
 		}
 
 		// Extract ts from metadata after successful send
 		if ts, ok := msg.Metadata["message_ts"].(string); ok && ts != "" {
+			c.mu.Lock()
 			c.thinkingMessageTS = ts
-			if channelID, ok := msg.Metadata["channel_id"].(string); ok {
-				c.thinkingChannelID = channelID
+			if chID, ok := msg.Metadata["channel_id"].(string); ok {
+				c.thinkingChannelID = chID
 			}
-			// Only set thinkingSent=true AFTER successful send and TS capture
 			c.thinkingSent = true
-			c.logger.Debug("Captured status message ts for updates", "ts", ts, "channel_id", c.thinkingChannelID)
+			c.mu.Unlock()
+			c.logger.Debug("Captured status message ts for updates", "ts", ts)
 		} else {
-			// TS not captured - log warning but still mark as sent
-			c.logger.Warn("Failed to capture status message ts, updates may not work")
+			c.mu.Lock()
 			c.thinkingSent = true
+			c.mu.Unlock()
+			c.logger.Warn("Failed to capture status message ts, updates may not work")
 		}
-
 		return nil
-	} else if c.thinkingSent {
+	} else if isUpdate {
 		// Subsequent status event - update the existing message
-		c.currentStatus = statusType
-
-		if c.thinkingMessageTS != "" && c.thinkingChannelID != "" {
-			// Use message_ts to update existing message
-			msg.Metadata["message_ts"] = c.thinkingMessageTS
-			msg.Metadata["channel_id"] = c.thinkingChannelID
-
-			return c.sendMessageAndGetTS(convertToChatMessage(msg))
-		}
-
-		// Fallback: send as new message
+		msg.Metadata["message_ts"] = msgTS
+		msg.Metadata["channel_id"] = channelID
 		return c.sendMessageAndGetTS(convertToChatMessage(msg))
 	}
 
-	return nil
+	// Fallback: send as new message
+	return c.sendMessageAndGetTS(convertToChatMessage(msg))
 }
 
 // convertToChatMessage converts base.ChatMessage to ChatMessage (local type)
@@ -605,7 +696,6 @@ func (c *StreamCallback) handleToolUse(data any) error {
 	if err := c.sendMessageAndGetTS(convertToChatMessage(msg)); err != nil {
 		return err
 	}
-	c.trackActionMessage(msg)
 	return nil
 }
 
@@ -680,11 +770,11 @@ func (c *StreamCallback) handleToolResult(data any) error {
 	if err := c.sendMessageAndGetTS(convertToChatMessage(msg)); err != nil {
 		return err
 	}
-	c.trackActionMessage(msg)
 	return nil
 }
 
 func (c *StreamCallback) handleAnswer(data any) error {
+	c.mu.Lock()
 	// Schedule 3-second delayed deletion of thinking message for smooth UX transition
 	if c.thinkingSent && c.thinkingMessageTS != "" && c.thinkingChannelID != "" {
 		c.logger.Debug("Scheduling delayed thinking message deletion for answer",
@@ -694,6 +784,8 @@ func (c *StreamCallback) handleAnswer(data any) error {
 		c.thinkingSent = false
 		c.thinkingMessageTS = ""
 		c.thinkingChannelID = ""
+		c.mu.Unlock()
+
 		time.AfterFunc(3*time.Second, func() {
 			adapter, ok := c.adapters.GetAdapter(c.platform)
 			if !ok {
@@ -709,36 +801,41 @@ func (c *StreamCallback) handleAnswer(data any) error {
 	} else if c.thinkingSent {
 		c.thinkingSent = false
 		c.logger.Debug("Clearing thinking state for answer")
+		c.mu.Unlock()
+	} else {
+		c.mu.Unlock()
 	}
 
-	// Double-safety: also schedule starting message deletion here
-	// in case no thinking event was received before answer
-	c.scheduleDeleteStartingMessage()
-
-	// Schedule 3-second delayed deletion of Action Zone messages
+	// Schedule deletion of all tracked Thinking/Action messages (3s delay)
 	c.scheduleDeleteActionMessages()
 
-	var answerContent string
-	switch v := data.(type) {
-	case string:
-		answerContent = v
-	case *event.EventWithMeta:
-		answerContent = v.EventData
-	default:
-		answerContent = fmt.Sprintf("%v", data)
+	// Clear session start message records (3s delay)
+	c.scheduleDeleteStartingMessage()
+
+	// Capture answer content
+	var content string
+	var metadata map[string]any
+	if m, ok := data.(*event.EventWithMeta); ok {
+		content = m.EventData
+		if m.Meta != nil {
+			metadata = map[string]any{
+				"duration_ms": m.Meta.DurationMs,
+				"status":      m.Meta.Status,
+			}
+		}
+	} else if s, ok := data.(string); ok {
+		content = s
 	}
 
-	if answerContent == "" {
-		return nil
-	}
-
-	// Create platform-agnostic message with MessageType
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeAnswer,
-		Content: answerContent,
+		Content: content,
 		Metadata: map[string]any{
 			"event_type": string(provider.EventTypeAnswer),
 		},
+	}
+	for k, v := range metadata {
+		msg.Metadata[k] = v
 	}
 	msg.Metadata = c.mergeMetadata(msg.Metadata)
 
@@ -760,11 +857,19 @@ func (c *StreamCallback) handleAnswer(data any) error {
 
 	// Use throttled streaming update if we have a message to update
 	if c.streamState != nil {
-		return c.streamState.updateThrottled(c.ctx, c.adapters, c.platform, c.sessionID, msg)
+		err := c.streamState.updateThrottled(c.ctx, c.adapters, c.platform, c.sessionID, msg)
+		if err == nil {
+			// Clear processor session state on successful answer
+			c.processor.ResetSession(c.platform, c.sessionID)
+		}
+		return err
 	}
 
-	// Otherwise send as new message
-	return c.sendMessageAndGetTS(convertToChatMessage(msg))
+	err := c.sendMessageAndGetTS(convertToChatMessage(msg))
+	if err == nil {
+		c.processor.ResetSession(c.platform, c.sessionID)
+	}
+	return err
 }
 
 func (c *StreamCallback) handleError(data any) error {
@@ -801,7 +906,14 @@ func (c *StreamCallback) handleError(data any) error {
 		},
 	}
 	msg.Metadata = c.mergeMetadata(msg.Metadata)
-	return c.sendMessageAndGetTS(convertToChatMessage(msg))
+	if err := c.sendMessageAndGetTS(convertToChatMessage(msg)); err != nil {
+		return err
+	}
+
+	// Clear processor session state on error
+	c.processor.ResetSession(c.platform, c.sessionID)
+
+	return nil
 }
 
 func (c *StreamCallback) handleDangerBlock(data any) error {
@@ -865,7 +977,14 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 		},
 	}
 	msg.Metadata = c.mergeMetadata(msg.Metadata)
-	return c.sendMessageAndGetTS(convertToChatMessage(msg))
+	if err := c.sendMessageAndGetTS(convertToChatMessage(msg)); err != nil {
+		return err
+	}
+
+	// Final cleanup: ensure all processor state is reset
+	c.processor.ResetSession(c.platform, c.sessionID)
+
+	return nil
 }
 
 // handleCommandProgress handles command progress events
@@ -1493,7 +1612,14 @@ func (c *StreamCallback) handleSessionStart(data any) error {
 	// Track starting message for 3s delayed deletion
 	if ts, ok := msg.Metadata["message_ts"].(string); ok && ts != "" {
 		if ch, ok := msg.Metadata["channel_id"].(string); ok && ch != "" {
-			c.startingMsgRecords = append(c.startingMsgRecords, msgRecord{ChannelID: ch, MessageTS: ts})
+			c.mu.Lock()
+			c.startingMsgRecords = append(c.startingMsgRecords, msgRecord{
+				ChannelID: ch,
+				MessageTS: ts,
+				ZoneIndex: ZoneInitialization,
+				EventType: string(provider.EventTypeSessionStart),
+			})
+			c.mu.Unlock()
 		}
 	}
 
@@ -1529,7 +1655,14 @@ func (c *StreamCallback) handleEngineStarting(data any) error {
 	// Track engine_starting message for 3s delayed deletion
 	if ts, ok := msg.Metadata["message_ts"].(string); ok && ts != "" {
 		if ch, ok := msg.Metadata["channel_id"].(string); ok && ch != "" {
-			c.startingMsgRecords = append(c.startingMsgRecords, msgRecord{ChannelID: ch, MessageTS: ts})
+			c.mu.Lock()
+			c.startingMsgRecords = append(c.startingMsgRecords, msgRecord{
+				ChannelID: ch,
+				MessageTS: ts,
+				ZoneIndex: ZoneInitialization,
+				EventType: string(provider.EventTypeEngineStarting),
+			})
+			c.mu.Unlock()
 		}
 	}
 
