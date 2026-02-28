@@ -120,6 +120,13 @@ func (p *ZoneOrderProcessor) Process(_ context.Context, msg *base.ChatMessage) (
 		msg.Metadata["zone_anchor"] = true // Mark as anchor – should never be evicted.
 	}
 
+	// Auto-reset on Turn boundary: session_stats marks end of a Turn.
+	// Reset AFTER processing this event so the next Turn starts clean.
+	if eventType == "session_stats" {
+		state.highestZone = -1
+		state.anchorSet = false
+	}
+
 	p.mu.Unlock()
 
 	// Log zone transitions for debugging.

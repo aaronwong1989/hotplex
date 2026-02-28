@@ -130,3 +130,34 @@ func TestZoneOrderProcessor_OrderAndName(t *testing.T) {
 		t.Errorf("Name: got %q", proc.Name())
 	}
 }
+
+func TestZoneOrderProcessor_TurnBoundaryReset(t *testing.T) {
+	proc := NewZoneOrderProcessor(nil)
+	ctx := context.Background()
+
+	// Turn 1: thinking (anchor) → session_stats (Turn end)
+	msg1 := &base.ChatMessage{
+		Platform: "slack", SessionID: "s1",
+		Metadata: map[string]any{"event_type": "thinking"},
+	}
+	result1, _ := proc.Process(ctx, msg1)
+	if anchor, ok := result1.Metadata["zone_anchor"].(bool); !ok || !anchor {
+		t.Fatal("Turn 1: first thinking should be anchor")
+	}
+
+	stats := &base.ChatMessage{
+		Platform: "slack", SessionID: "s1",
+		Metadata: map[string]any{"event_type": "session_stats"},
+	}
+	_, _ = proc.Process(ctx, stats)
+
+	// Turn 2: thinking should get anchor again (state was reset)
+	msg2 := &base.ChatMessage{
+		Platform: "slack", SessionID: "s1",
+		Metadata: map[string]any{"event_type": "thinking"},
+	}
+	result2, _ := proc.Process(ctx, msg2)
+	if anchor, ok := result2.Metadata["zone_anchor"].(bool); !ok || !anchor {
+		t.Fatal("Turn 2: first thinking after session_stats should be anchor again")
+	}
+}

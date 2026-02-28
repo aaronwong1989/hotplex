@@ -48,5 +48,18 @@ if [ -n "$STAGED_FILES" ]; then
     done
 fi
 
+# 4. Run golangci-lint (moved from pre-push for faster feedback)
+if [ -n "$STAGED_GO_FILES" ]; then
+    if command -v golangci-lint &> /dev/null; then
+        printf "🔹 Running linter (golangci-lint)...\n"
+        if ! golangci-lint run ./...; then
+            printf "${YELLOW}⚠️  Linter found issues. Please fix before committing.${NC}\n"
+            exit 1
+        fi
+    else
+        printf "${YELLOW}⚠️  golangci-lint not found, skipping.${NC}\n"
+    fi
+fi
+
 printf "${GREEN}✅ Pre-commit checks passed!${NC}\n"
 exit 0

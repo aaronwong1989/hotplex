@@ -19,15 +19,7 @@ if ! go build -o /dev/null ./cmd/hotplexd/main.go; then
     exit 1
 fi
 
-# 2. Run golangci-lint
-if command -v golangci-lint &> /dev/null; then
-    printf "🔹 Running linter (golangci-lint)...\n"
-    golangci-lint run ./...
-else
-    printf "${YELLOW}⚠️  golangci-lint not found, skipping linting.${NC}\n"
-fi
-
-# 3. Run Go tests (Fast Unit Tests)
+# 2. Run Go tests (Fast Unit Tests)
 printf "🔹 Running fast unit tests...\n"
 if ! make test-unit; then
     printf "${RED}❌ Unit tests failed! Push aborted.${NC}\n"
