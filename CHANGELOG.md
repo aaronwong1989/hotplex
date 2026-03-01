@@ -1,5 +1,21 @@
 # CHANGELOG.md
 
+## [v0.15.3] - 2026-03-01
+
+### 📚 Documentation Polish & Build Fix
+
+This release fixes critical VitePress configuration issues and enhances SDK documentation.
+
+### Fixed
+- **VitePress Config Structure** - Fixed nested `sidebar: { sidebar: }` duplication and moved `socialLinks`, `footer`, `search`, `editLink`, `lastUpdated` to correct `themeConfig` level.
+- **Build Verification** - Docs site now builds successfully with zero errors.
+
+### Changed
+- **Enhanced SDK Guides** - Expanded Go, Python, and TypeScript SDK documentation with comprehensive examples and usage patterns.
+- **Ecosystem Docs** - Refined ChatApps integration guides for better clarity.
+
+---
+
 ## [v0.15.2] - 2026-03-01
 
 ### ✨ Artisanal Docs Portal & Narrative Soul
