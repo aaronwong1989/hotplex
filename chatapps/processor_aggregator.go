@@ -298,15 +298,16 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 		}
 
 		// Set timer to flush buffer after window
-		// Check ctx status to avoid timer leak if context is already cancelled
-		if p.ctx.Err() == nil {
-			buf.timer = time.AfterFunc(p.window, func() {
-				// Check ctx again before flushing to avoid work on cancelled context
-				if p.ctx.Err() == nil {
-					p.flushBufferByTimer(p.ctx, sessionKey)
-				}
-			})
-		}
+		// Use context.AfterFunc if available (Go 1.21+) for proper cancellation
+		buf.timer = time.AfterFunc(p.window, func() {
+			// Check ctx before flushing to avoid work on cancelled context
+			select {
+			case <-p.ctx.Done():
+				return // Context cancelled, skip flush
+			default:
+				p.flushBufferByTimer(p.ctx, sessionKey)
+			}
+		})
 
 		p.buffers[sessionKey] = buf
 	}
