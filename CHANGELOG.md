@@ -1,5 +1,46 @@
 # CHANGELOG.md
 
+## [v0.16.0] - 2026-03-01
+
+### 🔧 Code Quality & Defensive Architecture Enhancements
+
+This release delivers major code quality improvements, strict defensive programming patterns, and enterprise-grade reliability enhancements across the ChatApps layer, while introducing our comprehensive "Craw Layer" Slack extension strategy.
+
+### Added
+
+#### Event Deduplication (#95)
+- **New `chatapps/dedup` Package** - High-performance LRU cache-based event deduplication designed for concurrent webhook environments.
+- **Thread-Safe Architecture** - Backed by `sync.RWMutex` and an isolated `cleanupLoop` goroutine to prevent memory accumulation.
+- **Seamless Integration** - Integrated into `WebhookRunner` providing robust deduplication at 84ns/op (single-threaded) preventing sandbox re-execution.
+
+#### Log Redaction (#59)
+- **RedactSensitiveData Function** - Zero-intrusion automatic redaction of sensitive tokens (Slack `xoxb-*`, GitHub `ghp_*`, API Keys) before they hit the log streams.
+- **Pre-compiled Detection** - High-speed pattern matching (237ns/op) ensuring sensitive credentials never leak into persistent storage.
+
+### Changed
+
+#### Defensive Architecture Enhancements (#106)
+- **Timer Leak Prevention** - Added strict `p.ctx.Err() == nil` validation before and inside timer callbacks in `processor_aggregator.go`, eliminating goroutine panics and memory leaks on canceled contexts.
+- **Robust Reset Fallbacks** - Established a fallback to `os.TempDir()` in `ResetExecutor` if `os.Getwd()` fails, preventing nil pointer exceptions or system crashes during path resolution.
+- **Compile-Time Interface Verification** - Enforced `var _ MessageProcessor = (*XXXProcessor)(nil)` checks across all Processors to eliminate run-time interface mismatch risks.
+- **Silent Error Mitigation** - Logged previously swallowed errors in `AdapterManager.Unregister()` to improve debuggability.
+
+#### Documentation & Strategy
+- **"Craw Layer" Strategy** - Published `docs/chatapps/slack-extensions-strategy.md` outlining HotPlex's vision as an Enterprise Agentic Execution Engine (Craw Layer) with HITL governance and interactive sandboxes.
+- **Site Assets** - Added brand-new custom CSS variables, SVG architecture diagrams (`topology.svg`), mascot, and OpenGraph images to `docs-site`.
+
+### Fixed
+- **PR Checks Security** - Replaced direct `createCommitStatus` API calls with native GitHub Actions standard job statuses (`exit 1` / `::error::`), removing the unnecessary `statuses: write` permission requirement and fixing cross-repository PR validation for forks.
+- **CI Compatibility** - Switched ImageMagick invocation from `magick` to `convert` to restore backwards compatibility with Ubuntu 24.04 runners (ImageMagick 6.x).
+
+### Resolved Issues
+- Closes #106 - Code quality & defensive programming improvements
+- Closes #95 - Event deduplication
+- Closes #59 - Log redaction
+- Closes #96 - `/reset` command enhancement
+
+---
+
 ## [v0.15.7] - 2026-03-01
 
 ### 📦 Asset & Documentation Updates
