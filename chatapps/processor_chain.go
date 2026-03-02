@@ -206,7 +206,20 @@ func (c *ProcessorChain) Close() {
 
 	for _, p := range processors {
 		if stoppable, ok := p.(interface{ Stop() }); ok {
-			stoppable.Stop()
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						processorName := "unknown"
+						if namer, ok := p.(interface{ Name() string }); ok {
+							processorName = namer.Name()
+						}
+						slog.Default().Error("Processor Stop() panic recovered",
+							"processor", processorName,
+							"panic", r)
+					}
+				}()
+				stoppable.Stop()
+			}()
 		}
 	}
 }
