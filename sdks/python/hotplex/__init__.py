@@ -4,7 +4,7 @@ HotPlex Python SDK
 A production-ready Python client for the HotPlex AI Agent Control Plane.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "HotPlex Team"
 
 from .client import HotPlexClient

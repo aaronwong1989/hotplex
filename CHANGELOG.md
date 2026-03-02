@@ -1,5 +1,19 @@
 # CHANGELOG.md
 
+## [v0.17.0] - 2026-03-02
+
+### 🚀 Version 0.17.0 Release
+
+Release preparation and version bump across all packages.
+
+### Changed
+
+- **Core Version**: Bumped from v0.16.0 to v0.17.0
+- **SDKs**: Updated TypeScript and Python SDKs to v0.2.0
+- **Documentation**: Updated CLAUDE.md and AGENT.md to reflect v0.17.0
+
+---
+
 ## [v0.16.0] - 2026-03-01
 
 ### 🔧 Code Quality & Defensive Architecture Enhancements

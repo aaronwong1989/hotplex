@@ -95,7 +95,7 @@ Expected response from `/health`:
 ```json
 {
   "status": "healthy",
-  "version": "0.12.1",
+  "version": "0.17.0",
   "uptime": "1m23s"
 }
 ```
