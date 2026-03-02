@@ -839,11 +839,10 @@ func (a *Adapter) handleSocketModeSlashCommand(evt socketmode.Event) {
 	// Execute command via registry
 	// Note: Using context.Background() is acceptable here as commands run asynchronously
 	// and should not be cancelled if the original HTTP request context is cancelled
-	result, err := a.cmdRegistry.Execute(context.Background(), req, callback)
+	// Issue #130: Don't send result.Message separately - emitter.Complete() already sends it
+	_, err := a.cmdRegistry.Execute(context.Background(), req, callback)
 	if err != nil {
 		a.Logger().Error("Command execution failed", "command", cmd.Command, "error", err)
-	} else if result != nil && result.Message != "" {
-		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, "", result.Message)
 	}
 }
 
@@ -1492,16 +1491,12 @@ func (a *Adapter) processSlashCommand(cmd SlashCommand) {
 	}
 
 	// Execute command via registry
-	result, err := a.cmdRegistry.Execute(context.Background(), req, callback)
+	// Issue #130: Don't send result.Message separately - emitter.Complete() already sends it
+	_, err := a.cmdRegistry.Execute(context.Background(), req, callback)
 	if err != nil {
 		a.Logger().Error("Command execution failed", "command", cmd.Command, "error", err)
 		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, cmd.ThreadTS, "Command execution failed: "+err.Error())
 		return
-	}
-
-	// Send response
-	if result != nil && result.Message != "" {
-		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, cmd.ThreadTS, result.Message)
 	}
 }
 
@@ -1593,14 +1588,11 @@ func (a *Adapter) processHashCommand(cmd string, userID, channelID, threadTS str
 
 	// Execute command via registry (async)
 	panicx.SafeGo(a.Logger(), func() {
-		result, err := a.cmdRegistry.Execute(context.Background(), req, callback)
+		// Issue #130: Don't send result.Message separately - emitter.Complete() already sends it
+		_, err := a.cmdRegistry.Execute(context.Background(), req, callback)
 		if err != nil {
 			a.Logger().Error("Command execution failed", "command", cmd, "error", err)
 			return
-		}
-		// Send response if needed
-		if result != nil && result.Message != "" {
-			_ = a.sendCommandResponse("", channelID, threadTS, result.Message)
 		}
 	})
 
