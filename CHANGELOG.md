@@ -2,15 +2,68 @@
 
 ## [v0.17.0] - 2026-03-02
 
-### 🚀 Version 0.17.0 Release
+### 🚀 ChatApps UX & Stability Enhancements
 
-Release preparation and version bump across all packages.
+This release focuses on ChatApps user experience refinements, goroutine safety improvements, and session lifecycle optimizations. The core enhancement is the **6-Zone UX Architecture** for Slack with sliding window management, plus comprehensive fixes for goroutine context propagation and panic recovery.
+
+### Added
+
+#### 6-Zone UX Architecture (#122)
+- **Slack UI Zone System** - Refined UX with 6 distinct interaction zones for optimal information density and action availability.
+- **Action Zone Window** - Limited to 2 active elements to reduce cognitive load and prevent Block Kit overflow errors.
+- **Thinking Zone Improvements** - Fixed 64-character truncated scrolling display with 1-second update throttle to prevent rate limit hits.
+- **UI Specification** - Updated `docs/chatapps/ux-zone-spec.md` documenting the 5-layer zoning design philosophy.
+
+#### Session Resume Detection
+- **IsResuming Flag** - New `StreamCallback` field to distinguish hot-multiplex (resume) from cold start sessions.
+- **Context Preservation** - Enables adapters to render different UI states based on session continuity detection.
+
+#### Platform-Specific Security Config
+- **YAML Configuration** - Support for platform-specific security and permission settings in centralized config files.
+- **Adapter Factories** - Enhanced factory pattern with nil-return handling to prevent initialization panics.
 
 ### Changed
 
-- **Core Version**: Bumped from v0.16.0 to v0.17.0
-- **SDKs**: Updated TypeScript and Python SDKs to v0.2.0
-- **Documentation**: Updated CLAUDE.md and AGENT.md to reflect v0.17.0
+#### Session Lifecycle Refactoring
+- **TurnState Elimination** - Removed redundant `TurnState` abstraction in favor of streamlined session/message lifecycle management.
+- **Deterministic Session IDs** - Slack adapter now generates deterministic session IDs for top-level messages, enabling reliable thread tracking.
+- **Double-Deletion Prevention** - Resolved race conditions in session cleanup APIs that could cause concurrent map deletion panics.
+
+#### Block Kit Formatting
+- **Emoji Handling** - Simplified emoji formatting in Block Kit messages using SDK-native methods.
+- **Session ID Display** - Shortened session ID presentation in Slack messages for improved readability.
+
+#### Thinking Stream UX
+- **Removed Answer Header** - Eliminated redundant "Answer" header text for cleaner message presentation.
+- **Turn Complete Indicator** - Removed explicit "Turn Complete" text in favor of implicit state via action zone rendering.
+
+### Fixed
+
+#### Goroutine Safety (#64)
+- **Context Propagation** - Ensured all goroutines respect `ctx.Done()` for proper cancellation and resource cleanup.
+- **Panic Recovery** - Added `recover()` in `ProcessorChain.Close()` to prevent cascading panics during shutdown sequences.
+- **Timer Leak Prevention** - Fixed potential goroutine leaks in processor aggregation logic.
+
+#### Initialization Race Conditions
+- **Adapter Factory Nil Handling** - Prevented panics when adapter factories return nil due to configuration errors.
+- **Reaction Timing** - Moved `setReaction` calls before early returns in `handleThinking` to ensure consistent emoji feedback.
+
+#### Script Improvements
+- **macOS Launchctl** - Corrected PID extraction logic in launch daemon scripts for reliable process management.
+- **CI Arithmetic** - Fixed arithmetic evaluation failures under `set -e` in SVG-to-PNG conversion scripts.
+
+### Documentation
+
+- **Slack Architecture** - Fixed broken link to `slack-architecture.md` in developer documentation.
+- **UX Zone Spec** - Updated specification document reflecting the 5-layer zoning design.
+- **Slack App Manifest** - Updated to standard JSON format and synchronized latest SVG assets.
+
+### Resolved Issues
+
+- Closes #122 - 6-Zone UX Architecture and sliding window management
+- Closes #64 - Goroutine context propagation and panic recovery
+- Resolves initialization race conditions in ChatApps adapter layer
+- Fixes macOS daemon management script reliability
 
 ---
 
