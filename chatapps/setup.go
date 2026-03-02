@@ -208,6 +208,10 @@ func setupPlatform(
 
 	// 2. Create Adapter
 	adapter := adapterFactory(pc)
+	if adapter == nil {
+		logger.Debug("Platform not initialized (likely missing credentials)", "platform", platform)
+		return
+	}
 
 	// Wire up Engine for slash command support (platform-agnostic via interface)
 	// Only adapters that implement EngineSupport will receive the engine
