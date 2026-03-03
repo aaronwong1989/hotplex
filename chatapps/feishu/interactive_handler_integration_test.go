@@ -117,8 +117,8 @@ func TestHandleInteractive_UnknownActionType(t *testing.T) {
 	handler.HandleInteractive(rr, req)
 
 	// Should return bad request for unknown action
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rr.Code)
 	}
 }
 
@@ -172,8 +172,8 @@ func TestHandleInteractive_MissingChatID(t *testing.T) {
 	handler.HandleInteractive(rr, req)
 
 	// Should return bad request for missing chat_id
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rr.Code)
 	}
 }
 

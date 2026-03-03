@@ -11,12 +11,6 @@ import (
 	"github.com/hrygo/hotplex/chatapps/base"
 )
 
-// InteractiveHandler handles Feishu interactive card callbacks
-type InteractiveHandler struct {
-	adapter *Adapter
-	logger  *slog.Logger
-}
-
 // InteractiveEvent represents a Feishu interactive event
 type InteractiveEvent struct {
 	Header *InteractiveHeader    `json:"header"`
@@ -66,11 +60,20 @@ type ActionValue struct {
 	MessageID string `json:"message_id,omitempty"`
 }
 
+// InteractiveHandler handles Feishu interactive card callbacks
+type InteractiveHandler struct {
+	eventHandler *EventHandler
+	adapter      *Adapter
+	logger       *slog.Logger
+}
+
 // NewInteractiveHandler creates a new interactive handler
 func NewInteractiveHandler(adapter *Adapter) *InteractiveHandler {
+	eh := NewEventHandler(adapter)
 	return &InteractiveHandler{
-		adapter: adapter,
-		logger:  adapter.Logger(),
+		eventHandler: eh,
+		adapter:      adapter,
+		logger:       eh.logger,
 	}
 }
 
@@ -103,7 +106,7 @@ func (h *InteractiveHandler) HandleInteractive(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Handle URL verification challenge
+	// Handle URL verification
 	if event.Header.EventType == "url_verification" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -113,28 +116,26 @@ func (h *InteractiveHandler) HandleInteractive(w http.ResponseWriter, r *http.Re
 
 	// Handle interactive message reply
 	if event.Header.EventType == "im.message.reply" {
-		h.handleButtonCallback(w, r, &event)
+		h.handleButtonCallbackInternal(&event)
+		h.eventHandler.WriteOKResponse(w)
 		return
 	}
 
 	// Unknown event type
 	h.logger.Debug("Ignoring unknown event type", "type", event.Header.EventType)
-	w.WriteHeader(http.StatusOK)
+	h.eventHandler.WriteOKResponse(w)
 }
 
-// handleButtonCallback handles button click callbacks
-func (h *InteractiveHandler) handleButtonCallback(w http.ResponseWriter, r *http.Request, event *InteractiveEvent) {
-	// Decode action value
+// handleButtonCallbackInternal handles button callback without HTTP response
+func (h *InteractiveHandler) handleButtonCallbackInternal(event *InteractiveEvent) {
 	if event.Event.Action == nil || event.Event.Action.Value == "" {
 		h.logger.Warn("Missing action value")
-		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
 	var actionValue ActionValue
 	if err := json.Unmarshal([]byte(event.Event.Action.Value), &actionValue); err != nil {
 		h.logger.Error("Decode action value failed", "error", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
@@ -147,59 +148,43 @@ func (h *InteractiveHandler) handleButtonCallback(w http.ResponseWriter, r *http
 	// Route to appropriate handler based on action type
 	switch actionValue.Action {
 	case "permission_request":
-		h.handlePermissionCallback(w, r, event, &actionValue)
+		h.handlePermissionCallbackInternal(event, &actionValue)
 	default:
 		h.logger.Warn("Unknown action type", "action", actionValue.Action)
-		http.Error(w, "Bad request", http.StatusBadRequest)
 	}
 }
 
-// handlePermissionCallback handles permission approval/denial
-func (h *InteractiveHandler) handlePermissionCallback(w http.ResponseWriter, r *http.Request, event *InteractiveEvent, actionValue *ActionValue) {
-	// Get chat_id from event
+// handlePermissionCallbackInternal handles permission approval/denial
+func (h *InteractiveHandler) handlePermissionCallbackInternal(event *InteractiveEvent, actionValue *ActionValue) {
 	chatID := event.Event.Message.ChatID
 	if chatID == "" {
 		h.logger.Error("Missing chat_id in event")
-		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	// Get access token
-	token, err := h.adapter.GetAppTokenWithContext(r.Context())
-	if err != nil {
-		h.logger.Error("Get token failed", "error", err)
-		http.Error(w, "Internal error", http.StatusInternalServerError)
-		return
-	}
-
-	// Determine result based on button clicked (encoded in action type)
-	// For permission_request action, we consider it as "approved" when callback is received
-	// In a real scenario, the button would encode "allow" or "deny" in the action value
-	result := "approved"
 	resultText := "✅ 已允许执行"
 
-	// Send confirmation message
-	_, err = h.adapter.client.SendTextMessage(r.Context(), token, chatID, resultText)
+	ctx := context.Background()
+	token, err := h.adapter.GetAppTokenWithContext(ctx)
+	if err != nil {
+		h.logger.Error("Get token failed", "error", err)
+		return
+	}
+
+	_, err = h.adapter.client.SendTextMessage(ctx, token, chatID, resultText)
 	if err != nil {
 		h.logger.Error("Send confirmation failed", "error", err)
 	}
 
-	// Update the permission card with result (async, non-blocking)
+	// Update permission card async
 	go func() {
-		ctx := context.Background()
-		if err := h.UpdatePermissionCard(ctx, event.Event.Message.MessageID, chatID, result); err != nil {
+		if err := h.UpdatePermissionCard(ctx, event.Event.Message.MessageID, chatID, "approved"); err != nil {
 			h.logger.Error("Update permission card failed", "error", err)
 		}
 	}()
-
-	// TODO: Route to command handler for actual execution
-	// This will be implemented in Phase 2.3 with command.Handler integration
-
-	// Acknowledge the callback
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{}`))
 }
+
+
 
 // UpdatePermissionCard updates a permission card with the result
 func (h *InteractiveHandler) UpdatePermissionCard(ctx context.Context, messageID, chatID, result string) error {
@@ -208,11 +193,7 @@ func (h *InteractiveHandler) UpdatePermissionCard(ctx context.Context, messageID
 		return err
 	}
 
-	// Build result card
-	var cardTemplate string
-	var title string
-	var description string
-
+	var cardTemplate, title, description string
 	switch strings.ToLower(result) {
 	case "approved", "allow":
 		cardTemplate = CardTemplateGreen
@@ -268,8 +249,6 @@ func (h *InteractiveHandler) UpdatePermissionCard(ctx context.Context, messageID
 		return err
 	}
 
-	// Note: Feishu doesn't support updating messages directly
-	// We send a follow-up message with the result card
 	_, err = h.adapter.client.SendMessage(ctx, token, chatID, "interactive", map[string]string{
 		"config": string(cardJSON),
 	})

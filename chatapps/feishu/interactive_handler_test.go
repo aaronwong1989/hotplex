@@ -162,7 +162,7 @@ func TestHandleInteractive_URLVerification(t *testing.T) {
 
 	// Verify challenge response
 	var response map[string]string
-	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
