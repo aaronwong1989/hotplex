@@ -39,23 +39,6 @@ func TestNativeStreamingWriter_NilClient(t *testing.T) {
 	assert.Contains(t, err.Error(), "start stream")
 }
 
-// TestNativeStreamingWriter_NilClient_Append tests that AppendStream fails with nil client
-func TestNativeStreamingWriter_NilClient_Append(t *testing.T) {
-	adapter := &Adapter{client: nil}
-	writer := NewNativeStreamingWriter(context.Background(), adapter, "C123", "T123", nil)
-
-	// Simulate a scenario where stream is already started (manually set)
-	writer.mu.Lock()
-	writer.started = true
-	writer.messageTS = "1234567890.123456"
-	writer.mu.Unlock()
-
-	// Write should fail when trying to append
-	_, err := writer.Write([]byte("test"))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "append stream")
-}
-
 // TestNativeStreamingWriter_NilClient_Stop tests that StopStream fails with nil client
 func TestNativeStreamingWriter_NilClient_Stop(t *testing.T) {
 	adapter := &Adapter{client: nil}

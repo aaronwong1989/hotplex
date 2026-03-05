@@ -9,7 +9,10 @@ import (
 	"github.com/hrygo/hotplex/chatapps/base"
 )
 
-// RateLimitProcessor implements rate limiting for message sending
+// RateLimitProcessor implements non-blocking rate limiting for message sending.
+// Instead of blocking the caller with time.After(), it drops messages that arrive
+// too fast and lets the next one through after the minimum interval.
+// This prevents stalling the engine callback goroutine during rapid event bursts.
 type RateLimitProcessor struct {
 	logger *slog.Logger
 
@@ -66,8 +69,10 @@ func (p *RateLimitProcessor) Order() int {
 	return int(OrderRateLimit)
 }
 
-// Process applies rate limiting to the message
-// It will wait if necessary to enforce the minimum interval between messages
+// Process applies non-blocking rate limiting to the message.
+// If a message arrives before the minimum interval has elapsed,
+// it is dropped (returns nil) rather than blocking the caller.
+// Messages with Immediate flag in aggregator config are always passed through.
 func (p *RateLimitProcessor) Process(ctx context.Context, msg *base.ChatMessage) (*base.ChatMessage, error) {
 	if msg == nil {
 		return nil, nil
@@ -80,31 +85,23 @@ func (p *RateLimitProcessor) Process(ctx context.Context, msg *base.ChatMessage)
 	lastSend := p.sessionLimits[sessionKey]
 	now := time.Now()
 
-	// Calculate wait time if needed
-	var waitDuration time.Duration
 	elapsed := now.Sub(lastSend)
 	if elapsed < p.minInterval {
-		waitDuration = p.minInterval - elapsed
-	}
+		p.mu.Unlock()
 
-	// Update last send time (accounting for wait)
-	targetTime := now.Add(waitDuration)
-	p.sessionLimits[sessionKey] = targetTime
-	p.mu.Unlock()
-
-	// Wait outside the lock to allow other sessions to proceed
-	if waitDuration > 0 {
-		p.logger.Debug("Rate limit - waiting before sending",
+		// Non-blocking: drop the message instead of waiting
+		p.logger.Debug("Rate limit - dropping message (non-blocking)",
 			"session_key", sessionKey,
-			"wait_ms", waitDuration.Milliseconds())
+			"elapsed_ms", elapsed.Milliseconds(),
+			"min_interval_ms", p.minInterval.Milliseconds())
 
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(waitDuration):
-			// Continue with message
-		}
+		RateLimitDroppedTotal.Inc()
+		return nil, nil
 	}
+
+	// Update last send time
+	p.sessionLimits[sessionKey] = now
+	p.mu.Unlock()
 
 	p.logger.Debug("Rate limit check passed",
 		"session_key", sessionKey,

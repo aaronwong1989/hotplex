@@ -7,13 +7,14 @@ import (
 	"io"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hrygo/hotplex/chatapps/base"
 )
 
 const (
 	flushInterval = 150 * time.Millisecond
-	flushSize     = 20
+	flushSize     = 20 // rune count threshold for immediate flush
 )
 
 // NativeStreamingWriter 实现 io.Writer 接口，封装 Slack 原生流式消息的生命周期管理
@@ -100,7 +101,13 @@ func (w *NativeStreamingWriter) flushBuffer() {
 	}
 
 	// 增量推送到流
-	_ = w.adapter.AppendStream(w.ctx, w.channelID, w.messageTS, content)
+	if err := w.adapter.AppendStream(w.ctx, w.channelID, w.messageTS, content); err != nil {
+		w.adapter.Logger().Warn("AppendStream failed, content may be lost",
+			"channel_id", w.channelID,
+			"message_ts", w.messageTS,
+			"content_runes", utf8.RuneCountInString(content),
+			"error", err)
+	}
 }
 
 // Write 实现 io.Writer 接口
@@ -129,8 +136,8 @@ func (w *NativeStreamingWriter) Write(p []byte) (n int, err error) {
 
 	w.buf.Write(p)
 
-	// 如果超过阈值，立即触发一次 flush
-	if w.buf.Len() >= flushSize {
+	// 如果超过 rune 阈值，立即触发一次 flush
+	if utf8.RuneCount(w.buf.Bytes()) >= flushSize {
 		select {
 		case w.flushTrigger <- struct{}{}:
 		default:

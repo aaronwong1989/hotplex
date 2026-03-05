@@ -35,7 +35,7 @@ func TestMessageAggregatorProcessor_flushBufferByTimer(t *testing.T) {
 		Window:     10 * time.Millisecond,
 		MinContent: 100,
 		MaxMsgs:    10,
-		MaxBytes:   2000,
+		MaxRunes:   2000,
 	})
 	processor.SetSender(mockSender)
 
@@ -87,7 +87,7 @@ func TestMessageAggregatorProcessor_bufferMessage(t *testing.T) {
 		Window:     100 * time.Millisecond,
 		MinContent: 100,
 		MaxMsgs:    10,
-		MaxBytes:   2000,
+		MaxRunes:   2000,
 	})
 
 	// Test 1: Buffer short message (stream=true required)
@@ -146,7 +146,7 @@ func TestMessageAggregatorProcessor_bufferMessageMaxBytes(t *testing.T) {
 		Window:     100 * time.Millisecond,
 		MinContent: 100,
 		MaxMsgs:    100,
-		MaxBytes:   500, // Low limit for testing
+		MaxRunes:   500, // Low limit for testing
 	})
 
 	// Send messages until byte limit is reached
@@ -182,7 +182,7 @@ func TestMessageAggregatorProcessor_differentEventTypes(t *testing.T) {
 		Window:     100 * time.Millisecond,
 		MinContent: 100,
 		MaxMsgs:    10,
-		MaxBytes:   2000,
+		MaxRunes:   2000,
 	})
 
 	// Send tool_use message (stream=true required)

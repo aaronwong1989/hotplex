@@ -138,13 +138,21 @@ const (
 	OrderThread ProcessorOrder = 15
 	// OrderAggregation groups messages together
 	OrderAggregation ProcessorOrder = 20
-	// OrderRichContent processes reactions, attachments, blocks
-	OrderRichContent ProcessorOrder = 30
 	// OrderFormatConversion converts markdown to platform-specific format
 	OrderFormatConversion ProcessorOrder = 40
 	// OrderChunk splits long messages for Slack API limits
 	OrderChunk ProcessorOrder = 50
 )
+
+// Compile-time ordering guard: ZoneOrderProcessor MUST run before MessageFilterProcessor.
+// session_start/engine_starting events pass through ZoneOrder (to trigger markInitReceived)
+// and are then dropped by Filter. If this ordering is reversed, Zone synchronization breaks silently.
+var _ = func() int {
+	if OrderZoneOrder >= OrderFilter {
+		panic("INVARIANT VIOLATION: OrderZoneOrder must be less than OrderFilter")
+	}
+	return 0
+}()
 
 // NewDefaultProcessorChain creates a default processor chain with all standard processors
 func NewDefaultProcessorChain(ctx context.Context, logger *slog.Logger) *ProcessorChain {
@@ -167,8 +175,6 @@ func NewDefaultProcessorChain(ctx context.Context, logger *slog.Logger) *Process
 		MinContent: 50,                     // Lower threshold for short tool inputs
 	})
 
-	richContent := NewRichContentProcessor(logger)
-
 	formatConv := NewFormatConversionProcessor(logger)
 
 	chunk := NewChunkProcessor(logger, ChunkProcessorOptions{
@@ -181,7 +187,6 @@ func NewDefaultProcessorChain(ctx context.Context, logger *slog.Logger) *Process
 		zoneOrder,
 		thread,
 		aggregator,
-		richContent,
 		formatConv,
 		chunk,
 	)

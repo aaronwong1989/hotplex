@@ -9,12 +9,12 @@ import (
 
 // hiddenEvents lists event types that should be filtered out (noise for the user).
 // Per design: https://docs/chatapps/slack-message-grouping-design.md
+// NOTE: system/user/raw are already Black-Holed in engine_handler.go Handle()
+// and never reach the ProcessorChain. Only events that pass through Handle()
+// but should not produce physical Slack messages belong here.
 var hiddenEvents = map[string]bool{
-	"system":          true, // System-level info
-	"user":            true, // User message reflection (redundant)
-	"raw":             true, // Unparsed content
-	"session_start":   true, // Handled by status indicator
-	"engine_starting": true, // Handled by status indicator
+	"session_start":   true, // Status-only: drives ZoneOrder init, then dropped here
+	"engine_starting": true, // Status-only: drives ZoneOrder init, then dropped here
 }
 
 // MessageFilterProcessor drops noise events before they enter the rest of the chain.

@@ -61,4 +61,12 @@ var (
 		},
 		[]string{"event_type", "platform"},
 	)
+
+	// RateLimitDroppedTotal counts messages dropped by non-blocking rate limiter
+	RateLimitDroppedTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "hotplex_ratelimit_messages_dropped_total",
+			Help: "Total number of messages dropped by the non-blocking rate limiter",
+		},
+	)
 )

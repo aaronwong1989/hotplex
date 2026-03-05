@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hrygo/hotplex/chatapps/base"
 )
@@ -13,22 +14,22 @@ import (
 // Buffer safety limits to prevent OOM
 const (
 	maxBufferMsgs  = 50   // Maximum messages in buffer
-	maxBufferBytes = 4000 // Maximum total content bytes (Slack single message limit)
+	maxBufferRunes = 4000 // Maximum total content runes (Slack single message limit is character-based)
 )
 
 // ZoneConfig defines per-zone aggregation limits.
 type ZoneConfig struct {
 	MaxMsgs  int // Maximum messages kept in the zone (0 = no limit)
-	MaxBytes int // Maximum total content bytes (0 = no limit)
+	MaxRunes int // Maximum total content runes (0 = no limit)
 }
 
 // zoneConfigs maps zone index to its configuration.
 var zoneConfigs = map[int]ZoneConfig{
-	ZoneInitialization: {MaxMsgs: 2, MaxBytes: 1000}, // 初始化: 2 messages (start + engine_starting)
-	ZoneThinking:       {MaxMsgs: 5, MaxBytes: 1500}, // 思考区: 5 messages
-	ZoneAction:         {MaxMsgs: 8, MaxBytes: 2000}, // 行动区: 8 messages
-	ZoneOutput:         {MaxMsgs: 0, MaxBytes: 4000}, // 展示区: no msg limit, 4000 byte pages
-	ZoneSummary:        {MaxMsgs: 1, MaxBytes: 0},    // 总结区: only latest
+	ZoneInitialization: {MaxMsgs: 2, MaxRunes: 1000}, // 初始化: 2 messages (start + engine_starting)
+	ZoneThinking:       {MaxMsgs: 5, MaxRunes: 1500}, // 思考区: 5 messages
+	ZoneAction:         {MaxMsgs: 8, MaxRunes: 2000}, // 行动区: 8 messages
+	ZoneOutput:         {MaxMsgs: 0, MaxRunes: 4000}, // 展示区: no msg limit, 4000 rune pages
+	ZoneSummary:        {MaxMsgs: 1, MaxRunes: 0},    // 总结区: only latest
 }
 
 // EventConfig defines aggregation behavior for specific event types
@@ -40,19 +41,19 @@ type EventConfig struct {
 	MinContent   int  // Minimum content length to skip aggregation (0 = use global default)
 }
 
-// defaultEventConfig defines default aggregation behavior for each event type
+// defaultEventConfig defines default aggregation behavior for each event type.
 // Per spec: https://docs/chatapps/engine-events-slack-ux-spec.md
+//
+// IMPORTANT: Only events that actually reach the ProcessorChain belong here.
+// The following events are handled elsewhere and NEVER enter this aggregator:
+//   - answer        → NativeStreamingWriter (bypasses ProcessorChain entirely)
+//   - system/user/raw/user_message_received → Black-Holed in engine_handler.go Handle()
+//   - session_start/engine_starting → Filtered by MessageFilterProcessor (status-only)
 var defaultEventConfig = map[string]EventConfig{
-	// Session lifecycle events (0.4, 0.5, 0.6)
-	"session_start":         {Aggregate: false, Immediate: true},   // Show immediately - first message/cold start
-	"engine_starting":       {Aggregate: true, SameTypeOnly: true}, // Can aggregate - during engine init
-	"user_message_received": {Aggregate: false, Immediate: true},   // Show immediately - acknowledgment
-
 	// Core events
 	"thinking":    {Aggregate: false, Immediate: true},   // Show immediately, 500ms dedup window in handler
 	"tool_use":    {Aggregate: true, SameTypeOnly: true}, // Aggregate rapid invocations (e.g. multi-file reads)
 	"tool_result": {Aggregate: true, SameTypeOnly: true}, // Aggregate rapid results (e.g. LS outputs)
-	"answer":      {Aggregate: false, Immediate: true},   // Handled by StreamState.updateThrottled
 
 	// Status events
 	"error":         {Aggregate: false, Immediate: true}, // Show immediately - errors need instant feedback
@@ -77,11 +78,6 @@ var defaultEventConfig = map[string]EventConfig{
 	// Command events
 	"command_progress": {Aggregate: false, Immediate: true}, // Handled by handler/adapter throttling
 	"command_complete": {Aggregate: false, Immediate: true}, // Show at end
-
-	// Other
-	"system": {Aggregate: true, SameTypeOnly: true}, // Can aggregate - low priority
-	"user":   {Aggregate: false, Immediate: true},   // Show immediately - reflect user msg
-	"raw":    {Aggregate: false, Immediate: true},   // Show immediately - raw output
 }
 
 // MessageAggregatorProcessor aggregates multiple rapid messages into one
@@ -97,7 +93,7 @@ type MessageAggregatorProcessor struct {
 	window     time.Duration // Time window for aggregation
 	minContent int           // Minimum content difference to trigger send
 	maxMsgs    int           // Maximum messages in buffer (default: maxBufferMsgs)
-	maxBytes   int           // Maximum total bytes in buffer (default: maxBufferBytes)
+	maxRunes   int           // Maximum total runes in buffer (default: maxBufferRunes)
 
 	// Sender for flushing aggregated messages
 	sender AggregatedMessageSender
@@ -116,7 +112,7 @@ type messageBuffer struct {
 	done       chan *base.ChatMessage
 	eventType  string // Event type for same-type aggregation
 	messageTS  string // Timestamp for chat.update (first message)
-	totalBytes int    // Total bytes in buffer for limit checking
+	totalRunes int    // Total runes in buffer for limit checking
 }
 
 // MessageAggregatorProcessorOptions configures the aggregator
@@ -124,7 +120,7 @@ type MessageAggregatorProcessorOptions struct {
 	Window     time.Duration // Time window to wait for more messages
 	MinContent int           // Minimum characters before sending immediately
 	MaxMsgs    int           // Maximum messages in buffer (default: maxBufferMsgs)
-	MaxBytes   int           // Maximum total bytes in buffer (default: maxBufferBytes)
+	MaxRunes   int           // Maximum total runes in buffer (default: maxBufferRunes)
 }
 
 // NewMessageAggregatorProcessor creates a new MessageAggregatorProcessor
@@ -143,8 +139,8 @@ func NewMessageAggregatorProcessor(ctx context.Context, logger *slog.Logger, opt
 	if opts.MaxMsgs == 0 {
 		opts.MaxMsgs = maxBufferMsgs
 	}
-	if opts.MaxBytes == 0 {
-		opts.MaxBytes = maxBufferBytes
+	if opts.MaxRunes == 0 {
+		opts.MaxRunes = maxBufferRunes
 	}
 
 	return &MessageAggregatorProcessor{
@@ -154,7 +150,7 @@ func NewMessageAggregatorProcessor(ctx context.Context, logger *slog.Logger, opt
 		window:     opts.Window,
 		minContent: opts.MinContent,
 		maxMsgs:    opts.MaxMsgs,
-		maxBytes:   opts.MaxBytes,
+		maxRunes:   opts.MaxRunes,
 	}
 }
 
@@ -186,11 +182,11 @@ func (p *MessageAggregatorProcessor) getEventConfig(eventType string) EventConfi
 	return EventConfig{Aggregate: true}
 }
 
-// getZoneLimits returns the effective MaxMsgs and MaxBytes for a message
+// getZoneLimits returns the effective MaxMsgs and MaxRunes for a message
 // based on its zone_index metadata. Falls back to processor-level defaults.
-func (p *MessageAggregatorProcessor) getZoneLimits(msg *base.ChatMessage) (maxMsgs, maxBytes int) {
+func (p *MessageAggregatorProcessor) getZoneLimits(msg *base.ChatMessage) (maxMsgs, maxRunes int) {
 	maxMsgs = p.maxMsgs
-	maxBytes = p.maxBytes
+	maxRunes = p.maxRunes
 
 	if msg.Metadata == nil {
 		return
@@ -205,8 +201,8 @@ func (p *MessageAggregatorProcessor) getZoneLimits(msg *base.ChatMessage) (maxMs
 		if zc.MaxMsgs > 0 {
 			maxMsgs = zc.MaxMsgs
 		}
-		if zc.MaxBytes > 0 {
-			maxBytes = zc.MaxBytes
+		if zc.MaxRunes > 0 {
+			maxRunes = zc.MaxRunes
 		}
 	}
 	return
@@ -294,7 +290,7 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 			done:       make(chan *base.ChatMessage, 1),
 			eventType:  eventType,
 			messageTS:  "", // Will be set on first message send
-			totalBytes: 0,
+			totalRunes: 0,
 		}
 
 		// Set timer to flush buffer after window
@@ -312,10 +308,10 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 	}
 
 	// Check buffer limits before adding new message
-	newMsgBytes := len(msg.Content)
+	newMsgRunes := utf8.RuneCountInString(msg.Content)
 
 	// Get zone-aware limits (falls back to processor-level defaults)
-	zoneMsgs, zoneBytes := p.getZoneLimits(msg)
+	zoneMsgs, zoneRunes := p.getZoneLimits(msg)
 
 	// Sliding window: evict oldest messages when zone limit is reached
 	// This keeps the most recent N messages visible in the UI
@@ -323,10 +319,10 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 		// Evict oldest message to make room
 		evicted := buf.messages[0]
 		buf.messages = buf.messages[1:]
-		evictedBytes := len(evicted.Content)
-		buf.totalBytes -= evictedBytes
-		if buf.totalBytes < 0 {
-			buf.totalBytes = 0
+		evictedRunes := utf8.RuneCountInString(evicted.Content)
+		buf.totalRunes -= evictedRunes
+		if buf.totalRunes < 0 {
+			buf.totalRunes = 0
 		}
 
 		// Record eviction metrics
@@ -340,19 +336,19 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 
 		p.logger.Debug("Sliding window eviction (message count)",
 			"session_key", sessionKey,
-			"evicted_bytes", evictedBytes,
+			"evicted_runes", evictedRunes,
 			"remaining_msgs", len(buf.messages))
 	}
 
-	// Sliding window for byte limit: evict oldest until under threshold
-	if zoneBytes > 0 {
-		for len(buf.messages) > 0 && buf.totalBytes+newMsgBytes > zoneBytes {
+	// Sliding window for rune limit: evict oldest until under threshold
+	if zoneRunes > 0 {
+		for len(buf.messages) > 0 && buf.totalRunes+newMsgRunes > zoneRunes {
 			evicted := buf.messages[0]
 			buf.messages = buf.messages[1:]
-			evictedBytes := len(evicted.Content)
-			buf.totalBytes -= evictedBytes
-			if buf.totalBytes < 0 {
-				buf.totalBytes = 0
+			evictedRunes := utf8.RuneCountInString(evicted.Content)
+			buf.totalRunes -= evictedRunes
+			if buf.totalRunes < 0 {
+				buf.totalRunes = 0
 			}
 
 			evictedEventType := "unknown"
@@ -361,7 +357,7 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 					evictedEventType = et
 				}
 			}
-			MessagesDroppedTotal.WithLabelValues(evictedEventType, msg.Platform, "sliding_window_bytes").Inc()
+			MessagesDroppedTotal.WithLabelValues(evictedEventType, msg.Platform, "sliding_window_runes").Inc()
 		}
 	}
 
@@ -377,7 +373,7 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 
 	// Add message to buffer
 	buf.messages = append(buf.messages, msg)
-	buf.totalBytes += newMsgBytes
+	buf.totalRunes += newMsgRunes
 
 	// Record metrics
 	MessagesAggregatedTotal.WithLabelValues(eventType, msg.Platform).Inc()
@@ -386,8 +382,8 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 	p.logger.Debug("Message buffered for aggregation",
 		"session_key", sessionKey,
 		"buffer_size", len(buf.messages),
-		"content_len", newMsgBytes,
-		"total_bytes", buf.totalBytes)
+		"content_runes", newMsgRunes,
+		"total_runes", buf.totalRunes)
 
 	p.mu.Unlock()
 
@@ -494,7 +490,7 @@ func (p *MessageAggregatorProcessor) flushBuffer(finalMsg *base.ChatMessage) (*b
 
 	// Add final message
 	buf.messages = append(buf.messages, finalMsg)
-	buf.totalBytes += len(finalMsg.Content)
+	buf.totalRunes += utf8.RuneCountInString(finalMsg.Content)
 
 	// Remove buffer
 	delete(p.buffers, sessionKey)

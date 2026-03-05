@@ -10,15 +10,13 @@ import (
 func TestProcessorChain_SortProcessors(t *testing.T) {
 	formatConv := NewFormatConversionProcessor(nil)
 	rateLimit := NewRateLimitProcessor(nil, RateLimitProcessorOptions{})
-	richContent := NewRichContentProcessor(nil)
 	aggregator := NewMessageAggregatorProcessor(context.Background(), nil, MessageAggregatorProcessorOptions{})
 
-	chain := NewProcessorChain(formatConv, rateLimit, richContent, aggregator)
+	chain := NewProcessorChain(formatConv, rateLimit, aggregator)
 
 	expectedOrder := []int{
 		int(OrderRateLimit),
 		int(OrderAggregation),
-		int(OrderRichContent),
 		int(OrderFormatConversion),
 	}
 
@@ -79,9 +77,9 @@ func TestDefaultProcessorChain_Creation(t *testing.T) {
 		t.Fatal("NewDefaultProcessorChain returned nil")
 	}
 
-	// Now we have 8 processors: filter, rateLimit, zoneOrder, thread, aggregator, richContent, formatConv, chunk
-	if len(chain.processors) != 8 {
-		t.Errorf("Expected 8 processors, got %d", len(chain.processors))
+	// Now we have 7 processors: filter, rateLimit, zoneOrder, thread, aggregator, formatConv, chunk
+	if len(chain.processors) != 7 {
+		t.Errorf("Expected 7 processors, got %d", len(chain.processors))
 	}
 
 	expectedOrders := []ProcessorOrder{
@@ -90,7 +88,6 @@ func TestDefaultProcessorChain_Creation(t *testing.T) {
 		OrderFilter,
 		OrderThread,
 		OrderAggregation,
-		OrderRichContent,
 		OrderFormatConversion,
 		OrderChunk,
 	}

@@ -243,13 +243,17 @@ run: build ## @runtime Build and start daemon in foreground
 	@./$(DIST_DIR)/$(BINARY_NAME)
 
 
-stop: ## @runtime Stop the running daemon
+stop: ## @runtime Stop the running daemon and all its child processes
 	@printf "${YELLOW}🛑 Stopping HotPlex Daemon...${NC}\n"
-	@if pgrep -f $(BINARY_NAME) > /dev/null 2>&1; then \
-		pkill -f $(BINARY_NAME); \
-		sleep 1; \
-		if pgrep -f $(BINARY_NAME) > /dev/null 2>&1; then \
-			pkill -9 -f $(BINARY_NAME); \
+	@PID=$$(pgrep -f $(BINARY_NAME) | head -1); \
+	if [ -n "$$PID" ]; then \
+		PGID=$$(ps -o pgid= -p $$PID | tr -d ' '); \
+		if [ -n "$$PGID" ] && [ "$$PGID" != "1" ]; then \
+			kill -- -$$PGID 2>/dev/null; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				kill -9 -- -$$PGID 2>/dev/null; \
+			fi; \
 		fi; \
 		printf "${GREEN}✅ Daemon stopped${NC}\n"; \
 	else \

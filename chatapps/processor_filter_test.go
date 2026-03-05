@@ -10,7 +10,10 @@ import (
 func TestMessageFilterProcessor_FilterHiddenEvents(t *testing.T) {
 	filter := NewMessageFilterProcessor(nil)
 
-	hidden := []string{"system", "user", "raw"}
+	// NOTE: system/user/raw are Black-Holed in engine_handler.go Handle()
+	// and never reach the ProcessorChain. Only session_start/engine_starting
+	// pass through Handle() for ZoneOrder synchronization, then get dropped here.
+	hidden := []string{"session_start", "engine_starting"}
 	for _, ev := range hidden {
 		msg := &base.ChatMessage{
 			Platform:  "slack",
