@@ -436,6 +436,13 @@ func (a *Adapter) StartStream(ctx context.Context, channelID, threadTS string) (
 		options = append(options, slack.MsgOptionTS(threadTS))
 	}
 
+	if teamID, ok := a.channelToTeam.Load(channelID); ok && teamID != "" {
+		options = append(options, slack.MsgOptionRecipientTeamID(teamID.(string)))
+	}
+	if userID, ok := a.channelToUser.Load(channelID); ok && userID != "" {
+		options = append(options, slack.MsgOptionRecipientUserID(userID.(string)))
+	}
+
 	a.Logger().Debug("Calling Slack StartStream", "channel_id", channelID, "options_count", len(options))
 	_, ts, err := a.client.StartStreamContext(ctx, channelID, options...)
 	if err != nil {
@@ -457,9 +464,15 @@ func (a *Adapter) AppendStream(ctx context.Context, channelID, messageTS, conten
 	a.Logger().Debug("Appending to stream", "channel_id", channelID, "message_ts", messageTS, "content_len", len(content))
 
 	a.Logger().Debug("Calling Slack AppendStream", "channel_id", channelID, "message_ts", messageTS, "content_len", len(content))
-	_, _, err := a.client.AppendStreamContext(ctx, channelID, messageTS,
-		slack.MsgOptionMarkdownText(content),
-	)
+	options := []slack.MsgOption{slack.MsgOptionMarkdownText(content)}
+	if teamID, ok := a.channelToTeam.Load(channelID); ok && teamID != "" {
+		options = append(options, slack.MsgOptionRecipientTeamID(teamID.(string)))
+	}
+	if userID, ok := a.channelToUser.Load(channelID); ok && userID != "" {
+		options = append(options, slack.MsgOptionRecipientUserID(userID.(string)))
+	}
+
+	_, _, err := a.client.AppendStreamContext(ctx, channelID, messageTS, options...)
 	if err != nil {
 		a.Logger().Error("AppendStream failed", "channel_id", channelID, "message_ts", messageTS, "error", err)
 		return fmt.Errorf("append stream: %w", err)

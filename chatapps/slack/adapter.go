@@ -35,6 +35,9 @@ type Adapter struct {
 	// Command registry
 	cmdRegistry *command.Registry
 
+	channelToTeam sync.Map // Map channelID to TeamID for streaming functions
+	channelToUser sync.Map // Map channelID to UserID for streaming functions
+
 	// Slack SDK clients
 	client            *slack.Client      // Official Slack SDK client (HTTP mode)
 	socketModeClient  *socketmode.Client // Socket Mode client (WebSocket)

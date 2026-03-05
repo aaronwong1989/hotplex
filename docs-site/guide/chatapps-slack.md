@@ -72,11 +72,11 @@ HotPlex supports two modes of existence. Define your preference in the `.env` co
 
 #### Modality A: Socket Mode (The Developer Choice)
 - **Nature**: An outbound WebSocket connection. Ideal for restricted networks or internal developer environments.
-- **Config**: `SLACK_MODE=socket`, `SLACK_APP_TOKEN=xapp-...`
+- **Config**: `HOTPLEX_SLACK_MODE=socket`, `HOTPLEX_SLACK_APP_TOKEN=xapp-...`
 
 #### Modality B: HTTP Mode (The Production Choice)
 - **Nature**: A high-availability webhook entry point. Ideal for scalable, production-grade load balancers.
-- **Config**: `SLACK_MODE=http`, `SLACK_SIGNING_SECRET=...`
+- **Config**: `HOTPLEX_SLACK_MODE=http`, `HOTPLEX_SLACK_SIGNING_SECRET=...`
 - **End-point**: Register `https://your-domain.com/webhook/slack/events` in the Slack Console.
 
 ---

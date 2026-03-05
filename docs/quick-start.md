@@ -67,9 +67,9 @@ Interact with AI agents directly through Slack, Telegram, Feishu, and other mess
 
 ```bash
 # Example: Slack
-export SLACK_BOT_TOKEN=xoxb-xxx-xxx-xxx
-export SLACK_APP_TOKEN=xapp-xxx-xxx-xxx
-export SLACK_SIGNING_SECRET=xxx
+export HOTPLEX_SLACK_BOT_TOKEN=xoxb-xxx-xxx-xxx
+export HOTPLEX_SLACK_APP_TOKEN=xapp-xxx-xxx-xxx
+export HOTPLEX_SLACK_SIGNING_SECRET=xxx
 ```
 
 ### Step 2: Start the Service
@@ -79,8 +79,8 @@ export SLACK_SIGNING_SECRET=xxx
 hotplexd --config chatapps/configs
 
 # Method 2: Use environment variables
-export CHATAPPS_CONFIG_DIR=chatapps/configs
-export CHATAPPS_ENABLED=true
+export HOTPLEX_CHATAPPS_CONFIG_DIR=chatapps/configs
+export HOTPLEX_CHATAPPS_ENABLED=true
 hotplexd
 ```
 
@@ -188,7 +188,7 @@ make build
 # export HOTPLEX_API_KEY=$(openssl rand -hex 32)
 export HOTPLEX_API_KEY=your-secret-token
 
-PORT=8080 ./dist/hotplexd
+HOTPLEX_PORT=8080 ./dist/hotplexd
 ```
 
 ### Step 3: Connect

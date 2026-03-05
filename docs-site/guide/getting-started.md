@@ -75,7 +75,7 @@ Start the HotPlex daemon:
 ./hotplexd
 
 # Or specify a custom port
-PORT=9000 ./hotplexd
+HOTPLEX_PORT=9000 ./hotplexd
 
 # In production, run in background
 nohup ./hotplexd > hotplexd.log 2>&1 &
@@ -217,8 +217,8 @@ curl -X POST http://localhost:8080/v1/agent/chat \
 
 ```bash
 # Set environment variables
-export SLACK_APP_TOKEN=xapp-xxx
-export SLACK_BOT_TOKEN=xoxb-xxx
+export HOTPLEX_SLACK_APP_TOKEN=xapp-xxx
+export HOTPLEX_SLACK_BOT_TOKEN=xoxb-xxx
 
 # Restart HotPlex
 ./hotplexd
@@ -242,8 +242,8 @@ server:
   
 slack:
   enabled: true
-  app_token: "${SLACK_APP_TOKEN}"
-  bot_token: "${SLACK_BOT_TOKEN}"
+  app_token: "${HOTPLEX_SLACK_APP_TOKEN}"
+  bot_token: "${HOTPLEX_SLACK_BOT_TOKEN}"
 
 engine:
   timeout: 5m

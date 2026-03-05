@@ -52,7 +52,7 @@
 | `HOTPLEX_CONFIG_DIR` | `~/.hotplex` | 配置根目录 |
 | `HOTPLEX_ENV_FILE` | `{HOTPLEX_CONFIG_DIR}/.env` | 环境变量文件 |
 
-**注意**：`CHATAPPS_CONFIG_DIR` 仍然有效，但优先级低于 `~/.hotplex/configs/`
+**注意**：`HOTPLEX_CHATAPPS_CONFIG_DIR` 仍然有效，但优先级低于 `~/.hotplex/configs/`
 
 ---
 
@@ -60,8 +60,8 @@
 
 ### 3.1 `.env`（敏感）
 
-- Bot tokens (`SLACK_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN` 等)
-- Signing secrets (`SLACK_SIGNING_SECRET`)
+- Bot tokens (`HOTPLEX_SLACK_BOT_TOKEN`, `HOTPLEX_TELEGRAM_BOT_TOKEN` 等)
+- Signing secrets (`HOTPLEX_SLACK_SIGNING_SECRET`)
 - API keys (`HOTPLEX_API_KEY`, `HOTPLEX_BRAIN_API_KEY`)
 
 ### 3.2 YAML（行为+非敏感）
@@ -126,7 +126,7 @@ metadata:
   name: hotplex-secrets
 stringData:
   .env: |
-    SLACK_BOT_TOKEN=xoxb-...
+    HOTPLEX_SLACK_BOT_TOKEN=xoxb-...
     HOTPLEX_API_KEY=...
 
 ---
@@ -182,7 +182,7 @@ for _, path := range configPaths {
 
 ### 5.2 向后兼容
 
-- `CHATAPPS_CONFIG_DIR` 仍然有效，但作为 fallback
+- `HOTPLEX_CHATAPPS_CONFIG_DIR` 仍然有效，但作为 fallback
 - 现有部署无需修改，除非需要用户自定义配置
 
 ---

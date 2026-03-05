@@ -192,7 +192,7 @@ Access control via `HOTPLEX_API_KEYS` environment variable is recommended for pr
 | `401 Unauthorized`        | Invalid or missing API key         | Check `HOTPLEX_API_KEY` env     |
 | `404 Not Found`           | Session ID does not exist          | Create a new session first      |
 | `503 Service Unavailable` | Engine overloaded or shutting down | Retry with exponential backoff  |
-| `WebSocket Closure 1006`  | Connection dropped (timeout/WAF)   | Check `IDLE_TIMEOUT` or network |
+| `WebSocket Closure 1006`  | Connection dropped (timeout/WAF)   | Check `HOTPLEX_IDLE_TIMEOUT` or network |
 
 ### Common Issues
 - **Origin Rejected**: If connecting from a browser, ensure the origin is in `HOTPLEX_ALLOWED_ORIGINS`.

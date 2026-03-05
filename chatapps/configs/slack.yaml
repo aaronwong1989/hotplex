@@ -51,10 +51,10 @@ engine:
 # Connection Settings
 # -----------------------------------------------------------------------------
 # Mode: "socket" (local/dev - no public IP) or "http" (production - webhook)
-mode: ${SLACK_MODE:-socket}
+mode: ${HOTPLEX_SLACK_MODE:-socket}
 
 # HTTP server address (Webhook events or health check)
-server_addr: ${SLACK_SERVER_ADDR:-:8080}
+server_addr: ${HOTPLEX_SLACK_SERVER_ADDR:-:8080}
 
 # -----------------------------------------------------------------------------
 # AI Identity & Behavior

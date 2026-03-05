@@ -79,8 +79,8 @@ hotplex 实现了 **接入层（Access Layer）** 与 **引擎执行层（Engine
 hotplexd --config chatapps/configs
 
 # 2. 或使用环境变量
-export CHATAPPS_ENABLED=true
-export CHATAPPS_CONFIG_DIR=chatapps/configs
+export HOTPLEX_CHATAPPS_ENABLED=true
+export HOTPLEX_CHATAPPS_CONFIG_DIR=chatapps/configs
 hotplexd
 ```
 

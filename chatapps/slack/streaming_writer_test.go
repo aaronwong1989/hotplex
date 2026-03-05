@@ -144,7 +144,7 @@ func TestNativeStreamingWriter_Lifecycle(t *testing.T) {
 	writer.messageTS = "1234567890.123456"
 	writer.mu.Unlock()
 
-	// Close the stream - will error but still set closed state
+	// Close the stream
 	err := writer.Close()
 	assert.Error(t, err) // Will fail due to nil client in StopStream
 	assert.True(t, writer.IsClosed())

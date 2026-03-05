@@ -98,14 +98,16 @@ func (a *Adapter) handleSocketModeEventsAPI(evt socketmode.Event) {
 
 	a.socketModeClient.Ack(*evt.Request)
 
+	teamID := eventsAPIEvent.TeamID
+
 	switch eventsAPIEvent.Type {
 	case slackevents.CallbackEvent:
 		innerEvent := eventsAPIEvent.InnerEvent
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.AppMentionEvent:
-			a.handleAppMentionEvent(ev)
+			a.handleAppMentionEvent(teamID, ev)
 		case *slackevents.MessageEvent:
-			a.handleSocketModeMessageEvent(ev)
+			a.handleSocketModeMessageEvent(teamID, ev)
 		}
 	default:
 		a.Logger().Debug("Unhandled EventsAPI type", "type", eventsAPIEvent.Type)
@@ -113,7 +115,7 @@ func (a *Adapter) handleSocketModeEventsAPI(evt socketmode.Event) {
 }
 
 // handleAppMentionEvent handles app_mention events
-func (a *Adapter) handleAppMentionEvent(ev *slackevents.AppMentionEvent) {
+func (a *Adapter) handleAppMentionEvent(teamID string, ev *slackevents.AppMentionEvent) {
 	a.Logger().Debug("App mention received", "user", ev.User, "channel", ev.Channel)
 
 	if !a.config.IsUserAllowed(ev.User) {
@@ -143,11 +145,20 @@ func (a *Adapter) handleAppMentionEvent(ev *slackevents.AppMentionEvent) {
 		},
 	}
 
+	if ev.Channel != "" {
+		if teamID != "" {
+			a.channelToTeam.Store(ev.Channel, teamID)
+		}
+		if ev.User != "" {
+			a.channelToUser.Store(ev.Channel, ev.User)
+		}
+	}
+
 	a.webhook.Run(a.socketModeCtx, a.Handler(), msg)
 }
 
 // handleSocketModeMessageEvent handles message events via Socket Mode
-func (a *Adapter) handleSocketModeMessageEvent(ev *slackevents.MessageEvent) {
+func (a *Adapter) handleSocketModeMessageEvent(teamID string, ev *slackevents.MessageEvent) {
 
 	if ev.BotID != "" || ev.User == a.config.BotUserID {
 		return
@@ -210,6 +221,15 @@ func (a *Adapter) handleSocketModeMessageEvent(ev *slackevents.MessageEvent) {
 
 	for k, v := range conversionMetadata {
 		msg.Metadata[k] = v
+	}
+
+	if ev.Channel != "" {
+		if teamID != "" {
+			a.channelToTeam.Store(ev.Channel, teamID)
+		}
+		if ev.User != "" {
+			a.channelToUser.Store(ev.Channel, ev.User)
+		}
 	}
 
 	a.webhook.Run(a.socketModeCtx, a.Handler(), msg)

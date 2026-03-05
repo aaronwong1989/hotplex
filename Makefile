@@ -20,7 +20,7 @@ VERSION       ?= $(shell git describe --tags --always --dirty 2>/dev/null || ech
 COMMIT        ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-LDFLAGS       := -X 'main.Version=$(VERSION)' -X 'main.Commit=$(COMMIT)' -X 'main.BuildTime=$(BUILD_TIME)'
+LDFLAGS       := -X 'main.version=$(VERSION)' -X 'main.commit=$(COMMIT)' -X 'main.date=$(BUILD_TIME)'
 
 LOG_DIR       := .logs
 LOG_FILE      := $(LOG_DIR)/daemon.log
@@ -97,9 +97,9 @@ install: build ## @runtime Install and run with config info
 	fi
 	@printf "\n"
 	@printf "  ${GREEN}2. ChatApps Configs (priority order)${NC}\n"
-	@printf "     ${CYAN}a) --config flag / CHATAPPS_CONFIG_DIR:${NC}\n"
-	@if [ -n "$$CHATAPPS_CONFIG_DIR" ]; then \
-		printf "         ${GREEN}✓${NC} Using: $$CHATAPPS_CONFIG_DIR\n"; \
+	@printf "     ${CYAN}a) --config flag / HOTPLEX_CHATAPPS_CONFIG_DIR:${NC}\n"
+	@if [ -n "$$HOTPLEX_CHATAPPS_CONFIG_DIR" ]; then \
+		printf "         ${GREEN}✓${NC} Using: $$HOTPLEX_CHATAPPS_CONFIG_DIR\n"; \
 	else \
 		printf "         ${YELLOW}Not set${NC}\n"; \
 	fi
@@ -213,9 +213,9 @@ run: build ## @runtime Build and start daemon in foreground
 	fi
 	@printf "\n"
 	@printf "  ${GREEN}2. ChatApps Configs (priority order)${NC}\n"
-	@printf "     ${CYAN}a) --config flag / CHATAPPS_CONFIG_DIR:${NC}\n"
-	@if [ -n "$$CHATAPPS_CONFIG_DIR" ]; then \
-		printf "         ${GREEN}✓${NC} Using: $$CHATAPPS_CONFIG_DIR\n"; \
+	@printf "     ${CYAN}a) --config flag / HOTPLEX_CHATAPPS_CONFIG_DIR:${NC}\n"
+	@if [ -n "$$HOTPLEX_CHATAPPS_CONFIG_DIR" ]; then \
+		printf "         ${GREEN}✓${NC} Using: $$HOTPLEX_CHATAPPS_CONFIG_DIR\n"; \
 	else \
 		printf "         ${YELLOW}Not set${NC}\n"; \
 	fi
@@ -271,9 +271,9 @@ restart: build ## @runtime Restart daemon with latest source code
 	fi
 	@printf "\n"
 	@printf "  ${GREEN}2. ChatApps Configs (priority order)${NC}\n"
-	@printf "     ${CYAN}a) --config flag / CHATAPPS_CONFIG_DIR:${NC}\n"
-	@if [ -n "$$CHATAPPS_CONFIG_DIR" ]; then \
-		printf "         ${GREEN}✓${NC} Using: $$CHATAPPS_CONFIG_DIR\n"; \
+	@printf "     ${CYAN}a) --config flag / HOTPLEX_CHATAPPS_CONFIG_DIR:${NC}\n"
+	@if [ -n "$$HOTPLEX_CHATAPPS_CONFIG_DIR" ]; then \
+		printf "         ${GREEN}✓${NC} Using: $$HOTPLEX_CHATAPPS_CONFIG_DIR\n"; \
 	else \
 		printf "         ${YELLOW}Not set${NC}\n"; \
 	fi

@@ -34,9 +34,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - hotplex-data:/data
     environment:
-      - PORT=8080
-      - LOG_LEVEL=info
-      - IDLE_TIMEOUT=30m
+      - HOTPLEX_PORT=8080
+      - HOTPLEX_LOG_LEVEL=info
+      - HOTPLEX_IDLE_TIMEOUT=30m
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -106,8 +106,8 @@ spec:
 
 | Variable      | Default | Description             |
 | ------------- | ------- | ----------------------- |
-| PORT          | 8080    | Server port             |
-| LOG_LEVEL     | info    | Log level               |
-| IDLE_TIMEOUT  | 30m     | Session idle timeout    |
+| HOTPLEX_PORT          | 8080    | Server port             |
+| HOTPLEX_LOG_LEVEL     | info    | Log level               |
+| HOTPLEX_IDLE_TIMEOUT  | 30m     | Session idle timeout    |
 | OTEL_ENDPOINT | -       | OpenTelemetry endpoint  |
 | MAX_SESSIONS  | 1000    | Max concurrent sessions |

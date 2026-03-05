@@ -80,17 +80,26 @@ func (a *Adapter) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if event.Type == "event_callback" {
-		a.handleEventCallback(r.Context(), event.Event)
+		a.handleEventCallback(r.Context(), event.TeamID, event.Event)
 	}
 
 	w.WriteHeader(http.StatusOK)
 }
 
-func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMessage) {
+func (a *Adapter) handleEventCallback(ctx context.Context, teamID string, eventData json.RawMessage) {
 	var msgEvent MessageEvent
 	if err := json.Unmarshal(eventData, &msgEvent); err != nil {
 		a.Logger().Error("Parse message event failed", "error", err)
 		return
+	}
+
+	if msgEvent.Channel != "" {
+		if teamID != "" {
+			a.channelToTeam.Store(msgEvent.Channel, teamID)
+		}
+		if msgEvent.User != "" {
+			a.channelToUser.Store(msgEvent.Channel, msgEvent.User)
+		}
 	}
 
 	a.Logger().Debug("[SLACK_HTTP_WEBHOOK] HTTP webhook event received",

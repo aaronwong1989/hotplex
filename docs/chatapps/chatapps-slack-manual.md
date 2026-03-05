@@ -256,15 +256,15 @@ If you created the app via the Manifest above, copy the keys from these pages:
 
 ## 📡 Step 2: Runtime Mode Configuration
 
-HotPlex supports two communication modes, switch via `SLACK_MODE` in `.env`:
+HotPlex supports two communication modes, switch via `HOTPLEX_SLACK_MODE` in `.env`:
 
 ### Mode A: Socket Mode (Recommended)
 - **Principle**: Based on WebSocket, runs smoothly in intranet or local development environments without public IP.
-- **Config**: `SLACK_MODE=socket`, `SLACK_APP_TOKEN=xapp-...`.
+- **Config**: `HOTPLEX_SLACK_MODE=socket`, `HOTPLEX_SLACK_APP_TOKEN=xapp-...`.
 
 ### Mode B: HTTP Mode (Production Webhook)
 - **Principle**: Receives requests via callback URL, suitable for high-availability load-balanced environments.
-- **Config**: `SLACK_MODE=http`, `SLACK_SIGNING_SECRET=...`.
+- **Config**: `HOTPLEX_SLACK_MODE=http`, `HOTPLEX_SLACK_SIGNING_SECRET=...`.
 - **URL**: Fill in `https://your-domain/webhook/slack/events` in Event Subscriptions.
 
 > 💡 **2026 Recommendation**: Use **Socket Mode** for development/local, **HTTP Mode** + IP whitelist for production
@@ -359,7 +359,7 @@ Fine-grained control available in `chatapps/configs/slack.yaml`:
 1. **Bot has no ID?**
    - In Slack, click bot avatar → Profile → Click `...` next to icon → `Copy member ID`.
 2. **"Dispatch failed"?**
-   - Confirm `.env` `SLACK_MODE` matches enabled features in Slack console (e.g., enabled Socket Mode but configured `http` mode).
+   - Confirm `.env` `HOTPLEX_SLACK_MODE` matches enabled features in Slack console (e.g., enabled Socket Mode but configured `http` mode).
 3. **Messages not updating or insufficient permissions?**
    - Check if Bot Token has expired.
    - **Important Reminder**: If you update Scopes in Slack console, you must click **"Reinstall to Workspace"** for new permissions to take effect.

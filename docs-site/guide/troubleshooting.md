@@ -53,7 +53,7 @@ lsof -i :8080
 
 **Solutions**:
 1. Start the daemon: `hotplexd`
-2. Verify PORT environment variable: `echo $PORT`
+2. Verify HOTPLEX_PORT environment variable: `echo $HOTPLEX_PORT`
 3. Check firewall settings
 
 ### Connection Timeout

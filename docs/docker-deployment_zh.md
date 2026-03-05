@@ -34,9 +34,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - hotplex-data:/data
     environment:
-      - PORT=8080
-      - LOG_LEVEL=info
-      - IDLE_TIMEOUT=30m
+      - HOTPLEX_PORT=8080
+      - HOTPLEX_LOG_LEVEL=info
+      - HOTPLEX_IDLE_TIMEOUT=30m
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -106,9 +106,9 @@ spec:
 
 | 变量          | 默认值 | 描述                   |
 | ------------- | ------ | ---------------------- |
-| PORT          | 8080   | 服务端口               |
-| LOG_LEVEL     | info   | 日志级别               |
-| IDLE_TIMEOUT  | 30m    | 会话空闲超时时间       |
+| HOTPLEX_PORT          | 8080   | 服务端口               |
+| HOTPLEX_LOG_LEVEL     | info   | 日志级别               |
+| HOTPLEX_IDLE_TIMEOUT  | 30m    | 会话空闲超时时间       |
 | OTEL_ENDPOINT | -      | OpenTelemetry 接口地址 |
 | MAX_SESSIONS  | 1000   | 最大并发会话数         |
 
@@ -127,7 +127,7 @@ spec:
 
 ### 配置目录优先级
 
-1. **CHATAPPS_CONFIG_DIR** - 环境变量指定（最高优先级，向后兼容）
+1. **HOTPLEX_CHATAPPS_CONFIG_DIR** - 环境变量指定（最高优先级，向后兼容）
 2. **~/.hotplex/configs** - 用户配置目录
 3. **./chatapps/configs** - 代码默认配置（Docker 镜像内）
 
@@ -138,7 +138,7 @@ spec:
 docker run -v ~/.hotplex:/root/.hotplex hotplex:latest
 
 # 方式 2: 指定配置目录
-docker run -e CHATAPPS_CONFIG_DIR=/app/configs \
+docker run -e HOTPLEX_CHATAPPS_CONFIG_DIR=/app/configs \
            -v ./configs:/app/configs \
            hotplex:latest
 ```
@@ -156,6 +156,6 @@ services:
       - ./configs:/app/configs          # 平台配置
       - ./secrets/.env:/root/.env       # 敏感配置
     environment:
-      - CHATAPPS_CONFIG_DIR=/app/configs
+      - HOTPLEX_CHATAPPS_CONFIG_DIR=/app/configs
     restart: unless-stopped
 ```

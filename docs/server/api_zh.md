@@ -191,7 +191,7 @@ OpenCode SSE 回显的消息格式为 `{"type": "message.part.updated", "propert
 | `401 Unauthorized`        | API Key 无效或缺失      | 检查 `HOTPLEX_API_KEY` 环境变量 |
 | `404 Not Found`           | 会话 ID 不存在          | 请先创建会话                    |
 | `503 Service Unavailable` | 引擎负载过高或正在关闭  | 使用指数退避算法进行重试        |
-| `WebSocket 1006`          | 连接异常中断 (超时/WAF) | 检查 `IDLE_TIMEOUT` 或网络配置  |
+| `WebSocket 1006`          | 连接异常中断 (超时/WAF) | 检查 `HOTPLEX_IDLE_TIMEOUT` 或网络配置  |
 
 ### 常见问题
 - **跨域被拒绝 (Origin Rejected)**：如果是从浏览器连接，请确保 Origin 已加入 `HOTPLEX_ALLOWED_ORIGINS`。

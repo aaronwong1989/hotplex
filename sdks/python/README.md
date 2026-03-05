@@ -11,7 +11,7 @@ This SDK is a client-side library. To use it, you must have a running **HotPlex 
 1.  **Install the HotPlex Server**: Follow the [HotPlex Main Repository](https://github.com/hrygo/hotplex) instructions to build and run `hotplexd`.
 2.  **Start the Server**:
     ```bash
-    PORT=8080 ./dist/hotplexd
+    HOTPLEX_PORT=8080 ./dist/hotplexd
     ```
 
 ## 📦 Installation

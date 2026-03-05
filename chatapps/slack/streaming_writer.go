@@ -1,26 +1,40 @@
 package slack
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
+)
+
+const (
+	flushInterval = 150 * time.Millisecond
+	flushSize     = 20
 )
 
 // NativeStreamingWriter 实现 io.Writer 接口，封装 Slack 原生流式消息的生命周期管理
 // 首次 Write 调用时启动流，后续调用追加内容，Close 时结束流
 type NativeStreamingWriter struct {
-	ctx        context.Context
-	adapter    *Adapter
-	channelID  string
-	threadTS   string
-	messageTS  string
+	ctx       context.Context
+	adapter   *Adapter
+	channelID string
+	threadTS  string
+	messageTS string
+
 	mu         sync.Mutex
 	started    bool
 	closed     bool
 	onComplete func(string) // 流结束时的回调，用于获取最终 messageTS
+
+	// 缓冲流控机制
+	buf          bytes.Buffer
+	flushTrigger chan struct{}
+	closeChan    chan struct{}
+	wg           sync.WaitGroup
 }
 
 // NewNativeStreamingWriter 创建新的原生流式写入器
@@ -30,17 +44,67 @@ func NewNativeStreamingWriter(
 	channelID, threadTS string,
 	onComplete func(string),
 ) *NativeStreamingWriter {
-	return &NativeStreamingWriter{
-		ctx:        ctx,
-		adapter:    adapter,
-		channelID:  channelID,
-		threadTS:   threadTS,
-		onComplete: onComplete,
+	w := &NativeStreamingWriter{
+		ctx:          ctx,
+		adapter:      adapter,
+		channelID:    channelID,
+		threadTS:     threadTS,
+		onComplete:   onComplete,
+		flushTrigger: make(chan struct{}, 1),
+		closeChan:    make(chan struct{}),
+	}
+
+	w.wg.Add(1)
+	go w.flushLoop()
+
+	return w
+}
+
+func (w *NativeStreamingWriter) flushLoop() {
+	defer w.wg.Done()
+
+	ticker := time.NewTicker(flushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-w.ctx.Done():
+			w.flushBuffer()
+			return
+		case <-w.closeChan:
+			w.flushBuffer()
+			return
+		case <-w.flushTrigger:
+			w.flushBuffer()
+		case <-ticker.C:
+			w.flushBuffer()
+		}
 	}
 }
 
+func (w *NativeStreamingWriter) flushBuffer() {
+	w.mu.Lock()
+	if w.buf.Len() == 0 {
+		w.mu.Unlock()
+		return
+	}
+
+	content := w.buf.String()
+	w.buf.Reset()
+	started := w.started
+	w.mu.Unlock()
+
+	// 理论上只要有内容必然 started，前置拦截防空指针
+	if !started {
+		return
+	}
+
+	// 增量推送到流
+	_ = w.adapter.AppendStream(w.ctx, w.channelID, w.messageTS, content)
+}
+
 // Write 实现 io.Writer 接口
-// 首次调用执行 StartStream 获取 TS；后续调用执行 AppendStream 增量推送
+// 首次调用执行 StartStream 获取 TS；后续调用将内容追加到缓冲区并触发异步 AppendStream
 func (w *NativeStreamingWriter) Write(p []byte) (n int, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -49,12 +113,11 @@ func (w *NativeStreamingWriter) Write(p []byte) (n int, err error) {
 		return 0, fmt.Errorf("stream already closed")
 	}
 
-	content := string(p)
-	if content == "" {
-		return len(p), nil
+	if len(p) == 0 {
+		return 0, nil
 	}
 
-	// 首次调用，启动流
+	// 首次调用，同步启动流
 	if !w.started {
 		messageTS, err := w.adapter.StartStream(w.ctx, w.channelID, w.threadTS)
 		if err != nil {
@@ -64,36 +127,43 @@ func (w *NativeStreamingWriter) Write(p []byte) (n int, err error) {
 		w.started = true
 	}
 
-	// 追加内容到流
-	if err := w.adapter.AppendStream(w.ctx, w.channelID, w.messageTS, content); err != nil {
-		return 0, fmt.Errorf("append stream: %w", err)
+	w.buf.Write(p)
+
+	// 如果超过阈值，立即触发一次 flush
+	if w.buf.Len() >= flushSize {
+		select {
+		case w.flushTrigger <- struct{}{}:
+		default:
+		}
 	}
 
 	return len(p), nil
 }
 
-// Close 结束流并固化消息
+// Close 结束流，清理并固化消息
 func (w *NativeStreamingWriter) Close() error {
 	w.mu.Lock()
-	defer w.mu.Unlock()
-
 	if w.closed {
+		w.mu.Unlock()
 		return nil
 	}
 
-	if !w.started {
-		// 如果从未启动过流（空内容），直接返回
-		w.closed = true
+	w.closed = true
+	started := w.started
+	w.mu.Unlock()
+
+	// 停止处理并等待残留缓冲区发送完成
+	close(w.closeChan)
+	w.wg.Wait()
+
+	if !started {
 		return nil
 	}
 
-	// 结束流
+	// 结束远端流
 	stopErr := w.adapter.StopStream(w.ctx, w.channelID, w.messageTS)
 
-	// 无论 StopStream 是否成功，都标记为已关闭
-	w.closed = true
-
-	// 调用完成回调，传递最终的 messageTS（即使 StopStream 失败）
+	// 调用完成回调
 	if w.onComplete != nil {
 		w.onComplete(w.messageTS)
 	}

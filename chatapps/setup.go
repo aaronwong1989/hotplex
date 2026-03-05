@@ -22,11 +22,11 @@ import (
 
 // Setup initializes all enabled ChatApps and their dedicated Engines.
 // It returns an http.Handler that handles all webhook routes.
-// The configDir parameter takes priority over CHATAPPS_CONFIG_DIR environment variable.
+// The configDir parameter takes priority over HOTPLEX_CHATAPPS_CONFIG_DIR environment variable.
 func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.Handler, *AdapterManager, error) {
 	// Config directory search priority:
 	// 1. configDir parameter (--config flag, highest)
-	// 2. CHATAPPS_CONFIG_DIR environment variable
+	// 2. HOTPLEX_CHATAPPS_CONFIG_DIR environment variable
 	// 3. ~/.hotplex/configs (user config)
 	// 4. ./chatapps/configs (default)
 	dir := ""
@@ -36,9 +36,9 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 		dir = configDir[0]
 	}
 
-	// 2. CHATAPPS_CONFIG_DIR env var
+	// 2. HOTPLEX_CHATAPPS_CONFIG_DIR env var
 	if dir == "" {
-		dir = os.Getenv("CHATAPPS_CONFIG_DIR")
+		dir = os.Getenv("HOTPLEX_CHATAPPS_CONFIG_DIR")
 	}
 
 	// 3. User config directory
@@ -81,14 +81,14 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 
 	// Telegram
 	setupPlatform(ctx, "telegram", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
-		token := os.Getenv("TELEGRAM_BOT_TOKEN")
+		token := os.Getenv("HOTPLEX_TELEGRAM_BOT_TOKEN")
 		if token == "" {
 			return nil
 		}
 		cfg := telegram.Config{
 			BotToken:    token,
-			WebhookURL:  os.Getenv("TELEGRAM_WEBHOOK_URL"),
-			SecretToken: os.Getenv("TELEGRAM_SECRET_TOKEN"),
+			WebhookURL:  os.Getenv("HOTPLEX_TELEGRAM_WEBHOOK_URL"),
+			SecretToken: os.Getenv("HOTPLEX_TELEGRAM_SECRET_TOKEN"),
 		}
 		if pc != nil {
 			cfg.SystemPrompt = pc.SystemPrompt
@@ -98,13 +98,13 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 
 	// Discord
 	setupPlatform(ctx, "discord", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
-		token := os.Getenv("DISCORD_BOT_TOKEN")
+		token := os.Getenv("HOTPLEX_DISCORD_BOT_TOKEN")
 		if token == "" {
 			return nil
 		}
 		cfg := discord.Config{
 			BotToken:  token,
-			PublicKey: os.Getenv("DISCORD_PUBLIC_KEY"),
+			PublicKey: os.Getenv("HOTPLEX_DISCORD_PUBLIC_KEY"),
 		}
 		if pc != nil {
 			cfg.SystemPrompt = pc.SystemPrompt
@@ -114,21 +114,21 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 
 	// Slack
 	setupPlatform(ctx, "slack", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
-		token := os.Getenv("SLACK_BOT_TOKEN")
+		token := os.Getenv("HOTPLEX_SLACK_BOT_TOKEN")
 		if token == "" {
 			return nil
 		}
 
-		mode := os.Getenv("SLACK_MODE")
+		mode := os.Getenv("HOTPLEX_SLACK_MODE")
 		if mode == "" {
 			mode = "http" // default to http
 		}
 		config := &slack.Config{
 			BotToken:      token,
-			AppToken:      os.Getenv("SLACK_APP_TOKEN"),
-			SigningSecret: os.Getenv("SLACK_SIGNING_SECRET"),
+			AppToken:      os.Getenv("HOTPLEX_SLACK_APP_TOKEN"),
+			SigningSecret: os.Getenv("HOTPLEX_SLACK_SIGNING_SECRET"),
 			Mode:          mode,
-			ServerAddr:    os.Getenv("SLACK_SERVER_ADDR"),
+			ServerAddr:    os.Getenv("HOTPLEX_SLACK_SERVER_ADDR"),
 		}
 
 		// Apply YAML config if available
@@ -156,8 +156,8 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 
 	// DingTalk
 	setupPlatform(ctx, "dingtalk", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
-		appID := os.Getenv("DINGTALK_APP_ID")
-		appSecret := os.Getenv("DINGTALK_APP_SECRET")
+		appID := os.Getenv("HOTPLEX_DINGTALK_APP_ID")
+		appSecret := os.Getenv("HOTPLEX_DINGTALK_APP_SECRET")
 		if pc != nil && pc.DingTalk.AppID != "" {
 			appID = pc.DingTalk.AppID
 			appSecret = pc.DingTalk.AppSecret
@@ -170,8 +170,8 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 		cfg := dingtalk.Config{
 			AppID:         appID,
 			AppSecret:     appSecret,
-			CallbackToken: os.Getenv("DINGTALK_CALLBACK_TOKEN"),
-			CallbackKey:   os.Getenv("DINGTALK_CALLBACK_KEY"),
+			CallbackToken: os.Getenv("HOTPLEX_DINGTALK_CALLBACK_TOKEN"),
+			CallbackKey:   os.Getenv("HOTPLEX_DINGTALK_CALLBACK_KEY"),
 		}
 		if pc != nil {
 			cfg.SystemPrompt = pc.SystemPrompt
@@ -190,8 +190,8 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 
 	// WhatsApp
 	setupPlatform(ctx, "whatsapp", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
-		phoneID := os.Getenv("WHATSAPP_PHONE_NUMBER_ID")
-		accessToken := os.Getenv("WHATSAPP_ACCESS_TOKEN")
+		phoneID := os.Getenv("HOTPLEX_WHATSAPP_PHONE_NUMBER_ID")
+		accessToken := os.Getenv("HOTPLEX_WHATSAPP_ACCESS_TOKEN")
 		if pc != nil && pc.WhatsApp.PhoneNumberID != "" {
 			phoneID = pc.WhatsApp.PhoneNumberID
 			accessToken = pc.WhatsApp.AccessToken
@@ -204,7 +204,7 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 		cfg := whatsapp.Config{
 			PhoneNumberID: phoneID,
 			AccessToken:   accessToken,
-			VerifyToken:   os.Getenv("WHATSAPP_VERIFY_TOKEN"),
+			VerifyToken:   os.Getenv("HOTPLEX_WHATSAPP_VERIFY_TOKEN"),
 		}
 		if pc != nil {
 			cfg.SystemPrompt = pc.SystemPrompt

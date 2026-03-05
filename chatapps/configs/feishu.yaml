@@ -38,17 +38,17 @@ engine:
 mode: http
 
 # HTTP server address (Webhook events)
-server_addr: ${FEISHU_SERVER_ADDR:-:8082}
+server_addr: ${HOTPLEX_FEISHU_SERVER_ADDR:-:8082}
 
 # -----------------------------------------------------------------------------
 # Feishu API Credentials (Required)
 # -----------------------------------------------------------------------------
 # Obtain from Feishu Developer Console: https://open.feishu.cn/app
 credentials:
-  app_id: ${FEISHU_APP_ID}                    # App ID (cli_xxxxxxxxxxxxx)
-  app_secret: ${FEISHU_APP_SECRET}            # App Secret
-  verification_token: ${FEISHU_VERIFICATION_TOKEN}  # Event Subscription Token
-  encrypt_key: ${FEISHU_ENCRYPT_KEY}          # Message Encryption Key
+  app_id: ${HOTPLEX_FEISHU_APP_ID}                    # App ID (cli_xxxxxxxxxxxxx)
+  app_secret: ${HOTPLEX_FEISHU_APP_SECRET}            # App Secret
+  verification_token: ${HOTPLEX_FEISHU_VERIFICATION_TOKEN}  # Event Subscription Token
+  encrypt_key: ${HOTPLEX_FEISHU_ENCRYPT_KEY}          # Message Encryption Key
 
 # -----------------------------------------------------------------------------
 # AI Identity & Behavior

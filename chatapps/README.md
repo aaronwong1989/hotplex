@@ -168,7 +168,7 @@ For platforms supporting buttons (Slack Blocks, Feishu Cards), use the `Interact
 ---
 
 ## 📊 Observability & Metrics
-`CHATAPPS_CONFIG_DIR`: Path to platform-specific YAML configs.
+`HOTPLEX_CHATAPPS_CONFIG_DIR`: Path to platform-specific YAML configs.
 
 ---
 

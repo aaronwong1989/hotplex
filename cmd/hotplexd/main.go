@@ -22,14 +22,15 @@ import (
 )
 
 var (
-	Version   = "v0.0.0-dev"
-	Commit    = "unknown"
-	BuildTime = "unknown"
+	version = "v0.0.0-dev"
+	commit  = "unknown"
+	date    = "unknown"
+	builtBy = "source"
 )
 
 func main() {
 	// Parse command line flags
-	configDir := flag.String("config", "", "ChatApps config directory (takes priority over CHATAPPS_CONFIG_DIR env var)")
+	configDir := flag.String("config", "", "ChatApps config directory (takes priority over HOTPLEX_CHATAPPS_CONFIG_DIR env var)")
 	flag.Parse()
 
 	// 0. Load .env file
@@ -49,7 +50,7 @@ func main() {
 
 	// 1. Configure logging
 	logLevel := slog.LevelInfo
-	if val := os.Getenv("LOG_LEVEL"); val != "" {
+	if val := os.Getenv("HOTPLEX_LOG_LEVEL"); val != "" {
 		switch strings.ToUpper(val) {
 		case "DEBUG":
 			logLevel = slog.LevelDebug
@@ -60,7 +61,7 @@ func main() {
 		}
 	}
 
-	logFormat := strings.ToLower(os.Getenv("LOG_FORMAT"))
+	logFormat := strings.ToLower(os.Getenv("HOTPLEX_LOG_FORMAT"))
 	var handler slog.Handler
 	logOpts := &slog.HandlerOptions{
 		Level:     logLevel,
@@ -91,9 +92,10 @@ func main() {
 
 	logger := slog.New(handler)
 	logger.Info("Starting HotPlex Proxy Server...",
-		"version", Version,
-		"commit", Commit,
-		"build_time", BuildTime,
+		"version", version,
+		"commit", commit,
+		"build_time", date,
+		"built_by", builtBy,
 		"log_level", logLevel)
 
 	// 1.1 Initialize Native Brain (System 1)
@@ -103,14 +105,14 @@ func main() {
 
 	// 2. Initialize HotPlex Core Engine
 	idleTimeout := 30 * time.Minute
-	if val := os.Getenv("IDLE_TIMEOUT"); val != "" {
+	if val := os.Getenv("HOTPLEX_IDLE_TIMEOUT"); val != "" {
 		if d, err := time.ParseDuration(val); err == nil {
 			idleTimeout = d
 		}
 	}
 
 	executionTimeout := 30 * time.Minute
-	if val := os.Getenv("EXECUTION_TIMEOUT"); val != "" {
+	if val := os.Getenv("HOTPLEX_EXECUTION_TIMEOUT"); val != "" {
 		if d, err := time.ParseDuration(val); err == nil {
 			executionTimeout = d
 		}
@@ -194,7 +196,7 @@ func main() {
 	http.Handle("/metrics", metricsHandler)
 
 	// 3. Initialize ChatApps adapters
-	chatappsEnabled := os.Getenv("CHATAPPS_ENABLED")
+	chatappsEnabled := os.Getenv("HOTPLEX_CHATAPPS_ENABLED")
 	var chatappsMgr *chatapps.AdapterManager
 	if chatappsEnabled == "true" {
 		var chatappsHandler http.Handler
@@ -225,7 +227,7 @@ func main() {
 	}()
 
 	// 4. Start HTTP server
-	port := os.Getenv("PORT")
+	port := os.Getenv("HOTPLEX_PORT")
 	if port == "" {
 		port = "8080"
 	}

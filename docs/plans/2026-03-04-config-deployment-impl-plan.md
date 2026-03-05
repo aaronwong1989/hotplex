@@ -7,7 +7,7 @@
 **Architecture:**
 - 修改 `chatapps/setup.go` 中的配置目录搜索逻辑
 - 添加分层搜索：`~/.hotplex/configs/` → `./chatapps/configs/`
-- 向后兼容现有 `CHATAPPS_CONFIG_DIR` 环境变量
+- 向后兼容现有 `HOTPLEX_CHATAPPS_CONFIG_DIR` 环境变量
 
 **Tech Stack:** Go, godotenv, YAML
 
@@ -34,10 +34,10 @@ cat -n chatapps/setup.go | head -40
 // It returns an http.Handler that handles all webhook routes.
 func Setup(ctx context.Context, logger *slog.Logger) (http.Handler, *AdapterManager, error) {
 	// 配置目录搜索优先级：
-	// 1. CHATAPPS_CONFIG_DIR (向后兼容)
+	// 1. HOTPLEX_CHATAPPS_CONFIG_DIR (向后兼容)
 	// 2. ~/.hotplex/configs (用户配置)
 	// 3. ./chatapps/configs (默认)
-	configDir := os.Getenv("CHATAPPS_CONFIG_DIR")
+	configDir := os.Getenv("HOTPLEX_CHATAPPS_CONFIG_DIR")
 
 	if configDir == "" {
 		// 尝试用户配置目录
@@ -120,7 +120,7 @@ git commit -m "feat(chatapps): add hierarchical config directory lookup"
 
 # ChatApps configuration directory
 # Default: {HOTPLEX_CONFIG_DIR}/configs
-# CHATAPPS_CONFIG_DIR=/path/to/configs
+# HOTPLEX_CHATAPPS_CONFIG_DIR=/path/to/configs
 ```
 
 **Step 2: 更新 Docker 部署文档**
@@ -178,8 +178,8 @@ cp chatapps/configs/slack.yaml /tmp/hotplex-test/configs/
 **Step 2: 验证向后兼容**
 
 ```bash
-# 确保 CHATAPPS_CONFIG_DIR 仍然有效
-CHATAPPS_CONFIG_DIR=/custom/path go run ./cmd/hotplexd
+# 确保 HOTPLEX_CHATAPPS_CONFIG_DIR 仍然有效
+HOTPLEX_CHATAPPS_CONFIG_DIR=/custom/path go run ./cmd/hotplexd
 ```
 
 ---
@@ -187,7 +187,7 @@ CHATAPPS_CONFIG_DIR=/custom/path go run ./cmd/hotplexd
 ## 验收标准
 
 - [ ] `~/.hotplex/configs/` 目录存在时自动加载
-- [ ] `CHATAPPS_CONFIG_DIR` 环境变量优先级最高（向后兼容）
+- [ ] `HOTPLEX_CHATAPPS_CONFIG_DIR` 环境变量优先级最高（向后兼容）
 - [ ] 无配置时 fallback 到 `./chatapps/configs/`
 - [ ] Docker 挂载 `~/.hotplex` 可生效
 - [ ] 文档更新完成

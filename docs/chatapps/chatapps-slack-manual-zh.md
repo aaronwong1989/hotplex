@@ -256,15 +256,15 @@
 
 ## 📡 第二步：运行模式配置
 
-HotPlex 支持两种通信模式，请在 `.env` 中通过 `SLACK_MODE` 切换：
+HotPlex 支持两种通信模式，请在 `.env` 中通过 `HOTPLEX_SLACK_MODE` 切换：
 
 ### 模式 A：Socket Mode (推荐)
 - **原理**：基于 WebSocket，无需公网 IP 也能在内网甚至本地开发环境流畅运行。
-- **配置**：`SLACK_MODE=socket`, `SLACK_APP_TOKEN=xapp-...`。
+- **配置**：`HOTPLEX_SLACK_MODE=socket`, `HOTPLEX_SLACK_APP_TOKEN=xapp-...`。
 
 ### 模式 B：HTTP Mode (生产 Webhook)
 - **原理**：通过回调 URL 接收请求，适合高可用负载均衡环境。
-- **配置**：`SLACK_MODE=http`, `SLACK_SIGNING_SECRET=...`。
+- **配置**：`HOTPLEX_SLACK_MODE=http`, `HOTPLEX_SLACK_SIGNING_SECRET=...`。
 - **URL 填写**：在 `Event Subscriptions` 中填写 `https://你的域名/webhook/slack/events`。
 
 > 💡 **2026 推荐**：开发/本地用 **Socket Mode**，生产环境用 **HTTP Mode** + IP 白名单
@@ -359,7 +359,7 @@ Slack 于 2026年2月17日 发布了官方 MCP Server，支持：
 1. **机器人没有 ID？**
    - 进入 Slack，点击机器人头像查看 Profile，点击图标旁边的 `...` -> `Copy member ID`。
 2. **"Dispatch failed"?**
-   - 确认 `.env` 中的 `SLACK_MODE` 与你在 Slack 后台启用的功能匹配（例如开启了 Socket Mode 但配了 `http` 模式）。
+   - 确认 `.env` 中的 `HOTPLEX_SLACK_MODE` 与你在 Slack 后台启用的功能匹配（例如开启了 Socket Mode 但配了 `http` 模式）。
 3. **消息不更新或权限不足？**
    - 检查 `Bot Token` 是否失效。
    - **重要提醒**：如果你在 Slack 后台更新了 `Scopes`（权限范围），必须点击 **"Reinstall to Workspace"** 重新安装 App，新权限才会生效。

@@ -30,13 +30,13 @@ Feishu (Lark) adapter providing Chinese enterprise IM integration capabilities f
 
 ```bash
 # Required: Feishu application credentials
-export FEISHU_APP_ID=cli_a1b2c3d4e5f6g7h8
-export FEISHU_APP_SECRET=xxxxxxxxxxxxxxxx
-export FEISHU_VERIFICATION_TOKEN=xxxxxxxx
-export FEISHU_ENCRYPT_KEY=xxxxxxxxxxxxxxxx
+export HOTPLEX_FEISHU_APP_ID=cli_a1b2c3d4e5f6g7h8
+export HOTPLEX_FEISHU_APP_SECRET=xxxxxxxxxxxxxxxx
+export HOTPLEX_FEISHU_VERIFICATION_TOKEN=xxxxxxxx
+export HOTPLEX_FEISHU_ENCRYPT_KEY=xxxxxxxxxxxxxxxx
 
 # Optional: Server configuration
-export FEISHU_SERVER_ADDR=:8082
+export HOTPLEX_FEISHU_SERVER_ADDR=:8082
 export FEISHU_MAX_MESSAGE_LEN=4096
 ```
 
@@ -57,11 +57,11 @@ func main() {
     logger := base.NewLogger()
     
     config := &feishu.Config{
-        AppID:             os.Getenv("FEISHU_APP_ID"),
-        AppSecret:         os.Getenv("FEISHU_APP_SECRET"),
-        VerificationToken: os.Getenv("FEISHU_VERIFICATION_TOKEN"),
-        EncryptKey:        os.Getenv("FEISHU_ENCRYPT_KEY"),
-        ServerAddr:        os.Getenv("FEISHU_SERVER_ADDR"),
+        AppID:             os.Getenv("HOTPLEX_FEISHU_APP_ID"),
+        AppSecret:         os.Getenv("HOTPLEX_FEISHU_APP_SECRET"),
+        VerificationToken: os.Getenv("HOTPLEX_FEISHU_VERIFICATION_TOKEN"),
+        EncryptKey:        os.Getenv("HOTPLEX_FEISHU_ENCRYPT_KEY"),
+        ServerAddr:        os.Getenv("HOTPLEX_FEISHU_SERVER_ADDR"),
         MaxMessageLen:     4096,
     }
     
@@ -99,16 +99,16 @@ curl -X POST https://your-domain.com/feishu/events \
 
 | Config | Environment Variable | Description | How to Obtain |
 |--------|---------------------|-------------|---------------|
-| `AppID` | `FEISHU_APP_ID` | Feishu App ID | Feishu Developer Console → App Credentials |
-| `AppSecret` | `FEISHU_APP_SECRET` | Feishu App Secret | Feishu Developer Console → App Credentials |
-| `VerificationToken` | `FEISHU_VERIFICATION_TOKEN` | Event Subscription Verification Token | Feishu Developer Console → Event Subscription |
-| `EncryptKey` | `FEISHU_ENCRYPT_KEY` | Message Encryption Key | Feishu Developer Console → Event Subscription |
+| `AppID` | `HOTPLEX_FEISHU_APP_ID` | Feishu App ID | Feishu Developer Console → App Credentials |
+| `AppSecret` | `HOTPLEX_FEISHU_APP_SECRET` | Feishu App Secret | Feishu Developer Console → App Credentials |
+| `VerificationToken` | `HOTPLEX_FEISHU_VERIFICATION_TOKEN` | Event Subscription Verification Token | Feishu Developer Console → Event Subscription |
+| `EncryptKey` | `HOTPLEX_FEISHU_ENCRYPT_KEY` | Message Encryption Key | Feishu Developer Console → Event Subscription |
 
 ### Optional Configuration
 
 | Config | Environment Variable | Default | Description |
 |--------|---------------------|---------|-------------|
-| `ServerAddr` | `FEISHU_SERVER_ADDR` | `:8082` | Webhook server listen address |
+| `ServerAddr` | `HOTPLEX_FEISHU_SERVER_ADDR` | `:8082` | Webhook server listen address |
 | `MaxMessageLen` | `FEISHU_MAX_MESSAGE_LEN` | `4096` | Maximum message length (bytes) |
 | `SystemPrompt` | - | - | System prompt (optional) |
 | `CommandRateLimit` | - | `10.0` | Command rate limit (requests/second) |
@@ -400,10 +400,10 @@ go test ./chatapps/feishu/... -tags=integration -v
 
 ```bash
 # Run pressure tests (requires real Feishu environment)
-export FEISHU_APP_ID=xxx
-export FEISHU_APP_SECRET=xxx
-export FEISHU_VERIFICATION_TOKEN=xxx
-export FEISHU_ENCRYPT_KEY=xxx
+export HOTPLEX_FEISHU_APP_ID=xxx
+export HOTPLEX_FEISHU_APP_SECRET=xxx
+export HOTPLEX_FEISHU_VERIFICATION_TOKEN=xxx
+export HOTPLEX_FEISHU_ENCRYPT_KEY=xxx
 
 go test ./chatapps/feishu/... -tags=pressure -v
 ```

@@ -11,37 +11,37 @@
 
 ### 1. 环境变量验证
 
-- [ ] **FEISHU_APP_ID** 已配置且正确
+- [ ] **HOTPLEX_FEISHU_APP_ID** 已配置且正确
   ```bash
-  echo $FEISHU_APP_ID
+  echo $HOTPLEX_FEISHU_APP_ID
   # 预期输出：cli_xxxxxxxxxxxxx
   ```
 
-- [ ] **FEISHU_APP_SECRET** 已配置且正确
+- [ ] **HOTPLEX_FEISHU_APP_SECRET** 已配置且正确
   ```bash
-  echo $FEISHU_APP_SECRET | head -c 8
+  echo $HOTPLEX_FEISHU_APP_SECRET | head -c 8
   # 预期输出：前 8 个字符（不要完整输出！）
   ```
 
-- [ ] **FEISHU_VERIFICATION_TOKEN** 已配置
+- [ ] **HOTPLEX_FEISHU_VERIFICATION_TOKEN** 已配置
   ```bash
-  test -n "$FEISHU_VERIFICATION_TOKEN" && echo "OK" || echo "MISSING"
+  test -n "$HOTPLEX_FEISHU_VERIFICATION_TOKEN" && echo "OK" || echo "MISSING"
   ```
 
-- [ ] **FEISHU_ENCRYPT_KEY** 已配置
+- [ ] **HOTPLEX_FEISHU_ENCRYPT_KEY** 已配置
   ```bash
-  test -n "$FEISHU_ENCRYPT_KEY" && echo "OK" || echo "MISSING"
+  test -n "$HOTPLEX_FEISHU_ENCRYPT_KEY" && echo "OK" || echo "MISSING"
   ```
 
-- [ ] **FEISHU_SERVER_ADDR** 已配置（可选，默认 :8082）
+- [ ] **HOTPLEX_FEISHU_SERVER_ADDR** 已配置（可选，默认 :8082）
   ```bash
-  echo ${FEISHU_SERVER_ADDR:-:8082}
+  echo ${HOTPLEX_FEISHU_SERVER_ADDR:-:8082}
   ```
 
 - [ ] 敏感信息已加密存储（不要明文提交到代码库）
   ```bash
   # 使用 secrets 管理工具
-  grep -r "FEISHU_APP_SECRET" . --exclude-dir=.git || echo "OK: 未发现明文"
+  grep -r "HOTPLEX_FEISHU_APP_SECRET" . --exclude-dir=.git || echo "OK: 未发现明文"
   ```
 
 ---
@@ -120,10 +120,10 @@
   chatapps:
     feishu:
       enabled: true
-      app_id: ${FEISHU_APP_ID}
-      app_secret: ${FEISHU_APP_SECRET}
-      verification_token: ${FEISHU_VERIFICATION_TOKEN}
-      encrypt_key: ${FEISHU_ENCRYPT_KEY}
+      app_id: ${HOTPLEX_FEISHU_APP_ID}
+      app_secret: ${HOTPLEX_FEISHU_APP_SECRET}
+      verification_token: ${HOTPLEX_FEISHU_VERIFICATION_TOKEN}
+      encrypt_key: ${HOTPLEX_FEISHU_ENCRYPT_KEY}
       server_addr: :8082
   ```
 
@@ -355,7 +355,7 @@ sudo systemctl restart hotplex
 3. 检查 AppID/AppSecret 是否正确
    ```bash
    # 对比飞书开发者后台
-   echo $FEISHU_APP_ID
+   echo $HOTPLEX_FEISHU_APP_ID
    ```
 
 ---

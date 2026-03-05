@@ -28,13 +28,13 @@
 
 ```bash
 # 必填：飞书应用凭证
-export FEISHU_APP_ID=cli_a1b2c3d4e5f6g7h8
-export FEISHU_APP_SECRET=xxxxxxxxxxxxxxxx
-export FEISHU_VERIFICATION_TOKEN=xxxxxxxx
-export FEISHU_ENCRYPT_KEY=xxxxxxxxxxxxxxxx
+export HOTPLEX_FEISHU_APP_ID=cli_a1b2c3d4e5f6g7h8
+export HOTPLEX_FEISHU_APP_SECRET=xxxxxxxxxxxxxxxx
+export HOTPLEX_FEISHU_VERIFICATION_TOKEN=xxxxxxxx
+export HOTPLEX_FEISHU_ENCRYPT_KEY=xxxxxxxxxxxxxxxx
 
 # 可选：服务器配置
-export FEISHU_SERVER_ADDR=:8082
+export HOTPLEX_FEISHU_SERVER_ADDR=:8082
 export FEISHU_MAX_MESSAGE_LEN=4096
 ```
 
@@ -55,11 +55,11 @@ func main() {
     logger := base.NewLogger()
     
     config := &feishu.Config{
-        AppID:             os.Getenv("FEISHU_APP_ID"),
-        AppSecret:         os.Getenv("FEISHU_APP_SECRET"),
-        VerificationToken: os.Getenv("FEISHU_VERIFICATION_TOKEN"),
-        EncryptKey:        os.Getenv("FEISHU_ENCRYPT_KEY"),
-        ServerAddr:        os.Getenv("FEISHU_SERVER_ADDR"),
+        AppID:             os.Getenv("HOTPLEX_FEISHU_APP_ID"),
+        AppSecret:         os.Getenv("HOTPLEX_FEISHU_APP_SECRET"),
+        VerificationToken: os.Getenv("HOTPLEX_FEISHU_VERIFICATION_TOKEN"),
+        EncryptKey:        os.Getenv("HOTPLEX_FEISHU_ENCRYPT_KEY"),
+        ServerAddr:        os.Getenv("HOTPLEX_FEISHU_SERVER_ADDR"),
         MaxMessageLen:     4096,
     }
     
@@ -97,16 +97,16 @@ curl -X POST https://your-domain.com/feishu/events \
 
 | 配置项 | 环境变量 | 说明 | 获取方式 |
 |--------|----------|------|----------|
-| `AppID` | `FEISHU_APP_ID` | 飞书应用 App ID | 飞书开发者后台 → 应用凭证 |
-| `AppSecret` | `FEISHU_APP_SECRET` | 飞书应用 App Secret | 飞书开发者后台 → 应用凭证 |
-| `VerificationToken` | `FEISHU_VERIFICATION_TOKEN` | 事件订阅验证 Token | 飞书开发者后台 → 事件订阅 |
-| `EncryptKey` | `FEISHU_ENCRYPT_KEY` | 消息加密 Key | 飞书开发者后台 → 事件订阅 |
+| `AppID` | `HOTPLEX_FEISHU_APP_ID` | 飞书应用 App ID | 飞书开发者后台 → 应用凭证 |
+| `AppSecret` | `HOTPLEX_FEISHU_APP_SECRET` | 飞书应用 App Secret | 飞书开发者后台 → 应用凭证 |
+| `VerificationToken` | `HOTPLEX_FEISHU_VERIFICATION_TOKEN` | 事件订阅验证 Token | 飞书开发者后台 → 事件订阅 |
+| `EncryptKey` | `HOTPLEX_FEISHU_ENCRYPT_KEY` | 消息加密 Key | 飞书开发者后台 → 事件订阅 |
 
 ### 可选配置
 
 | 配置项 | 环境变量 | 默认值 | 说明 |
 |--------|----------|--------|------|
-| `ServerAddr` | `FEISHU_SERVER_ADDR` | `:8082` | Webhook 服务器监听地址 |
+| `ServerAddr` | `HOTPLEX_FEISHU_SERVER_ADDR` | `:8082` | Webhook 服务器监听地址 |
 | `MaxMessageLen` | `FEISHU_MAX_MESSAGE_LEN` | `4096` | 单消息最大长度（字节） |
 | `SystemPrompt` | - | - | 系统提示词（可选） |
 | `CommandRateLimit` | - | `10.0` | 命令速率限制（次/秒） |
@@ -398,10 +398,10 @@ go test ./chatapps/feishu/... -tags=integration -v
 
 ```bash
 # 运行压力测试（需要真实飞书环境）
-export FEISHU_APP_ID=xxx
-export FEISHU_APP_SECRET=xxx
-export FEISHU_VERIFICATION_TOKEN=xxx
-export FEISHU_ENCRYPT_KEY=xxx
+export HOTPLEX_FEISHU_APP_ID=xxx
+export HOTPLEX_FEISHU_APP_SECRET=xxx
+export HOTPLEX_FEISHU_VERIFICATION_TOKEN=xxx
+export HOTPLEX_FEISHU_ENCRYPT_KEY=xxx
 
 go test ./chatapps/feishu/... -bench=. -benchtime=1m
 ```

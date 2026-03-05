@@ -91,7 +91,7 @@ func TestPressure_ConcurrentMessageSend(t *testing.T) {
 				default:
 					start := time.Now()
 					msg := generateTestMessage(pressureMessageLength, workerID)
-					chatID := os.Getenv("FEISHU_TEST_CHAT_ID")
+					chatID := os.Getenv("HOTPLEX_FEISHU_TEST_CHAT_ID")
 					if chatID == "" {
 						chatID = "oc_1234567890" // 测试用聊天 ID
 					}
@@ -283,7 +283,7 @@ func TestPressure_LongConnection(t *testing.T) {
 			t.Logf("[心跳 #%d] 连接正常，错误数：%d", count, atomic.LoadInt64(&errorCount))
 
 			// 模拟心跳消息
-			chatID := os.Getenv("FEISHU_TEST_CHAT_ID")
+			chatID := os.Getenv("HOTPLEX_FEISHU_TEST_CHAT_ID")
 			if chatID == "" {
 				chatID = "oc_1234567890"
 			}
@@ -320,13 +320,13 @@ DONE:
 func loadPressureTestConfig(t *testing.T) *Config {
 	t.Helper()
 
-	appID := os.Getenv("FEISHU_APP_ID")
-	appSecret := os.Getenv("FEISHU_APP_SECRET")
-	verificationToken := os.Getenv("FEISHU_VERIFICATION_TOKEN")
-	encryptKey := os.Getenv("FEISHU_ENCRYPT_KEY")
+	appID := os.Getenv("HOTPLEX_FEISHU_APP_ID")
+	appSecret := os.Getenv("HOTPLEX_FEISHU_APP_SECRET")
+	verificationToken := os.Getenv("HOTPLEX_FEISHU_VERIFICATION_TOKEN")
+	encryptKey := os.Getenv("HOTPLEX_FEISHU_ENCRYPT_KEY")
 
 	if appID == "" || appSecret == "" {
-		t.Skip("Skipping pressure test: missing FEISHU_APP_ID or FEISHU_APP_SECRET")
+		t.Skip("Skipping pressure test: missing HOTPLEX_FEISHU_APP_ID or HOTPLEX_FEISHU_APP_SECRET")
 	}
 
 	return &Config{
