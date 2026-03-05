@@ -57,12 +57,12 @@ func (a *DiscordAdapter) SendMessage(ctx context.Context, sessionID string, msg 
   <div class="audience-card" style="padding: 24px; min-width: 200px;">
     <h3>Slack Guide</h3>
     <p>Step-by-step Slack bot creation and Block Kit setup.</p>
-    <a href="/hotplex/guide/chatapps-slack" class="audience-btn">View Slack</a>
+    <a href="/hotplex/guide/chatapps-slack.html" class="audience-btn">View Slack</a>
   </div>
   <div class="audience-card" style="padding: 24px; min-width: 200px;">
     <h3>Engine Manual</h3>
     <p>Understand how messages are processed by the core.</p>
-    <a href="/hotplex/reference/engine" class="audience-btn">View Engine</a>
+    <a href="/hotplex/reference/engine.html" class="audience-btn">View Engine</a>
   </div>
 </div>
 

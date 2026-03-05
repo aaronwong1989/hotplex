@@ -36,9 +36,10 @@ echo "4/5: 同步到文档站点演示目录..."
 # 把高分辨率 PNG 也同步一份过去
 [ -d "$DOCS_PUBLIC" ] && cp $GITHUB_ASSETS/hotplex-logo.png $DOCS_PUBLIC/logo.png
 
-echo "5/5: 同步独立 SVG 到文档站点..."
+echo "5/5: 同步资源到文档站点..."
 if [ -d "$DOCS_PUBLIC" ]; then
-  mkdir -p $DOCS_PUBLIC/images
-  cp docs/images/*.svg $DOCS_PUBLIC/images/
+  mkdir -p "$DOCS_PUBLIC/images"
+  # 同步所有支持的图片格式 (SVG, PNG, WebP, JPG)
+  cp -v docs/images/*.{svg,png,webp,jpg} "$DOCS_PUBLIC/images/" 2>/dev/null || true
 fi
 echo "完成！资产已基于 SSOT ($SVG_SOURCE) 重新生成并同步到 $DOC_IMAGES_PNG 和 $DOCS_PUBLIC。"
