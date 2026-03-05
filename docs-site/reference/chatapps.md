@@ -4,36 +4,9 @@ The `chatapps` package provides the bridge between HotPlex's core engine and var
 
 ## 🔄 End-to-End Bidirectional Flow
 
-```mermaid
-sequenceDiagram
-    participant User as 👤 User Terminal
-    participant Platform as ☁️ Chat Platform (Slack/Feishu)
-    participant Adapter as 🔌 Platform Adapter
-    participant Pipeline as ⛓️ Processor Pipeline
-    participant Handler as 🧠 Engine Handler
-    participant Engine as 🔥 HotPlex Engine
-
-    Note over User, Engine: 🟢 Phase 1: Request (C2S)
-    User->>Platform: Sends message/command
-    Platform->>Adapter: Webhook Event (JSON)
-    Adapter->>Adapter: Parse & Normalize to base.ChatMessage
-    Adapter->>Handler: Handle(ctx, msg)
-    Handler->>Engine: Execute(ctx, prompt)
-
-    Note over User, Engine: 🔵 Phase 2: Response Streaming (S2C)
-    Engine-->>Handler: Stream Token/Event
-    Handler->>Pipeline: Process(msg)
-    Pipeline->>Pipeline: Filter -> RateLimit -> Format -> Chunk
-    Pipeline->>Adapter: SendMessage/UpdateMessage
-    Adapter->>Platform: Platform API Call (e.g., chat.update)
-    Platform-->>User: Visual Update (Real-time)
-    
-    Note over User, Engine: ⚪ Phase 3: Finalization
-    Engine-->>Handler: Execution Complete
-    Handler->>Adapter: Send Session Stats/UI Controls
-    Adapter->>Platform: Final Message Render
-    Platform-->>User: Session Result
-```
+<div class="architecture-diagram" style="margin: 2rem 0; border-radius: 16px; overflow: hidden; background: #0F172A; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);">
+  <img src="/hotplex/images/chatapps_flow.svg" alt="HotPlex Architecture Flow" style="display: block; width: 100%; height: auto;" />
+</div>
 
 ## 🏛 Architecture Overview
 
@@ -84,12 +57,12 @@ func (a *DiscordAdapter) SendMessage(ctx context.Context, sessionID string, msg 
   <div class="audience-card" style="padding: 24px; min-width: 200px;">
     <h3>Slack Guide</h3>
     <p>Step-by-step Slack bot creation and Block Kit setup.</p>
-    <a href="/guide/chatapps-slack" class="audience-btn">View Slack</a>
+    <a href="/hotplex/guide/chatapps-slack" class="audience-btn">View Slack</a>
   </div>
   <div class="audience-card" style="padding: 24px; min-width: 200px;">
     <h3>Engine Manual</h3>
     <p>Understand how messages are processed by the core.</p>
-    <a href="/reference/engine" class="audience-btn">View Engine</a>
+    <a href="/hotplex/reference/engine" class="audience-btn">View Engine</a>
   </div>
 </div>
 
