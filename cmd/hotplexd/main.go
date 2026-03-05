@@ -21,6 +21,12 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var (
+	Version   = "v0.0.0-dev"
+	Commit    = "unknown"
+	BuildTime = "unknown"
+)
+
 func main() {
 	// Parse command line flags
 	configDir := flag.String("config", "", "ChatApps config directory (takes priority over CHATAPPS_CONFIG_DIR env var)")
@@ -84,7 +90,11 @@ func main() {
 	}
 
 	logger := slog.New(handler)
-	logger.Info("Starting HotPlex Proxy Server...", "log_level", logLevel)
+	logger.Info("Starting HotPlex Proxy Server...",
+		"version", Version,
+		"commit", Commit,
+		"build_time", BuildTime,
+		"log_level", logLevel)
 
 	// 1.1 Initialize Native Brain (System 1)
 	if err := brain.Init(logger); err != nil {

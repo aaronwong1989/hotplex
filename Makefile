@@ -256,18 +256,8 @@ stop: ## @runtime Stop the running daemon
 		printf "${YELLOW}⚠️  No running daemon found${NC}\n"; \
 	fi
 
-restart: build ## @runtime Restart daemon
 	@printf "${YELLOW}🛑 Stopping old daemon (if running)...${NC}\n"
-	@if pgrep -f $(BINARY_NAME) > /dev/null 2>&1; then \
-		pkill -f $(BINARY_NAME); \
-		sleep 1; \
-		if pgrep -f $(BINARY_NAME) > /dev/null 2>&1; then \
-			pkill -9 -f $(BINARY_NAME); \
-		fi; \
-		printf "${GREEN}✅ Old daemon stopped${NC}\n"; \
-	else \
-		printf "${CYAN}ℹ️  No running daemon found${NC}\n"; \
-	fi
+restart: build ## @runtime Restart daemon with latest source code
 	@mkdir -p $(LOG_DIR)
 	@printf "\n${BOLD}${CYAN}╭─ 🔧 Configuration Files ─────────────────────────────${NC}\n"
 	@printf "  ${BOLD}📋 Configuration Priority (effective):${NC}\n"
@@ -308,18 +298,7 @@ restart: build ## @runtime Restart daemon
 		printf "         ${YELLOW}⚠${NC} Not found${NC}\n"; \
 	fi
 	@printf "${BOLD}${CYAN}╰─────────────────────────────────────────────────────${NC}\n\n"
-	@printf "${PURPLE}🔥 Starting HotPlex Daemon...${NC}\n"
-	@DAEMON_PATH="$$(pwd)/$(DIST_DIR)/$(BINARY_NAME)"; \
-		nohup ./$(DIST_DIR)/$(BINARY_NAME) > $(LOG_FILE) 2>&1 & \
-		disown 2>/dev/null || true; \
-		sleep 0.5; \
-		PID=$$(pgrep -f $(BINARY_NAME) | head -1); \
-		printf "${GREEN}✅ Daemon started${NC}\n"; \
-		printf "${CYAN}   PID:     ${NC}$$PID\n"; \
-		printf "${CYAN}   Binary:  ${NC}$$DAEMON_PATH\n"; \
-		printf "${CYAN}   Port:    ${NC}8080\n"; \
-		printf "${CYAN}   Logs:    ${NC}tail -f $(LOG_FILE)\n"; \
-		printf "${DIM}   💡 Stop: make stop${NC}\n"
+	@./scripts/restart_helper.sh "$$(pwd)/$(DIST_DIR)/$(BINARY_NAME)" "$(LOG_FILE)"
 
 # =============================================================================
 # 📦 SERVICE (System Service)
