@@ -1,6 +1,9 @@
 package llm
 
-import "time"
+import (
+	"log/slog"
+	"time"
+)
 
 // Preset configurations for common use cases.
 
@@ -102,4 +105,70 @@ func MinimalClient(apiKey, model string) (LLMClient, error) {
 		WithAPIKey(apiKey).
 		WithModel(model).
 		Build()
+}
+
+// === Independent Features (Non-Builder) ===
+
+// BudgetClientWithTracker creates a client with budget tracking.
+// The BudgetTracker must be created separately and managed by the caller.
+//
+// Usage:
+//
+//	tracker := llm.NewBudgetTracker(llm.BudgetConfig{
+//	    Period:          llm.BudgetDaily,
+//	    Limit:           10.0, // $10 daily
+//	    EnableHardLimit: true,
+//	}, "session-123")
+//	client, _ := llm.BudgetClientWithTracker(baseClient, tracker, "gpt-4", nil)
+func BudgetClientWithTracker(client LLMClient, tracker *BudgetTracker, model string, estimator CostEstimator) *BudgetClient {
+	return NewBudgetClient(client, tracker, model, estimator)
+}
+
+// NewBudgetManagedClient creates a client with budget tracking using default configuration.
+// This is a convenience function for simple budget control.
+//
+// Usage:
+//
+//	client, _ := llm.NewBudgetManagedClient(apiKey, "gpt-4", 10.0) // $10 budget
+func NewBudgetManagedClient(apiKey, model string, dailyLimit float64) (*BudgetClient, error) {
+	baseClient, err := NewClientBuilder().
+		WithAPIKey(apiKey).
+		WithModel(model).
+		Build()
+	if err != nil {
+		return nil, err
+	}
+
+	tracker := NewBudgetTracker(BudgetConfig{
+		Period:          BudgetDaily,
+		Limit:           dailyLimit,
+		EnableHardLimit: true,
+		EnableSoftLimit: true,
+		AlertThresholds: []BudgetAlertThreshold{
+			{Percentage: 50.0, Message: "Budget 50% consumed"},
+			{Percentage: 75.0, Message: "Budget 75% consumed"},
+			{Percentage: 90.0, Message: "Budget 90% consumed"},
+		},
+	}, "default")
+
+	return NewBudgetClient(baseClient, tracker, model, nil), nil
+}
+
+// PrioritySchedulerWithClient creates a priority scheduler and client for request prioritization.
+// Returns both the scheduler (for workers) and client (for submitting requests).
+//
+// Usage:
+//
+//	scheduler, client := llm.PrioritySchedulerWithClient(5 * time.Minute, nil)
+//	// Submit high priority request
+//	_ = client.Submit(ctx, "req-1", llm.PriorityHigh, func() error {
+//	    _, err := llmClient.Chat(ctx, prompt)
+//	    return err
+//	})
+//	// Worker processes requests
+//	_ = client.ProcessNext(ctx)
+func PrioritySchedulerWithClient(timeout time.Duration, logger *slog.Logger) (*PriorityScheduler, *PriorityClient) {
+	scheduler := NewPriorityScheduler(DefaultPriorityConfig())
+	client := NewPriorityClient(scheduler, timeout, logger)
+	return scheduler, client
 }
