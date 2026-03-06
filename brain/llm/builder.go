@@ -1,9 +1,18 @@
 package llm
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"time"
+)
+
+// Static errors for validation.
+var (
+	ErrAPIKeyRequired  = errors.New("API key is required")
+	ErrModelRequired   = errors.New("model is required")
+	ErrInvalidEndpoint = errors.New("invalid endpoint URL")
 )
 
 // ClientBuilder provides a fluent API for constructing LLM clients
@@ -20,36 +29,17 @@ type ClientBuilder struct {
 	withCache     bool
 	withRetry     bool
 	withCircuit   bool
-	withPriority  bool
 	withRateLimit bool
-	withBudget    bool
 
 	// Capability configurations
-	metricsConfig   *MetricsConfig
-	cacheConfig     *CacheConfig
-	retryConfig     *RetryConfig
-	circuitConfig   *CircuitBreakerConfig
-	priorityConfig  *PriorityConfig
-	rateLimitConfig *RateLimitConfig
-	budgetConfig    *BudgetConfig
-	rateLimitRPS    float64
-	rateLimitBurst  int
-	maxRetries      int
-	retryMinWaitMs  int
-	retryMaxWaitMs  int
-	cacheSize       int
-}
-
-// CacheConfig holds configuration for the cache layer.
-type CacheConfig struct {
-	Size int
-}
-
-// RetryConfig holds configuration for retry behavior.
-type RetryConfig struct {
-	MaxRetries int
-	MinWaitMs  int
-	MaxWaitMs  int
+	metricsConfig  *MetricsConfig
+	cacheSize      int
+	maxRetries     int
+	retryMinWaitMs int
+	retryMaxWaitMs int
+	circuitConfig  *CircuitBreakerConfig
+	rateLimitRPS   float64
+	rateLimitBurst int
 }
 
 // NewClientBuilder creates a new client builder with default logger.
@@ -92,21 +82,14 @@ func (b *ClientBuilder) WithMetrics(config ...MetricsConfig) *ClientBuilder {
 	return b
 }
 
-// WithCache enables response caching with optional custom configuration.
-func (b *ClientBuilder) WithCache(config ...CacheConfig) *ClientBuilder {
+// WithCache enables response caching with optional custom cache size.
+func (b *ClientBuilder) WithCache(size ...int) *ClientBuilder {
 	b.withCache = true
-	if len(config) > 0 {
-		b.cacheConfig = &config[0]
+	if len(size) > 0 && size[0] > 0 {
+		b.cacheSize = size[0]
 	} else {
 		b.cacheSize = DefaultCacheSize
 	}
-	return b
-}
-
-// WithCacheSize sets the cache size (convenience method).
-func (b *ClientBuilder) WithCacheSize(size int) *ClientBuilder {
-	b.withCache = true
-	b.cacheSize = size
 	return b
 }
 
@@ -119,13 +102,12 @@ func (b *ClientBuilder) WithRetry(maxRetries int) *ClientBuilder {
 	return b
 }
 
-// WithRetryConfig enables retry logic with custom configuration.
-func (b *ClientBuilder) WithRetryConfig(config RetryConfig) *ClientBuilder {
+// WithRetryConfig enables retry logic with custom wait times.
+func (b *ClientBuilder) WithRetryConfig(maxRetries, minWaitMs, maxWaitMs int) *ClientBuilder {
 	b.withRetry = true
-	b.retryConfig = &config
-	b.maxRetries = config.MaxRetries
-	b.retryMinWaitMs = config.MinWaitMs
-	b.retryMaxWaitMs = config.MaxWaitMs
+	b.maxRetries = maxRetries
+	b.retryMinWaitMs = minWaitMs
+	b.retryMaxWaitMs = maxWaitMs
 	return b
 }
 
@@ -138,15 +120,6 @@ func (b *ClientBuilder) WithCircuitBreaker(config ...CircuitBreakerConfig) *Clie
 	return b
 }
 
-// WithPriority enables priority-based scheduling with optional custom configuration.
-func (b *ClientBuilder) WithPriority(config ...PriorityConfig) *ClientBuilder {
-	b.withPriority = true
-	if len(config) > 0 {
-		b.priorityConfig = &config[0]
-	}
-	return b
-}
-
 // WithRateLimit enables rate limiting with specified requests per second.
 func (b *ClientBuilder) WithRateLimit(rps float64) *ClientBuilder {
 	b.withRateLimit = true
@@ -155,32 +128,22 @@ func (b *ClientBuilder) WithRateLimit(rps float64) *ClientBuilder {
 	return b
 }
 
-// WithRateLimitConfig enables rate limiting with custom configuration.
-func (b *ClientBuilder) WithRateLimitConfig(config RateLimitConfig) *ClientBuilder {
+// WithRateLimitConfig enables rate limiting with custom burst size.
+func (b *ClientBuilder) WithRateLimitConfig(rps float64, burst int) *ClientBuilder {
 	b.withRateLimit = true
-	b.rateLimitConfig = &config
-	b.rateLimitRPS = config.RequestsPerSecond
-	b.rateLimitBurst = config.BurstSize
-	return b
-}
-
-// WithBudget enables budget tracking with optional custom configuration.
-func (b *ClientBuilder) WithBudget(config ...BudgetConfig) *ClientBuilder {
-	b.withBudget = true
-	if len(config) > 0 {
-		b.budgetConfig = &config[0]
-	}
+	b.rateLimitRPS = rps
+	b.rateLimitBurst = burst
 	return b
 }
 
 // Build constructs the LLM client with all configured middleware layers.
-// The wrapping order is:
-// 1. Base client (OpenAI)
-// 2. Metrics (outermost for visibility)
-// 3. Circuit Breaker
-// 4. Rate Limiter
-// 5. Retry
-// 6. Cache (innermost for efficiency)
+// The wrapping order (from innermost to outermost):
+//  1. Base client (OpenAI)
+//  2. Cache (innermost - cache raw responses before retries)
+//  3. Retry (retry on transient failures)
+//  4. Rate Limiter (control request rate)
+//  5. Circuit Breaker (fail fast on repeated errors)
+//  6. Metrics (outermost - observe all operations)
 func (b *ClientBuilder) Build() (LLMClient, error) {
 	if err := b.validate(); err != nil {
 		return nil, err
@@ -192,9 +155,6 @@ func (b *ClientBuilder) Build() (LLMClient, error) {
 	// 2. Apply cache layer (innermost - cache raw responses)
 	if b.withCache {
 		size := b.cacheSize
-		if b.cacheConfig != nil && b.cacheConfig.Size > 0 {
-			size = b.cacheConfig.Size
-		}
 		if size <= 0 {
 			size = DefaultCacheSize
 		}
@@ -207,18 +167,6 @@ func (b *ClientBuilder) Build() (LLMClient, error) {
 		minWait := b.retryMinWaitMs
 		maxWait := b.retryMaxWaitMs
 
-		if b.retryConfig != nil {
-			if b.retryConfig.MaxRetries > 0 {
-				maxRetries = b.retryConfig.MaxRetries
-			}
-			if b.retryConfig.MinWaitMs > 0 {
-				minWait = b.retryConfig.MinWaitMs
-			}
-			if b.retryConfig.MaxWaitMs > 0 {
-				maxWait = b.retryConfig.MaxWaitMs
-			}
-		}
-
 		if maxRetries <= 0 {
 			maxRetries = DefaultMaxRetries
 		}
@@ -228,23 +176,24 @@ func (b *ClientBuilder) Build() (LLMClient, error) {
 
 	// 4. Apply rate limit layer
 	if b.withRateLimit {
-		cfg := b.rateLimitConfig
-		if cfg == nil {
-			cfg = &RateLimitConfig{
-				RequestsPerSecond: b.rateLimitRPS,
-				BurstSize:         b.rateLimitBurst,
-				MaxQueueSize:      DefaultMaxQueueSize,
-				QueueTimeout:      DefaultQueueTimeout,
-			}
+		rps := b.rateLimitRPS
+		burst := b.rateLimitBurst
+
+		if rps <= 0 {
+			rps = DefaultRPS
 		}
-		if cfg.RequestsPerSecond <= 0 {
-			cfg.RequestsPerSecond = DefaultRPS
-		}
-		if cfg.BurstSize <= 0 {
-			cfg.BurstSize = int(cfg.RequestsPerSecond)
+		if burst <= 0 {
+			burst = int(rps)
 		}
 
-		limiter := NewRateLimiter(*cfg)
+		cfg := RateLimitConfig{
+			RequestsPerSecond: rps,
+			BurstSize:         burst,
+			MaxQueueSize:      DefaultMaxQueueSize,
+			QueueTimeout:      DefaultQueueTimeout,
+		}
+
+		limiter := NewRateLimiter(cfg)
 		client = NewRateLimitedClient(client, limiter)
 	}
 
@@ -260,7 +209,6 @@ func (b *ClientBuilder) Build() (LLMClient, error) {
 		}
 
 		cb := NewCircuitBreaker(*cfg)
-		// Wrap client with circuit breaker
 		client = NewCircuitClient(client, cb)
 	}
 
@@ -288,10 +236,15 @@ func (b *ClientBuilder) Build() (LLMClient, error) {
 // validate validates the builder configuration.
 func (b *ClientBuilder) validate() error {
 	if b.apiKey == "" {
-		return fmt.Errorf("API key is required")
+		return ErrAPIKeyRequired
 	}
 	if b.model == "" {
-		return fmt.Errorf("model is required")
+		return ErrModelRequired
+	}
+	if b.endpoint != "" {
+		if _, err := url.Parse(b.endpoint); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidEndpoint, err)
+		}
 	}
 	if b.logger == nil {
 		b.logger = slog.Default()
@@ -317,31 +270,5 @@ func DefaultMetricsConfig() MetricsConfig {
 		Enabled:           true,
 		ServiceName:       "hotplex-brain",
 		MaxLatencySamples: DefaultMaxLatencySamples,
-	}
-}
-
-// DefaultCacheConfig returns default cache configuration.
-func DefaultCacheConfig() CacheConfig {
-	return CacheConfig{
-		Size: DefaultCacheSize,
-	}
-}
-
-// DefaultRetryConfig returns default retry configuration.
-func DefaultRetryConfig() RetryConfig {
-	return RetryConfig{
-		MaxRetries: DefaultMaxRetries,
-		MinWaitMs:  DefaultRetryMinWaitMs,
-		MaxWaitMs:  DefaultRetryMaxWaitMs,
-	}
-}
-
-// DefaultRateLimitConfig returns default rate limit configuration.
-func DefaultRateLimitConfig() RateLimitConfig {
-	return RateLimitConfig{
-		RequestsPerSecond: DefaultRPS,
-		BurstSize:         int(DefaultRPS),
-		MaxQueueSize:      DefaultMaxQueueSize,
-		QueueTimeout:      DefaultQueueTimeout,
 	}
 }

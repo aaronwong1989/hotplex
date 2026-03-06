@@ -351,6 +351,11 @@ func (c *RateLimitedClient) HealthCheck(ctx context.Context) HealthStatus {
 	return c.client.HealthCheck(ctx)
 }
 
+// Client returns the underlying client for component extraction.
+func (c *RateLimitedClient) Client() LLMClient {
+	return c.client
+}
+
 // SetModel sets the model for per-model rate limiting.
 func (c *RateLimitedClient) SetModel(model string) {
 	c.model = model

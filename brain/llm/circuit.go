@@ -337,6 +337,11 @@ func (c *CircuitClient) HealthCheck(ctx context.Context) HealthStatus {
 	return c.client.HealthCheck(ctx)
 }
 
+// Client returns the underlying client for component extraction.
+func (c *CircuitClient) Client() LLMClient {
+	return c.client
+}
+
 // GetCircuitBreaker returns the underlying circuit breaker for monitoring.
 func (c *CircuitClient) GetCircuitBreaker() *CircuitBreaker {
 	return c.breaker

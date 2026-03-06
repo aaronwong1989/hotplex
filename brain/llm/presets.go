@@ -1,5 +1,7 @@
 package llm
 
+import "time"
+
 // Preset configurations for common use cases.
 
 // ProductionClient creates a production-ready LLM client with all capabilities enabled.
@@ -9,7 +11,7 @@ func ProductionClient(apiKey, model string) (LLMClient, error) {
 		WithAPIKey(apiKey).
 		WithModel(model).
 		WithMetrics().
-		WithCache().
+		WithCache(DefaultCacheSize).
 		WithCircuitBreaker().
 		WithRateLimit(100).
 		WithRetry(3).
@@ -23,7 +25,7 @@ func ProductionClientWithEndpoint(apiKey, endpoint, model string) (LLMClient, er
 		WithEndpoint(endpoint).
 		WithModel(model).
 		WithMetrics().
-		WithCache().
+		WithCache(DefaultCacheSize).
 		WithCircuitBreaker().
 		WithRateLimit(100).
 		WithRetry(3).
@@ -56,7 +58,7 @@ func TestingClient(apiKey, model string) (LLMClient, error) {
 	return NewClientBuilder().
 		WithAPIKey(apiKey).
 		WithModel(model).
-		WithCache(CacheConfig{Size: 100}).
+		WithCache(100).
 		WithRateLimit(1000). // High limit for tests
 		Build()
 }
@@ -67,7 +69,7 @@ func HighThroughputClient(apiKey, model string) (LLMClient, error) {
 	return NewClientBuilder().
 		WithAPIKey(apiKey).
 		WithModel(model).
-		WithCache(CacheConfig{Size: 10000}).
+		WithCache(10000).
 		WithRateLimit(500).
 		WithMetrics().
 		Build()
@@ -79,41 +81,16 @@ func ReliableClient(apiKey, model string) (LLMClient, error) {
 	return NewClientBuilder().
 		WithAPIKey(apiKey).
 		WithModel(model).
-		WithRetryConfig(RetryConfig{
-			MaxRetries: 5,
-			MinWaitMs:  200,
-			MaxWaitMs:  10000,
-		}).
+		WithRetryConfig(5, 200, 10000).
 		WithCircuitBreaker(CircuitBreakerConfig{
 			Name:                "reliable",
 			MaxFailures:         3,
-			Interval:            30000,
-			Timeout:             60000,
+			Interval:            30 * time.Second,
+			Timeout:             60 * time.Second,
 			HalfOpenMaxRequests: 1,
 			SuccessThreshold:    3,
 		}).
 		WithRateLimit(50).
-		WithMetrics().
-		Build()
-}
-
-// BudgetConsciousClient creates a client with budget tracking enabled.
-func BudgetConsciousClient(apiKey, model string, dailyLimit float64) (LLMClient, error) {
-	return NewClientBuilder().
-		WithAPIKey(apiKey).
-		WithModel(model).
-		WithCache().
-		WithBudget(BudgetConfig{
-			Period:          BudgetDaily,
-			Limit:           dailyLimit,
-			EnableHardLimit: true,
-			EnableSoftLimit: true,
-			AlertThresholds: []BudgetAlertThreshold{
-				{Percentage: 50.0, Message: "Budget 50% consumed"},
-				{Percentage: 75.0, Message: "Budget 75% consumed"},
-				{Percentage: 90.0, Message: "Budget 90% consumed"},
-			},
-		}).
 		WithMetrics().
 		Build()
 }

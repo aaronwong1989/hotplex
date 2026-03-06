@@ -65,33 +65,22 @@ func NewObservableClient(client LLMClient) ObservableClient {
 // extractComponents traverses the client chain to extract observable components.
 func (o *ObservableClientImpl) extractComponents(client LLMClient) {
 	// Try to extract each component type
-	if mc, ok := client.(*MetricsClient); ok {
-		o.metrics = mc.GetMetrics()
-		o.extractComponents(mc.client)
-		return
-	}
-
-	if cc, ok := client.(*CircuitClient); ok {
-		o.circuitBreaker = cc.GetCircuitBreaker()
-		o.extractComponents(cc.client)
-		return
-	}
-
-	if rc, ok := client.(*RateLimitedClient); ok {
+	switch c := client.(type) {
+	case *MetricsClient:
+		o.metrics = c.GetMetrics()
+		o.extractComponents(c.Client())
+	case *CircuitClient:
+		o.circuitBreaker = c.GetCircuitBreaker()
+		o.extractComponents(c.Client())
+	case *RateLimitedClient:
 		// RateLimitedClient doesn't expose limiter, skip for now
-		o.extractComponents(rc.client)
-		return
-	}
-
-	if c, ok := client.(*CachedClient); ok {
+		o.extractComponents(c.Client())
+	case *CachedClient:
+		// CachedClient uses anonymous interface, can't traverse further
 		o.cache = c
-		o.extractComponents(c.client)
-		return
-	}
-
-	if r, ok := client.(*RetryClient); ok {
-		o.extractComponents(r.client)
-		return
+	case *RetryClient:
+		// RetryClient uses anonymous interface, can't traverse further
+		// No observable state to extract from retry
 	}
 }
 
@@ -203,3 +192,6 @@ func AsObservable(client LLMClient) ObservableClient {
 	}
 	return NewObservableClient(client)
 }
+
+// Compile-time interface compliance verification.
+var _ ObservableClient = (*ObservableClientImpl)(nil)

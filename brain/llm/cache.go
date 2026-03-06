@@ -138,3 +138,14 @@ func (c *CachedClient) CacheStats() (keys int, hits int, misses int) {
 	// You can extend this if needed
 	return c.cache.Len(), 0, 0
 }
+
+// UnderlyingClient returns the underlying client.
+// Used for component extraction in observable chains.
+func (c *CachedClient) UnderlyingClient() interface {
+	Chat(ctx context.Context, prompt string) (string, error)
+	Analyze(ctx context.Context, prompt string, target any) error
+	ChatStream(ctx context.Context, prompt string) (<-chan string, error)
+	HealthCheck(ctx context.Context) HealthStatus
+} {
+	return c.client
+}

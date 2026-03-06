@@ -312,6 +312,11 @@ type MetricsClient struct {
 	model    string
 }
 
+// Client returns the underlying client for component extraction.
+func (m *MetricsClient) Client() LLMClient {
+	return m.client
+}
+
 // NewMetricsClient creates a new metrics-enabled client wrapper.
 func NewMetricsClient(client LLMClient, metrics *MetricsCollector, model string) *MetricsClient {
 	return &MetricsClient{

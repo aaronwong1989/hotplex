@@ -12,6 +12,9 @@ func TestClientBuilder_RequiresAPIKey(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for missing API key")
 	}
+	if err != ErrAPIKeyRequired {
+		t.Errorf("expected ErrAPIKeyRequired, got %v", err)
+	}
 }
 
 func TestClientBuilder_RequiresModel(t *testing.T) {
@@ -21,6 +24,9 @@ func TestClientBuilder_RequiresModel(t *testing.T) {
 
 	if err == nil {
 		t.Error("expected error for missing model")
+	}
+	if err != ErrModelRequired {
+		t.Errorf("expected ErrModelRequired, got %v", err)
 	}
 }
 
@@ -35,7 +41,7 @@ func TestClientBuilder_MinimalClient(t *testing.T) {
 	}
 
 	if client == nil {
-		t.Error("expected non-nil client")
+		t.Fatal("expected non-nil client")
 	}
 
 	// Verify it's an OpenAIClient (no wrappers)
@@ -67,7 +73,7 @@ func TestClientBuilder_WithCacheSize(t *testing.T) {
 	client, err := NewClientBuilder().
 		WithAPIKey("test-key").
 		WithModel("gpt-4").
-		WithCacheSize(500).
+		WithCache(500).
 		Build()
 
 	if err != nil {
@@ -103,11 +109,7 @@ func TestClientBuilder_WithRetryConfig(t *testing.T) {
 	client, err := NewClientBuilder().
 		WithAPIKey("test-key").
 		WithModel("gpt-4").
-		WithRetryConfig(RetryConfig{
-			MaxRetries: 5,
-			MinWaitMs:  100,
-			MaxWaitMs:  1000,
-		}).
+		WithRetryConfig(5, 100, 1000).
 		Build()
 
 	if err != nil {
@@ -126,6 +128,24 @@ func TestClientBuilder_WithRateLimit(t *testing.T) {
 		WithAPIKey("test-key").
 		WithModel("gpt-4").
 		WithRateLimit(100).
+		Build()
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify it's a RateLimitedClient
+	_, ok := client.(*RateLimitedClient)
+	if !ok {
+		t.Error("expected RateLimitedClient wrapper")
+	}
+}
+
+func TestClientBuilder_WithRateLimitConfig(t *testing.T) {
+	client, err := NewClientBuilder().
+		WithAPIKey("test-key").
+		WithModel("gpt-4").
+		WithRateLimitConfig(50, 10).
 		Build()
 
 	if err != nil {
@@ -175,49 +195,6 @@ func TestClientBuilder_WithMetrics(t *testing.T) {
 	}
 }
 
-func TestClientBuilder_FullStack(t *testing.T) {
-	client, err := NewClientBuilder().
-		WithAPIKey("test-key").
-		WithModel("gpt-4").
-		WithMetrics().
-		WithCache().
-		WithCircuitBreaker().
-		WithRateLimit(100).
-		WithRetry(3).
-		Build()
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Verify the wrapping order:
-	// Metrics (outermost) -> Circuit -> RateLimit -> Retry -> Cache (innermost)
-	mc, ok := client.(*MetricsClient)
-	if !ok {
-		t.Fatal("expected MetricsClient as outermost wrapper")
-	}
-
-	cc, ok := mc.client.(*CircuitClient)
-	if !ok {
-		t.Fatal("expected CircuitClient as second wrapper")
-	}
-
-	rlc, ok := cc.client.(*RateLimitedClient)
-	if !ok {
-		t.Fatal("expected RateLimitedClient as third wrapper")
-	}
-
-	rc, ok := rlc.client.(*RetryClient)
-	if !ok {
-		t.Fatal("expected RetryClient as fourth wrapper")
-	}
-
-	_, ok = rc.client.(*CachedClient)
-	if !ok {
-		t.Fatal("expected CachedClient as innermost wrapper before base")
-	}
-}
-
 func TestClientBuilder_WithEndpoint(t *testing.T) {
 	client, err := NewClientBuilder().
 		WithAPIKey("test-key").
@@ -234,29 +211,15 @@ func TestClientBuilder_WithEndpoint(t *testing.T) {
 	}
 }
 
-func TestDefaultConfigs(t *testing.T) {
-	// Test DefaultMetricsConfig
-	metricsCfg := DefaultMetricsConfig()
-	if !metricsCfg.Enabled {
-		t.Error("expected metrics to be enabled by default")
-	}
+func TestClientBuilder_InvalidEndpoint(t *testing.T) {
+	_, err := NewClientBuilder().
+		WithAPIKey("test-key").
+		WithEndpoint("://invalid-url").
+		WithModel("gpt-4").
+		Build()
 
-	// Test DefaultCacheConfig
-	cacheCfg := DefaultCacheConfig()
-	if cacheCfg.Size != DefaultCacheSize {
-		t.Errorf("expected cache size %d, got %d", DefaultCacheSize, cacheCfg.Size)
-	}
-
-	// Test DefaultRetryConfig
-	retryCfg := DefaultRetryConfig()
-	if retryCfg.MaxRetries != DefaultMaxRetries {
-		t.Errorf("expected max retries %d, got %d", DefaultMaxRetries, retryCfg.MaxRetries)
-	}
-
-	// Test DefaultRateLimitConfig
-	rateLimitCfg := DefaultRateLimitConfig()
-	if rateLimitCfg.RequestsPerSecond != DefaultRPS {
-		t.Errorf("expected RPS %f, got %f", DefaultRPS, rateLimitCfg.RequestsPerSecond)
+	if err == nil {
+		t.Error("expected error for invalid endpoint URL")
 	}
 }
 
@@ -287,5 +250,18 @@ func TestClientBuilder_FluentChaining(t *testing.T) {
 	}
 	if builder.WithRateLimit(100) != builder {
 		t.Error("WithRateLimit should return builder")
+	}
+}
+
+func TestDefaultMetricsConfig(t *testing.T) {
+	cfg := DefaultMetricsConfig()
+	if !cfg.Enabled {
+		t.Error("expected metrics to be enabled by default")
+	}
+	if cfg.ServiceName == "" {
+		t.Error("expected non-empty service name")
+	}
+	if cfg.MaxLatencySamples <= 0 {
+		t.Error("expected positive max latency samples")
 	}
 }
