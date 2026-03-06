@@ -156,14 +156,3 @@ func validatePlugin(p ProviderPlugin) error {
 	}
 	return nil
 }
-
-// registerAllPluginsWithFactory registers all plugins from the global registry
-// with the given factory. This is called during factory initialization.
-func registerAllPluginsWithFactory(f *ProviderFactory) {
-	globalPluginRegistry.mu.RLock()
-	defer globalPluginRegistry.mu.RUnlock()
-
-	for _, p := range globalPluginRegistry.plugins {
-		f.registerPlugin(p)
-	}
-}

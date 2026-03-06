@@ -210,9 +210,8 @@ func (p *mockPlugin) Type() ProviderType {
 }
 
 func (p *mockPlugin) New(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
-	if logger == nil {
-		logger = slog.Default()
-	}
+	// Use logger if provided, otherwise ignore (mock doesn't log)
+	_ = logger
 	// Return a mock provider
 	return &mockProvider{
 		meta: p.meta,
