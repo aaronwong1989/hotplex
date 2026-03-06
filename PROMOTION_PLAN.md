@@ -176,4 +176,31 @@
 
 ---
 
-_计划版本：v1.0 | 生成时间：2026-03-06_
+## 🔄 awesome-go 后续任务
+
+### 当前状态
+- **PR #6098**: 已合并 ✅
+- **额外审核反馈**: ⚠️ 见下文
+
+### 审核反馈（来自自动化检查）
+| 检查项 | 状态 | 说明 |
+|--------|------|------|
+| Repo accessible | ✅ | 可访问，有 go.mod 和 SemVer |
+| pkg.go.dev | ✅ | OK |
+| Go Report Card | ✅ | OK |
+| License | ✅ | MIT |
+| **Maturity** | ❌ | 仓库历史不足 5 个月 |
+| **Coverage** | ❌ | PR 缺少覆盖率链接 |
+| CI/CD | ✅ | GitHub Actions detected |
+| README | ✅ | present |
+
+### 解决方案
+1. **Maturity**: 等待仓库满 5 个月（创建于 2026-02-20，需等到 2026-07-20）
+2. **Coverage**: 添加 Codecov 或 Coveralls 覆盖率报告链接到 PR body
+
+### 待办提醒
+- ⏰ **2026-07-20** 重新提交到 awesome-go（带覆盖率链接）
+
+---
+
+_计划版本：v1.1 | 更新：2026-03-06_
