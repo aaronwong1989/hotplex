@@ -66,6 +66,11 @@ func RegisterPlugin(p ProviderPlugin) {
 		panic("provider: plugin has empty type")
 	}
 
+	// Validate plugin metadata
+	if err := validatePlugin(p); err != nil {
+		panic(fmt.Sprintf("provider: %v", err))
+	}
+
 	globalPluginRegistry.mu.Lock()
 	defer globalPluginRegistry.mu.Unlock()
 
