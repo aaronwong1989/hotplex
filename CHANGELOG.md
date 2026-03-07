@@ -1,5 +1,152 @@
 # CHANGELOG.md
 
+## [v0.21.5] - 2026-03-07
+
+### 🔧 Patch Release
+
+Test release to verify the complete CI/CD pipeline is working correctly.
+
+### Verification
+
+- ✅ YAML syntax fix validated
+- ✅ release-downloader parameter fix validated
+- ✅ CHANGELOG.md extraction working
+- ✅ Docker multi-platform build working
+
+### Reference Commits
+- test: verify release workflow end-to-end
+
+## [v0.21.4] - 2026-03-07
+
+### 🔧 Patch Release
+
+This release fixes the release workflow download step parameter name change.
+
+### Fixed
+
+- **Download Path** - Fixed `robinraju/release-downloader@v1` parameter name (`outDir` → `out-file-path`)
+
+### Reference Commits
+- fix(ci): update release-downloader parameter name
+
+## [v0.21.3] - 2026-03-07
+
+### 🔧 Patch Release
+
+This release fixes the YAML syntax error that prevented v0.21.2 release workflow from running.
+
+### Fixed
+
+- **YAML Syntax Error** - Fixed colon misinterpretation in `echo "Pushed image digest: $DIGEST"` that caused entire release.yml to fail parsing
+
+### Reference Commits
+- 0cc8494 fix(ci): resolve YAML syntax error in release workflow
+
+## [v0.21.2] - 2026-03-07
+
+### 🔧 Patch Release
+
+This release upgrades all GitHub Actions to latest versions and fixes CI/CD workflow issues.
+
+### Fixed
+
+- **Version String Mismatch** - Fixed archive download failure caused by `v` prefix mismatch (`v0.21.1` vs `0.21.1`)
+- **Binary Extraction Paths** - Corrected paths to match `Dockerfile.release` expectations
+
+### Changed
+
+#### GitHub Actions Upgrade
+| Action | Before | After |
+|--------|--------|-------|
+| `goreleaser/goreleaser-action` | v6 | v7 |
+| `docker/build-push-action` | v6 | v7 |
+| `docker/metadata-action` | v5 | v6 |
+| `docker/setup-buildx-action` | v3 | v4 |
+| `docker/setup-qemu-action` | v3 | v4 |
+| `docker/login-action` | v3 | v4 |
+| `golangci/golangci-lint-action` | v7 | v9 |
+
+### Technical Notes
+
+```yaml
+# Version string stripping (v0.21.1 -> 0.21.1)
+- name: Prepare version string
+  run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+```
+
+### Reference Commits
+- 3d79ff1 ci: upgrade all GitHub Actions to latest versions
+- 2d7fdfb fix(ci): fix version string mismatch in release workflow
+- d813157 ci(release): upgrade to docker/build-push-action@v6
+
+## [v0.21.1] - 2026-03-07
+
+### 🔧 Patch Release
+
+This release fixes multi-bot volume isolation issues, refactors Docker Compose configuration using YAML anchors, unifies ChunkMessage implementation, and adds comprehensive system_prompt customization guidance.
+
+### Fixed
+
+#### Docker Multi-Bot Isolation
+- **Volume Conflict Resolution** - Fixed critical issue where multiple bots mounted the same `projects` directory, causing session conflicts
+- **Hardcoded Paths per Service** - Bot-specific volumes now use hardcoded paths instead of variable substitution (Docker Compose substitutes variables at compose-time, not from service's `env_file`)
+
+### Changed
+
+#### Docker Compose Refactoring
+- **YAML Anchors** - Migrated from deprecated `extends` pattern to YAML anchors (`&anchor`, `*anchor`) for DRY configuration
+- **Comprehensive Documentation** - Added detailed comments explaining architecture, YAML anchor mechanics, build vs image, port binding, and volume types
+- **Makefile Simplification** - Removed complex `COMPOSE_SERVICES` dynamic discovery; now uses `docker compose up -d` directly
+
+#### ChatApps Unification (#225)
+- **ChunkMessage Consolidation** - Slack `chunkMessage` now uses `base.ChunkMessage`, eliminating duplicate code (Issue #186)
+- **Extended Signature Verification** - `base.HMACSHA256Verifier` now supports DingTalk and Feishu signature formats via strategy pattern (Issue #187)
+
+### Added
+
+- **.dockerignore** - Prevents sensitive files (`.env`, credentials, IDE configs) from being included in Docker build context
+- **Gitconfig Setup Script** - `scripts/setup_gitconfig.sh` with input validation and idempotency checks for generating bot git identities
+
+### Docs
+
+#### System Prompt Customization Guidance
+- **Config Warning** - Added prominent `⚠️ CUSTOMIZE THIS PROMPT` notice in `chatapps/configs/slack.yaml`
+- **Manual Updates** - Added "自定义 AI 身份与行为" section in both EN/ZH Slack manuals
+- **Beginner Tutorials** - Added reminder for customizing `system_prompt` in beginner setup guides
+- **Git Workflow** - Enhanced Git workflow section with Fork + Feature Branch pattern, sync-only main branch, and safety rules
+
+### Technical Notes
+
+```yaml
+# YAML Anchors Example
+x-hotplex-common: &hotplex-common
+  image: ghcr.io/hrygo/hotplex:latest
+  # ... shared config
+
+services:
+  hotplex:
+    <<: *hotplex-common  # Merge shared config
+    build: .              # Override: build from local source
+```
+
+```yaml
+# Main Branch: SYNC-ONLY (no development)
+git checkout main
+git fetch upstream
+git reset --hard upstream/main    # Force sync
+git push origin main --force
+```
+
+### Reference Commits
+- 8180353 docs(chatapps): add system_prompt customization guidance
+- 9804ab9 docs(config): reorganize system_prompt chapter order
+- 9253f1d docs(config): main branch is SYNC-ONLY with upstream
+- ff57dac docs(config): enhance Git Workflow in slack.yaml system_prompt
+- fb279d4 refactor(docker): migrate to YAML anchors and simplify Makefile
+- a51f64f refactor(docker): improve compose config with YAML anchors
+- aa113d5 fix(docker): fix multi-bot volume isolation in docker-compose
+- 6afd088 refactor(chatapps): 统一 ChunkMessage 和扩展签名验证策略 (#225)
+
 ## [v0.21.0] - 2026-03-06
 
 ### 🚀 Major Feature Release

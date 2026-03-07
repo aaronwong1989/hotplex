@@ -1,5 +1,7 @@
 # .goreleaser.yaml
 # Build and release configuration for HotPlex (v2 syntax)
+# Note: Docker builds are handled separately in .github/workflows/release.yml
+# using docker/build-push-action@v6 for better caching and SBOM support.
 version: 2
 
 before:
@@ -36,19 +38,6 @@ checksum:
 snapshot:
   version_template: "{{ incpatch .Tag }}-next"
 
-dockers_v2:
-  - id: hotplex
-    ids:
-      - hotplexd
-    images:
-      - ghcr.io/hrygo/hotplex
-    tags:
-      - "{{ .Version }}"
-      - latest
-    dockerfile: Dockerfile.release
-    platforms:
-      - linux/amd64
-      - linux/arm64
-    build_args:
-      VERSION: "{{ .Version }}"
-      HOST_UID: "1000"
+# Docker builds moved to GitHub Actions (docker/build-push-action@v6)
+# Benefits: better caching, SBOM, provenance attestation
+# See: .github/workflows/release.yml

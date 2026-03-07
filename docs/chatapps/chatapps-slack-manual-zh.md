@@ -340,6 +340,8 @@ Slack 于 2026年2月17日 发布了官方 MCP Server，支持：
 
 在代码库的 `chatapps/configs/slack.yaml` 中可进行细粒度控制：
 
+### 🔧 核心参数
+
 | 参数                   | 可选值            | 说明                                                                              |
 | :--------------------- | :---------------- | :-------------------------------------------------------------------------------- |
 | **`bot_user_id`**      | `U...`            | **强烈建议填写**。用于精准识别 Mention，避免环路。而在 Slack 机器人详情页可复制。 |
@@ -351,6 +353,38 @@ Slack 于 2026年2月17日 发布了官方 MCP Server，支持：
 
 > [!TIP]
 > **工具过滤优先级**：`provider` 层面的工具过滤配置（`provider.allowed_tools`）会优先于 `engine` 层面的配置。如果两者都未设置，则默认允许所有工具。
+
+### 🧠 自定义 AI 身份与行为 (system_prompt)
+
+> ⚠️ **重要**：配置文件中的 `system_prompt` 是 **示例模板**，你需要根据自己的项目需求进行定制！
+
+```yaml
+# chatapps/configs/slack.yaml
+system_prompt: |
+  You are [你的项目名称], an expert software engineer...
+
+  ## Environment
+  - 描述你的运行环境约束
+
+  ## Slack Context
+  - 描述你的 Slack 使用场景
+
+  ## Git Workflow
+  - 定义你的 Git 工作流程（分支命名、commit 规范等）
+
+  ## Output
+  - 定义输出格式要求
+```
+
+**定制要点**：
+| 部分 | 说明 |
+|------|------|
+| **身份定义** | 告诉 AI 它是谁，负责什么项目 |
+| **Environment** | 运行环境约束（无头模式、超时等） |
+| **Git Workflow** | 你的团队 Git 工作流程规范 |
+| **Output** | 消息格式要求（简洁、代码块等） |
+
+> 💡 **最佳实践**：参考 `chatapps/configs/slack.yaml` 中的示例，根据你的项目实际情况修改身份、工作流程和输出规范。
 
 ---
 
