@@ -1,0 +1,225 @@
+# HotPlex Installation Guide
+
+This guide covers installation and configuration on various platforms.
+
+[简体中文](INSTALL_zh.md)
+
+## Quick Start
+
+### One-Click Install (Linux / macOS / WSL)
+
+```bash
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash
+```
+
+### Install Specific Version
+
+```bash
+# Download and run with version flag
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash -s -- -v v0.21.0
+```
+
+> Note: `--` separates bash options from script options. Without it, `-v` would be interpreted by bash instead of the script.
+
+### Custom Install Directory
+
+```bash
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash -s -- -d ~/bin
+```
+
+### Dry Run Mode
+
+```bash
+# Preview actions without executing
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash -s -- -n
+```
+
+### Force Reinstall
+
+```bash
+# Overwrite existing same version
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash -s -- -f
+```
+
+### Verbose Output
+
+```bash
+# Show detailed debug info
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash -s -- -V
+```
+
+## System Requirements
+
+| Platform | Architecture | Support |
+|----------|--------------|---------|
+| Linux | amd64, arm64 | ✅ |
+| macOS | amd64 (Intel), arm64 (Apple Silicon) | ✅ |
+| Windows | WSL2 | ✅ |
+
+**Dependencies**:
+- `curl` or `wget`
+- `tar` (Linux/macOS) or `unzip` (Windows)
+
+## Install Options
+
+| Option | Description |
+|--------|-------------|
+| `-v, --version` | Specify version (default: latest) |
+| `-d, --dir` | Install directory (default: `/usr/local/bin`) |
+| `-c, --config` | Generate config files only |
+| `-u, --uninstall` | Uninstall HotPlex |
+| `-f, --force` | Force reinstall |
+| `-n, --dry-run` | Dry run mode, show actions without executing |
+| `-q, --quiet` | Quiet mode |
+| `-V, --verbose` | Verbose output |
+| `--skip-wizard` | Skip post-install setup wizard |
+| `--non-interactive` | Non-interactive mode |
+| `-h, --help` | Show help |
+
+## Manual Install
+
+### 1. Download Binary
+
+Download from [Releases](https://github.com/hrygo/hotplex/releases):
+
+```bash
+# Linux amd64
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.21.0/hotplex_0.21.0_linux_amd64.tar.gz
+
+# macOS arm64 (Apple Silicon)
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.21.0/hotplex_0.21.0_darwin_arm64.tar.gz
+```
+
+### 2. Extract and Install
+
+```bash
+tar -xzf hotplex_0.21.0_linux_amd64.tar.gz
+sudo mv hotplexd /usr/local/bin/
+sudo chmod +x /usr/local/bin/hotplexd
+```
+
+### 3. Verify
+
+```bash
+hotplexd -version
+```
+
+## Configuration
+
+### Generate Config Template
+
+```bash
+# Generate config files only
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash -s -- -c
+```
+
+Config file will be created at `~/.hotplex/.env`
+
+### Required Settings
+
+Edit `~/.hotplex/.env`:
+
+```bash
+# API security token (required for production)
+HOTPLEX_API_KEY=your-secure-api-key
+
+# Slack Bot config
+HOTPLEX_SLACK_BOT_USER_ID=UXXXXXXXXXX
+HOTPLEX_SLACK_BOT_TOKEN=xoxb-your-token
+HOTPLEX_SLACK_APP_TOKEN=xapp-your-token
+
+# GitHub Token (for Git operations)
+GITHUB_TOKEN=ghp_your-token
+```
+
+### Config File Location
+
+HotPlex searches for config in this order:
+
+1. Path specified by `-env` flag
+2. `.env` in current directory
+3. `~/.hotplex/.env`
+
+## Start Service
+
+```bash
+# Default config
+hotplexd
+
+# Specify config file
+hotplexd -env ~/.hotplex/.env
+
+# Specify port
+hotplexd -port 9090
+
+# Show help
+hotplexd -h
+```
+
+## Docker Deployment
+
+```bash
+# Pull image
+docker pull ghcr.io/hrygo/hotplex:latest
+
+# Run container
+docker run -d \
+  --name hotplex \
+  -p 8080:8080 \
+  -v ~/.hotplex:/root/.hotplex \
+  -v ~/projects:/root/projects \
+  ghcr.io/hotplex:latest
+```
+
+## Uninstall
+
+```bash
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash -s -- -u
+```
+
+Or manual removal:
+
+```bash
+sudo rm /usr/local/bin/hotplexd
+# Optional: remove config
+rm -rf ~/.hotplex
+```
+
+## Troubleshooting
+
+### Permission Issues
+
+If installing to `/usr/local/bin` fails:
+
+```bash
+# Use sudo
+curl -sL ... | sudo bash
+
+# Or install to user directory
+curl -sL ... | bash -s -- -d ~/.local/bin
+```
+
+### Command Not Found
+
+Ensure install directory is in `PATH`:
+
+```bash
+echo $PATH
+# Add to ~/.bashrc or ~/.zshrc if missing
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Version Mismatch
+
+Clear cache and reinstall:
+
+```bash
+rm -rf /tmp/hotplex-*
+curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash
+```
+
+## Next Steps
+
+- [Configure Slack Bot](./chatapps/configs/slack.yaml)
+- [API Documentation](./README.md)
+- [Contributing Guide](./CONTRIBUTING.md)
