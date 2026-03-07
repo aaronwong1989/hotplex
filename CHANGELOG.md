@@ -1,5 +1,42 @@
 # CHANGELOG.md
 
+## [v0.21.2] - 2026-03-07
+
+### 🔧 Patch Release
+
+This release upgrades all GitHub Actions to latest versions and fixes CI/CD workflow issues.
+
+### Fixed
+
+- **Version String Mismatch** - Fixed archive download failure caused by `v` prefix mismatch (`v0.21.1` vs `0.21.1`)
+- **Binary Extraction Paths** - Corrected paths to match `Dockerfile.release` expectations
+
+### Changed
+
+#### GitHub Actions Upgrade
+| Action | Before | After |
+|--------|--------|-------|
+| `goreleaser/goreleaser-action` | v6 | v7 |
+| `docker/build-push-action` | v6 | v7 |
+| `docker/metadata-action` | v5 | v6 |
+| `docker/setup-buildx-action` | v3 | v4 |
+| `docker/setup-qemu-action` | v3 | v4 |
+| `docker/login-action` | v3 | v4 |
+| `golangci/golangci-lint-action` | v7 | v9 |
+
+### Technical Notes
+
+```yaml
+# Version string stripping (v0.21.1 -> 0.21.1)
+- name: Prepare version string
+  run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+```
+
+### Reference Commits
+- 3d79ff1 ci: upgrade all GitHub Actions to latest versions
+- 2d7fdfb fix(ci): fix version string mismatch in release workflow
+- d813157 ci(release): upgrade to docker/build-push-action@v6
+
 ## [v0.21.1] - 2026-03-07
 
 ### 🔧 Patch Release
