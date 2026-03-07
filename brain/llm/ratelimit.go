@@ -296,26 +296,13 @@ func (rl *RateLimiter) TryWithRateLimit(ctx context.Context, model string, fn fu
 
 // RateLimitedClient wraps a client with rate limiting.
 type RateLimitedClient struct {
-	client interface {
-		Chat(ctx context.Context, prompt string) (string, error)
-		Analyze(ctx context.Context, prompt string, target any) error
-		ChatStream(ctx context.Context, prompt string) (<-chan string, error)
-		HealthCheck(ctx context.Context) HealthStatus
-	}
+	client  LLMClient
 	limiter *RateLimiter
 	model   string
 }
 
 // NewRateLimitedClient creates a new rate-limited client wrapper.
-func NewRateLimitedClient(
-	client interface {
-		Chat(ctx context.Context, prompt string) (string, error)
-		Analyze(ctx context.Context, prompt string, target any) error
-		ChatStream(ctx context.Context, prompt string) (<-chan string, error)
-		HealthCheck(ctx context.Context) HealthStatus
-	},
-	limiter *RateLimiter,
-) *RateLimitedClient {
+func NewRateLimitedClient(client LLMClient, limiter *RateLimiter) *RateLimitedClient {
 	return &RateLimitedClient{
 		client:  client,
 		limiter: limiter,
