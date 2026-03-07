@@ -81,6 +81,7 @@ type ProviderMeta struct {
 	Type        ProviderType // Provider type identifier
 	DisplayName string       // Human-readable name (e.g., "Claude Code")
 	BinaryName  string       // CLI binary name (e.g., "claude", "opencode")
+	InstallHint string       // Installation hint (e.g., "npm install -g @anthropic-ai/claude-code")
 	Version     string       // CLI version (if available)
 	Features    ProviderFeatures
 }
@@ -266,15 +267,84 @@ func (p *ProviderBase) Metadata() ProviderMeta {
 }
 
 // ValidateBinary checks if the CLI binary exists and returns its path.
+// It uses BinaryPath from config if set, otherwise looks up the binary in PATH.
+// Returns a helpful error message with install hint if the binary is not found.
 func (p *ProviderBase) ValidateBinary() (string, error) {
 	if p.binaryPath != "" {
 		return p.binaryPath, nil
 	}
-	return exec.LookPath(p.meta.BinaryName)
+	path, err := exec.LookPath(p.meta.BinaryName)
+	if err != nil {
+		if p.meta.InstallHint != "" {
+			return "", fmt.Errorf("%s CLI not found: install with '%s': %w",
+				p.meta.DisplayName, p.meta.InstallHint, err)
+		}
+		return "", fmt.Errorf("%s CLI not found in PATH: %w", p.meta.DisplayName, err)
+	}
+	return path, nil
 }
 
 // CleanupSession provides a default no-op implementation for cleaning up session files.
 // Providers that store session files on disk (like Claude Code) should override this.
 func (p *ProviderBase) CleanupSession(providerSessionID string, workDir string) error {
 	return nil
+}
+
+// ============================================================================
+// Prompt Builder
+// ============================================================================
+
+// PromptBuilder helps construct prompts with task instructions.
+// It provides a consistent format across all providers.
+type PromptBuilder struct {
+	useCDATA bool // Whether to wrap content in CDATA sections
+}
+
+// NewPromptBuilder creates a new PromptBuilder.
+func NewPromptBuilder(useCDATA bool) *PromptBuilder {
+	return &PromptBuilder{useCDATA: useCDATA}
+}
+
+// Build constructs the final prompt with task instructions.
+// If taskInstructions is empty, returns the prompt unchanged.
+func (b *PromptBuilder) Build(prompt, taskInstructions string) string {
+	if taskInstructions == "" {
+		return prompt
+	}
+	if b.useCDATA {
+		return fmt.Sprintf("<context>\n<![CDATA[\n%s\n]]>\n</context>\n\n<user_query>\n<![CDATA[\n%s\n]]>\n</user_query>",
+			taskInstructions, prompt)
+	}
+	return fmt.Sprintf("<context>\n%s\n</context>\n\n<user_query>\n%s\n</user_query>",
+		taskInstructions, prompt)
+}
+
+// BuildInputMessage creates a standard input message map for JSON serialization.
+func (b *PromptBuilder) BuildInputMessage(prompt, taskInstructions string) map[string]any {
+	return map[string]any{
+		"prompt":           prompt,
+		"task_instructions": taskInstructions,
+		"final_prompt":     b.Build(prompt, taskInstructions),
+	}
+}
+
+// ============================================================================
+// Binary Resolution Helper
+// ============================================================================
+
+// ResolveBinaryPath resolves the binary path from config or PATH lookup.
+// This is a shared helper for all provider implementations.
+func ResolveBinaryPath(cfg ProviderConfig, meta ProviderMeta) (string, error) {
+	if cfg.BinaryPath != "" {
+		return cfg.BinaryPath, nil
+	}
+	path, err := exec.LookPath(meta.BinaryName)
+	if err != nil {
+		if meta.InstallHint != "" {
+			return "", fmt.Errorf("%s CLI not found: install with '%s': %w",
+				meta.DisplayName, meta.InstallHint, err)
+		}
+		return "", fmt.Errorf("%s CLI not found in PATH: %w", meta.DisplayName, err)
+	}
+	return path, nil
 }
