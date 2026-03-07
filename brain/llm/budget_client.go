@@ -60,7 +60,7 @@ func (b *BudgetClient) Chat(ctx context.Context, prompt string) (string, error) 
 
 	// Track actual cost (using estimate for now)
 	// In production, you would parse response to get actual token usage
-	b.tracker.TrackRequest(estimatedCost)
+	_ = b.tracker.TrackRequest(estimatedCost)
 
 	return result, nil
 }
@@ -86,7 +86,7 @@ func (b *BudgetClient) Analyze(ctx context.Context, prompt string, target any) e
 	}
 
 	// Track actual cost
-	b.tracker.TrackRequest(estimatedCost)
+	_ = b.tracker.TrackRequest(estimatedCost)
 
 	return nil
 }
@@ -112,7 +112,7 @@ func (b *BudgetClient) ChatStream(ctx context.Context, prompt string) (<-chan st
 	}
 
 	// Track cost (estimate for streaming)
-	b.tracker.TrackRequest(estimatedCost)
+	_ = b.tracker.TrackRequest(estimatedCost)
 
 	return result, nil
 }
