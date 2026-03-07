@@ -126,4 +126,6 @@ jobs:
       - name: Output digest
         env:
           DIGEST: ${{ steps.build-push.outputs.digest }}
-        run: echo "Pushed image digest: $DIGEST"
+        run: |
+          echo "Pushed image digest:"
+          echo "$DIGEST"
