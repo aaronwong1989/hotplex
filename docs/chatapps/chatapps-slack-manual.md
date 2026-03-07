@@ -340,6 +340,8 @@ Slack released official MCP Server on February 17, 2026, supporting:
 
 Fine-grained control available in `chatapps/configs/slack.yaml`:
 
+### 🔧 Core Parameters
+
 | Parameter              | Optional Values   | Description                                                                                                |
 | :--------------------- | :---------------- | :--------------------------------------------------------------------------------------------------------- |
 | **`bot_user_id`**      | `U...`            | **Highly Recommended**. Used for precise Mention identification, avoid loops. Copy from Slack bot profile. |
@@ -351,6 +353,38 @@ Fine-grained control available in `chatapps/configs/slack.yaml`:
 
 > [!TIP]
 > **Tool Filter Priority**: `provider` level tool filter config (`provider.allowed_tools`) takes precedence over `engine` level config. If both are unset, all tools are allowed by default.
+
+### 🧠 Customize AI Identity & Behavior (system_prompt)
+
+> ⚠️ **Important**: The `system_prompt` in the config file is an **EXAMPLE TEMPLATE**. You MUST customize it for your project!
+
+```yaml
+# chatapps/configs/slack.yaml
+system_prompt: |
+  You are [Your Project Name], an expert software engineer...
+
+  ## Environment
+  - Describe your runtime constraints
+
+  ## Slack Context
+  - Describe your Slack usage scenario
+
+  ## Git Workflow
+  - Define your Git workflow (branch naming, commit conventions, etc.)
+
+  ## Output
+  - Define output format requirements
+```
+
+**Customization Points**:
+| Section | Description |
+|---------|-------------|
+| **Identity** | Tell AI who it is and what project it's working on |
+| **Environment** | Runtime constraints (headless mode, timeouts, etc.) |
+| **Git Workflow** | Your team's Git workflow conventions |
+| **Output** | Message format requirements (concise, code blocks, etc.) |
+
+> 💡 **Best Practice**: Refer to the example in `chatapps/configs/slack.yaml` and modify the identity, workflow, and output specifications according to your project's actual needs.
 
 ---
 

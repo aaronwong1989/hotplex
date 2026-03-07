@@ -114,5 +114,12 @@ HOTPLEX_SLACK_APP_TOKEN=xapp-paste_your_copied_secret_here
    - Try sending a simple "Hi" to the bot in the channel or via its DM space to kickstart your AI-powered productivity journey!
 
 > 💡 **Want to level up?**
-> Once you graduate from the beginner village, you might discover you need finer controls: Like how to restrict a specific user from chatting? How to prevent AI from using dangerous tools (like deleting source code)? How to deploy the shiny new 2026 Admin Dashboard?
+> Once you graduate from the beginner village, you might discover you need finer controls:
+> - How to restrict a specific user from chatting?
+> - How to prevent AI from using dangerous tools (like deleting source code)?
+> - How to deploy the shiny new 2026 Admin Dashboard?
+> - **How to customize AI's identity and workflow?** ⚠️ This is important!
+>
 > When you're ready, consult the engineering bible 👉 [Slack App Core Configuration Manual](./chatapps/chatapps-slack-manual.md).
+>
+> 🔔 **Reminder**: The `system_prompt` in `chatapps/configs/slack.yaml` is an example template. You MUST customize it for your project's identity, Git workflow, and output requirements!
