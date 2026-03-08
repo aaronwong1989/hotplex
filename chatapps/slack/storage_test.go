@@ -530,7 +530,7 @@ func TestAdapter_Storage_PostgreSQLWithURL(t *testing.T) {
 		SigningSecret: "abcdefghijklmnopqrstuvwxyz123456",
 		Mode:          "http",
 		Storage: &StorageConfig{
-			Enabled:       true,
+			Enabled:       PtrBool(true),
 			Type:          "postgresql",
 			PostgreSQLURL: testURL,
 		},
@@ -568,7 +568,7 @@ func TestAdapter_Storage_ConcurrentStore(t *testing.T) {
 		Mode:          "http",
 		BotUserID:     "B123",
 		Storage: &StorageConfig{
-			Enabled: true,
+			Enabled: PtrBool(true),
 			Type:    "memory",
 		},
 	}, logger, base.WithoutServer())
@@ -625,7 +625,7 @@ func TestAdapter_Storage_LargeVolume(t *testing.T) {
 		Mode:          "http",
 		BotUserID:     "B123",
 		Storage: &StorageConfig{
-			Enabled: true,
+			Enabled: PtrBool(true),
 			Type:    "memory",
 		},
 	}, logger, base.WithoutServer())
@@ -679,7 +679,7 @@ func TestAdapter_Storage_MixedMessageTypes(t *testing.T) {
 		Mode:          "http",
 		BotUserID:     "B123",
 		Storage: &StorageConfig{
-			Enabled: true,
+			Enabled: PtrBool(true),
 			Type:    "memory",
 		},
 	}, logger, base.WithoutServer())
