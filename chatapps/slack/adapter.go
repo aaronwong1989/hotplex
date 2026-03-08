@@ -572,14 +572,10 @@ func (a *Adapter) shouldRespondToThreadMessage(channelType, channelID, threadTS,
 			return false, "thread_mentioned_blocked_by_policy"
 		}
 
-		// R3/R4: Ownership management
-		// Note: We only set ourselves as owner because we cannot distinguish
-		// human users from bot users in the mention list. In multi-bot scenarios,
-		// each bot will set itself as owner when it sees the mention.
+		// R3/R4: This bot claims ownership when @mentioned
+		// In multi-bot scenarios, each bot independently tracks its owned threads
 		if a.ownershipTracker != nil {
-			// Use ClaimOwnership to add ourselves to the owner set
-			// This supports multi-bot shared ownership (R4) without including human users
-			a.ownershipTracker.ClaimOwnership(threadKey, a.config.BotUserID)
+			a.ownershipTracker.Claim(threadKey)
 		}
 		return true, "thread_mentioned_claimed"
 	}
@@ -590,29 +586,23 @@ func (a *Adapter) shouldRespondToThreadMessage(channelType, channelID, threadTS,
 		return false, "no_ownership_tracking"
 	}
 
-	// R5: Ownership release - if other bots are @mentioned but not us, release ownership
+	// R5: Ownership release - if others are @mentioned but not us, release ownership
 	if len(mentioned) > 0 {
-		if a.ownershipTracker.IsOwner(threadKey, a.config.BotUserID) {
-			a.ownershipTracker.ReleaseOwnership(threadKey, a.config.BotUserID)
+		if a.ownershipTracker.Owns(threadKey) {
+			a.ownershipTracker.Release(threadKey)
 			a.Logger().Debug("Thread ownership released (R5)", "thread_key", threadKey, "mentioned", mentioned)
 		}
 		return false, "ownership_released_other_mentioned"
 	}
 
 	// Check if we own this thread
-	if a.ownershipTracker.IsOwner(threadKey, a.config.BotUserID) {
+	if a.ownershipTracker.Owns(threadKey) {
 		a.ownershipTracker.UpdateLastActive(threadKey)
 		return true, "thread_owner"
 	}
 
-	// Check if thread has no owner (unowned thread)
-	if !a.ownershipTracker.HasOwner(threadKey) {
-		// No mentions at all in unowned thread - stay silent
-		return false, "unowned_no_mention_silent"
-	}
-
-	// Thread has other owner - stay silent
-	return false, "other_owner_silent"
+	// We don't own this thread - stay silent
+	return false, "not_owner_silent"
 }
 
 // ClaimThreadOwnership claims ownership of a thread after responding.
@@ -622,6 +612,6 @@ func (a *Adapter) ClaimThreadOwnership(channelID, threadTS string) {
 		return
 	}
 	threadKey := NewThreadKey(channelID, threadTS)
-	a.ownershipTracker.ClaimOwnership(threadKey, a.config.BotUserID)
+	a.ownershipTracker.Claim(threadKey)
 }
 

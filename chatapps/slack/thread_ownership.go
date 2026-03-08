@@ -16,34 +16,37 @@ func NewThreadKey(channelID, threadTS string) ThreadKey {
 	return ThreadKey(channelID + ":" + threadTS)
 }
 
-// ThreadOwner represents ownership state of a thread.
-type ThreadOwner struct {
-	// OwnerIDs is the set of bot user IDs that own this thread
-	OwnerIDs map[string]struct{}
+// OwnedThread represents a thread owned by this bot.
+type OwnedThread struct {
 	// LastActive is the last activity timestamp
 	LastActive time.Time
 	// ClaimedAt is when ownership was first claimed
 	ClaimedAt time.Time
 }
 
-// ThreadOwnershipTracker tracks which bots own which threads.
-// Thread ownership determines which bot should respond to non-@ messages in a thread.
+// ThreadOwnershipTracker tracks which threads THIS bot owns.
+// This is bot-centric: the bot maintains a set of threads it owns,
+// NOT thread-centric where threads track which bots own them.
+//
+// In multi-bot scenarios, each bot instance independently tracks its own
+// owned threads. When @BotA @BotB is mentioned, both BotA and BotB
+// independently add the thread to their respective ownership sets.
 //
 // Ownership Rules (from docs/design/bot-behavior-spec.md):
-//   - R1: First bot to respond claims ownership
+//   - R1: First response claims ownership (this bot claims)
 //   - R2: Only thread owner responds to non-@ messages
-//   - R3: @BotB transfers ownership from BotA to BotB
-//   - R4: @BotA @BotB creates shared ownership
-//   - R5: @mentions excluding current owner releases ownership
+//   - R3: @BotB in BotA's thread → BotB claims ownership (BotA releases if mentioned others)
+//   - R4: @BotA @BotB → Both bots independently claim ownership
+//   - R5: @mentions excluding this bot → release ownership
 type ThreadOwnershipTracker struct {
-	mu         sync.RWMutex
-	threads    map[ThreadKey]*ThreadOwner
-	ttl        time.Duration
-	logger     *slog.Logger
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-	cleanupInt time.Duration
+	mu           sync.RWMutex
+	ownedThreads map[ThreadKey]*OwnedThread // threads owned by THIS bot
+	ttl          time.Duration
+	logger       *slog.Logger
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
+	cleanupInt   time.Duration
 }
 
 // NewThreadOwnershipTracker creates a new thread ownership tracker.
@@ -63,12 +66,12 @@ func NewThreadOwnershipTracker(ttl time.Duration, logger *slog.Logger) *ThreadOw
 	ctx, cancel := context.WithCancel(context.Background())
 
 	t := &ThreadOwnershipTracker{
-		threads:    make(map[ThreadKey]*ThreadOwner),
-		ttl:        ttl,
-		logger:     logger,
-		ctx:        ctx,
-		cancel:     cancel,
-		cleanupInt: cleanupInt,
+		ownedThreads: make(map[ThreadKey]*OwnedThread),
+		ttl:          ttl,
+		logger:       logger,
+		ctx:          ctx,
+		cancel:       cancel,
+		cleanupInt:   cleanupInt,
 	}
 
 	// Start background cleanup goroutine
@@ -78,171 +81,61 @@ func NewThreadOwnershipTracker(ttl time.Duration, logger *slog.Logger) *ThreadOw
 	return t
 }
 
-// ClaimOwnership claims ownership of a thread for the specified bot.
+// Claim claims ownership of a thread for THIS bot.
 // Returns true if this is a new claim.
-func (t *ThreadOwnershipTracker) ClaimOwnership(key ThreadKey, botUserID string) bool {
+func (t *ThreadOwnershipTracker) Claim(key ThreadKey) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	now := time.Now()
-	owner, exists := t.threads[key]
+	thread, exists := t.ownedThreads[key]
 	if !exists {
 		// New thread - claim ownership
-		t.threads[key] = &ThreadOwner{
-			OwnerIDs:   map[string]struct{}{botUserID: {}},
+		t.ownedThreads[key] = &OwnedThread{
 			LastActive: now,
 			ClaimedAt:  now,
 		}
-		t.logger.Debug("Thread ownership claimed",
-			"thread_key", key,
-			"bot_user_id", botUserID)
+		t.logger.Debug("Thread ownership claimed", "thread_key", key)
 		return true
 	}
 
-	// Existing thread - add to owners
-	owner.OwnerIDs[botUserID] = struct{}{}
-	owner.LastActive = now
+	// Existing thread - update activity
+	thread.LastActive = now
 	return false
 }
 
-// ReleaseOwnership removes ownership for a bot from a thread.
-func (t *ThreadOwnershipTracker) ReleaseOwnership(key ThreadKey, botUserID string) {
+// Release releases ownership of a thread for THIS bot.
+func (t *ThreadOwnershipTracker) Release(key ThreadKey) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	owner, exists := t.threads[key]
-	if !exists {
-		return
-	}
-
-	delete(owner.OwnerIDs, botUserID)
-	if len(owner.OwnerIDs) == 0 {
-		delete(t.threads, key)
-		t.logger.Debug("Thread ownership released",
-			"thread_key", key,
-			"bot_user_id", botUserID)
+	if _, exists := t.ownedThreads[key]; exists {
+		delete(t.ownedThreads, key)
+		t.logger.Debug("Thread ownership released", "thread_key", key)
 	}
 }
 
-// TransferOwnership transfers ownership from one bot to another.
-// This is triggered when @BotB is mentioned in BotA's thread.
-func (t *ThreadOwnershipTracker) TransferOwnership(key ThreadKey, fromBotID, toBotID string) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	owner, exists := t.threads[key]
-	if !exists {
-		// No existing owner - just claim
-		t.threads[key] = &ThreadOwner{
-			OwnerIDs:   map[string]struct{}{toBotID: {}},
-			LastActive: time.Now(),
-			ClaimedAt:  time.Now(),
-		}
-		return
-	}
-
-	// Remove old owner, add new
-	delete(owner.OwnerIDs, fromBotID)
-	owner.OwnerIDs[toBotID] = struct{}{}
-	owner.LastActive = time.Now()
-
-	t.logger.Debug("Thread ownership transferred",
-		"thread_key", key,
-		"from_bot_id", fromBotID,
-		"to_bot_id", toBotID)
-}
-
-// SetOwners sets multiple owners for a thread (multi-owner support).
-// This is triggered when @BotA @BotB is mentioned together.
-func (t *ThreadOwnershipTracker) SetOwners(key ThreadKey, botUserIDs []string) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	now := time.Now()
-	owner, exists := t.threads[key]
-	if !exists {
-		owner = &ThreadOwner{
-			OwnerIDs:   make(map[string]struct{}),
-			LastActive: now,
-			ClaimedAt:  now,
-		}
-		t.threads[key] = owner
-	}
-
-	// Clear existing owners and set new ones
-	owner.OwnerIDs = make(map[string]struct{})
-	for _, id := range botUserIDs {
-		owner.OwnerIDs[id] = struct{}{}
-	}
-	owner.LastActive = now
-
-	t.logger.Debug("Thread owners set",
-		"thread_key", key,
-		"owner_ids", botUserIDs)
-}
-
-// IsOwner checks if a bot owns a thread.
-func (t *ThreadOwnershipTracker) IsOwner(key ThreadKey, botUserID string) bool {
+// Owns checks if THIS bot owns a thread (and ownership hasn't expired).
+func (t *ThreadOwnershipTracker) Owns(key ThreadKey) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	owner, exists := t.threads[key]
+	thread, exists := t.ownedThreads[key]
 	if !exists {
 		return false
 	}
 
 	// Check TTL
-	if time.Since(owner.LastActive) > t.ttl {
-		return false
-	}
-
-	_, owned := owner.OwnerIDs[botUserID]
-	return owned
+	return time.Since(thread.LastActive) <= t.ttl
 }
 
-// GetOwners returns all owners of a thread.
-// Returns nil if thread has no owners or ownership has expired.
-func (t *ThreadOwnershipTracker) GetOwners(key ThreadKey) []string {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	owner, exists := t.threads[key]
-	if !exists {
-		return nil
-	}
-
-	// Check TTL
-	if time.Since(owner.LastActive) > t.ttl {
-		return nil
-	}
-
-	owners := make([]string, 0, len(owner.OwnerIDs))
-	for id := range owner.OwnerIDs {
-		owners = append(owners, id)
-	}
-	return owners
-}
-
-// HasOwner checks if a thread has any owner (not expired).
-func (t *ThreadOwnershipTracker) HasOwner(key ThreadKey) bool {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	owner, exists := t.threads[key]
-	if !exists {
-		return false
-	}
-
-	return time.Since(owner.LastActive) <= t.ttl
-}
-
-// UpdateLastActive updates the last active timestamp for a thread.
+// UpdateLastActive updates the last active timestamp for an owned thread.
 func (t *ThreadOwnershipTracker) UpdateLastActive(key ThreadKey) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if owner, exists := t.threads[key]; exists {
-		owner.LastActive = time.Now()
+	if thread, exists := t.ownedThreads[key]; exists {
+		thread.LastActive = time.Now()
 	}
 }
 
@@ -254,9 +147,9 @@ func (t *ThreadOwnershipTracker) CleanupExpired() int {
 
 	now := time.Now()
 	expired := 0
-	for key, owner := range t.threads {
-		if now.Sub(owner.LastActive) > t.ttl {
-			delete(t.threads, key)
+	for key, thread := range t.ownedThreads {
+		if now.Sub(thread.LastActive) > t.ttl {
+			delete(t.ownedThreads, key)
 			expired++
 		}
 	}

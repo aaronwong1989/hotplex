@@ -3,7 +3,6 @@ package slack
 import (
 	"io"
 	"log/slog"
-	"strings"
 	"testing"
 	"time"
 )
@@ -32,107 +31,51 @@ func TestNewThreadKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := NewThreadKey(tt.channelID, tt.threadTS)
 			if result != tt.expected {
-                t.Errorf("NewThreadKey() = %v, want %v", result, tt.expected)
-            }
-        })
-    }
+				t.Errorf("NewThreadKey() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
 }
 
-func TestThreadOwnershipTracker_ClaimOwnership(t *testing.T) {
+func TestThreadOwnershipTracker_Claim(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	tracker := NewThreadOwnershipTracker(24*time.Hour, logger)
 	key := NewThreadKey("C12345", "1234567890.123456")
 
 	// First claim
-	isNew := tracker.ClaimOwnership(key, "BOT001")
+	isNew := tracker.Claim(key)
 	if !isNew {
 		t.Error("First claim should return true")
 	}
 
 	// Verify ownership
-	if !tracker.IsOwner(key, "BOT001") {
-		t.Error("BOT001 should own the thread")
+	if !tracker.Owns(key) {
+		t.Error("Bot should own the thread after claim")
 	}
 
 	// Second claim (not new)
-	isNew = tracker.ClaimOwnership(key, "BOT001")
+	isNew = tracker.Claim(key)
 	if isNew {
 		t.Error("Second claim should return false")
 	}
 
-	// Add second owner
-	tracker.ClaimOwnership(key, "BOT002")
-
-	// Both should be owners
-	if !tracker.IsOwner(key, "BOT001") {
-		t.Error("BOT001 should still own the thread")
-	}
-	if !tracker.IsOwner(key, "BOT002") {
-		t.Error("BOT002 should own the thread")
+	// Should still own
+	if !tracker.Owns(key) {
+		t.Error("Bot should still own the thread")
 	}
 }
 
-func TestThreadOwnershipTracker_ReleaseOwnership(t *testing.T) {
+func TestThreadOwnershipTracker_Release(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	tracker := NewThreadOwnershipTracker(24*time.Hour, logger)
 	key := NewThreadKey("C12345", "1234567890.123456")
 
 	// Claim and release
-	tracker.ClaimOwnership(key, "BOT001")
-	tracker.ReleaseOwnership(key, "BOT001")
+	tracker.Claim(key)
+	tracker.Release(key)
 
-	if tracker.IsOwner(key, "BOT001") {
-		t.Error("BOT001 should not own the thread after release")
-	}
-
-	// Thread should have no owners
-	owners := tracker.GetOwners(key)
-	if owners != nil {
-		t.Errorf("Expected no owners, got %v", owners)
-	}
-}
-
-func TestThreadOwnershipTracker_TransferOwnership(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	tracker := NewThreadOwnershipTracker(24*time.Hour, logger)
-	key := NewThreadKey("C12345", "1234567890.123456")
-
-	// Initial claim
-	tracker.ClaimOwnership(key, "BOT001")
-
-	// Transfer to BOT002
-	tracker.TransferOwnership(key, "BOT001", "BOT002")
-
-	// BOT001 should no longer own
-	if tracker.IsOwner(key, "BOT001") {
-		t.Error("BOT001 should not own the thread after transfer")
-	}
-
-	// BOT002 should own
-	if !tracker.IsOwner(key, "BOT002") {
-		t.Error("BOT002 should own the thread after transfer")
-	}
-}
-
-func TestThreadOwnershipTracker_SetOwners(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	tracker := NewThreadOwnershipTracker(24*time.Hour, logger)
-	key := NewThreadKey("C12345", "1234567890.123456")
-
-	// Set multiple owners
-	tracker.SetOwners(key, []string{"BOT001", "BOT002", "BOT003"})
-
-	// All should be owners
-	for _, botID := range []string{"BOT001", "BOT002", "BOT003"} {
-		if !tracker.IsOwner(key, botID) {
-			t.Errorf("%s should own the thread", botID)
-		}
-	}
-
-	// Get owners
-	owners := tracker.GetOwners(key)
-	if len(owners) != 3 {
-		t.Errorf("Expected 3 owners, got %d", len(owners))
+	if tracker.Owns(key) {
+		t.Error("Bot should not own the thread after release")
 	}
 }
 
@@ -143,24 +86,19 @@ func TestThreadOwnershipTracker_TTL(t *testing.T) {
 	key := NewThreadKey("C12345", "1234567890.123456")
 
 	// Claim ownership
-	tracker.ClaimOwnership(key, "BOT001")
+	tracker.Claim(key)
 
 	// Should be owner immediately
-	if !tracker.IsOwner(key, "BOT001") {
-		t.Error("BOT001 should own the thread")
+	if !tracker.Owns(key) {
+		t.Error("Bot should own the thread")
 	}
 
 	// Wait for TTL to expire
 	time.Sleep(150 * time.Millisecond)
 
 	// Should no longer be owner after TTL
-	if tracker.IsOwner(key, "BOT001") {
-		t.Error("BOT001 should not own the thread after TTL expiration")
-	}
-
-	// HasOwner should also return false
-	if tracker.HasOwner(key) {
-		t.Error("Thread should have no owner after TTL expiration")
+	if tracker.Owns(key) {
+		t.Error("Bot should not own the thread after TTL expiration")
 	}
 }
 
@@ -173,9 +111,9 @@ func TestThreadOwnershipTracker_CleanupExpired(t *testing.T) {
 	key2 := NewThreadKey("C12345", "2222222222.222222")
 	key3 := NewThreadKey("C12345", "3333333333.333333")
 
-	tracker.ClaimOwnership(key1, "BOT001")
-	tracker.ClaimOwnership(key2, "BOT001")
-	tracker.ClaimOwnership(key3, "BOT001")
+	tracker.Claim(key1)
+	tracker.Claim(key2)
+	tracker.Claim(key3)
 
 	// Wait for TTL to expire
 	time.Sleep(150 * time.Millisecond)
@@ -193,7 +131,7 @@ func TestThreadOwnershipTracker_UpdateLastActive(t *testing.T) {
 	key := NewThreadKey("C12345", "1234567890.123456")
 
 	// Claim ownership
-	tracker.ClaimOwnership(key, "BOT001")
+	tracker.Claim(key)
 
 	// Wait almost TTL
 	time.Sleep(80 * time.Millisecond)
@@ -205,8 +143,39 @@ func TestThreadOwnershipTracker_UpdateLastActive(t *testing.T) {
 	time.Sleep(80 * time.Millisecond)
 
 	// Should still be owner because last active was updated
-	if !tracker.IsOwner(key, "BOT001") {
-		t.Error("BOT001 should still own the thread after last active update")
+	if !tracker.Owns(key) {
+		t.Error("Bot should still own the thread after last active update")
+	}
+}
+
+func TestThreadOwnershipTracker_MultipleThreads(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	tracker := NewThreadOwnershipTracker(24*time.Hour, logger)
+
+	key1 := NewThreadKey("C12345", "1111111111.111111")
+	key2 := NewThreadKey("C12345", "2222222222.222222")
+
+	// Claim both
+	tracker.Claim(key1)
+	tracker.Claim(key2)
+
+	// Both owned
+	if !tracker.Owns(key1) {
+		t.Error("Bot should own thread 1")
+	}
+	if !tracker.Owns(key2) {
+		t.Error("Bot should own thread 2")
+	}
+
+	// Release one
+	tracker.Release(key1)
+
+	// Only one owned
+	if tracker.Owns(key1) {
+		t.Error("Bot should not own thread 1 after release")
+	}
+	if !tracker.Owns(key2) {
+		t.Error("Bot should still own thread 2")
 	}
 }
 
@@ -224,7 +193,7 @@ func TestOwnerPolicy(t *testing.T) {
 			name: "no owner config - public access",
 			config: &Config{
 				BotToken:      "xoxb-123-456-abc",
-				SigningSecret: strings.Repeat("a", 32),
+				SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			},
 			userID:         "U12345",
 			expectedCan:    true,
@@ -234,7 +203,7 @@ func TestOwnerPolicy(t *testing.T) {
 			name: "owner_only - primary owner",
 			config: &Config{
 				BotToken:      "xoxb-123-456-abc",
-				SigningSecret: strings.Repeat("a", 32),
+				SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				Owner: &OwnerConfig{
 					Primary: "U12345",
 					Policy:  OwnerPolicyOwnerOnly,
@@ -248,7 +217,7 @@ func TestOwnerPolicy(t *testing.T) {
 			name: "owner_only - non-owner blocked",
 			config: &Config{
 				BotToken:      "xoxb-123-456-abc",
-				SigningSecret: strings.Repeat("a", 32),
+				SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				Owner: &OwnerConfig{
 					Primary: "U12345",
 					Policy:  OwnerPolicyOwnerOnly,
@@ -262,7 +231,7 @@ func TestOwnerPolicy(t *testing.T) {
 			name: "trusted - primary owner",
 			config: &Config{
 				BotToken:      "xoxb-123-456-abc",
-				SigningSecret: strings.Repeat("a", 32),
+				SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				Owner: &OwnerConfig{
 					Primary: "U12345",
 					Trusted: []string{"U11111"},
@@ -277,7 +246,7 @@ func TestOwnerPolicy(t *testing.T) {
 			name: "trusted - trusted user",
 			config: &Config{
 				BotToken:      "xoxb-123-456-abc",
-				SigningSecret: strings.Repeat("a", 32),
+				SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				Owner: &OwnerConfig{
 					Primary: "U12345",
 					Trusted: []string{"U11111"},
@@ -292,7 +261,7 @@ func TestOwnerPolicy(t *testing.T) {
 			name: "trusted - non-trusted blocked",
 			config: &Config{
 				BotToken:      "xoxb-123-456-abc",
-				SigningSecret: strings.Repeat("a", 32),
+				SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				Owner: &OwnerConfig{
 					Primary: "U12345",
 					Trusted: []string{"U11111"},
@@ -307,7 +276,7 @@ func TestOwnerPolicy(t *testing.T) {
 			name: "public - anyone can access",
 			config: &Config{
 				BotToken:      "xoxb-123-456-abc",
-				SigningSecret: strings.Repeat("a", 32),
+				SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				Owner: &OwnerConfig{
 					Primary: "U12345",
 					Policy:  OwnerPolicyPublic,
@@ -321,22 +290,22 @@ func TestOwnerPolicy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			canRespond := tt.config.CanRespond(tt.userID)
-            if canRespond != tt.expectedCan {
-                t.Errorf("CanRespond() = %v, want %v", canRespond, tt.expectedCan)
-            }
+			if canRespond != tt.expectedCan {
+				t.Errorf("CanRespond() = %v, want %v", canRespond, tt.expectedCan)
+			}
 
-            policy := tt.config.GetOwnerPolicy()
-            if policy != tt.expectedPolicy {
-                t.Errorf("GetOwnerPolicy() = %v, want %v", policy, tt.expectedPolicy)
-            }
-        })
-    }
+			policy := tt.config.GetOwnerPolicy()
+			if policy != tt.expectedPolicy {
+				t.Errorf("GetOwnerPolicy() = %v, want %v", policy, tt.expectedPolicy)
+			}
+		})
+	}
 }
 
 func TestIsOwner(t *testing.T) {
 	config := &Config{
 		BotToken:      "xoxb-123-456-abc",
-		SigningSecret: strings.Repeat("a", 32),
+		SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		Owner: &OwnerConfig{
 			Primary: "U12345",
 		},
@@ -351,7 +320,7 @@ func TestIsOwner(t *testing.T) {
 	// No owner config
 	noOwnerConfig := &Config{
 		BotToken:      "xoxb-123-456-abc",
-		SigningSecret: strings.Repeat("a", 32),
+		SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
 	if noOwnerConfig.IsOwner("U12345") {
 		t.Error("Should return false when no owner config")
@@ -361,7 +330,7 @@ func TestIsOwner(t *testing.T) {
 func TestIsTrusted(t *testing.T) {
 	config := &Config{
 		BotToken:      "xoxb-123-456-abc",
-		SigningSecret: strings.Repeat("a", 32),
+		SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		Owner: &OwnerConfig{
 			Trusted: []string{"U11111", "U22222"},
 		},
@@ -381,7 +350,7 @@ func TestThreadOwnershipConfig(t *testing.T) {
 	// With config
 	config := &Config{
 		BotToken:      "xoxb-123-456-abc",
-		SigningSecret: strings.Repeat("a", 32),
+		SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		ThreadOwnership: &ThreadOwnershipConfig{
 			Enabled: true,
 			TTL:     12 * time.Hour,
@@ -398,7 +367,7 @@ func TestThreadOwnershipConfig(t *testing.T) {
 	// Without config
 	noConfig := &Config{
 		BotToken:      "xoxb-123-456-abc",
-		SigningSecret: strings.Repeat("a", 32),
+		SigningSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
 	if noConfig.IsThreadOwnershipEnabled() {
 		t.Error("Thread ownership should be disabled by default")
