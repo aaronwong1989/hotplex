@@ -1,20 +1,22 @@
 # Thread Ownership Policy Design
 
 > Issue: #241
-> Status: Draft
+> Status: Draft (Updated)
 
 ## Problem Statement
 
 In channels with multiple HotPlex bots (container-isolated processes), when a user creates a Thread, multiple bots responding simultaneously creates noise and confusion.
 
-### Current Behavior
+### Architecture Context
 
-| Scenario | Behavior |
-|----------|----------|
-| Channel + @mention | Bot responds |
-| Channel + no @ | Polite broadcast response |
-| Thread + @mention | Bot responds |
-| Thread + no @ | Polite broadcast response (same as channel) |
+```
+Channel C1 contains:
+├── Container 1 (BotA) ─── maintains owned_threads: Set<string>
+├── Container 2 (BotB) ─── maintains owned_threads: Set<string>
+└── Container 3 (BotC) ─── maintains owned_threads: Set<string>
+```
+
+**Key**: Each bot is an independent container process with its own state. No shared state between bots.
 
 ### Issues
 
@@ -26,13 +28,90 @@ In channels with multiple HotPlex bots (container-isolated processes), when a us
 
 ## Proposed Solution
 
-### Thread Ownership Policy
+### Thread Ownership Rules
 
-**Core Concept**: First bot mentioned in a Thread "owns" that thread.
+Each bot maintains its **own set of owned threads** (`owned_threads: Set<thread_key>`).
 
-- Owner responds to all subsequent messages in that thread
-- Other bots stay silent unless explicitly @mentioned
-- Ownership transfers on explicit @mention of another bot
+| Rule | Description |
+|------|-------------|
+| **R1: Creator Claims** | Bot that first replies to a thread claims ownership |
+| **R2: Respond If Owner** | Bot only responds to threads it owns |
+| **R3: @ Updates Ownership** | Valid @mention message updates thread ownership |
+| **R4: Multi-Owner** | `@BotA @BotB` → Both BotA and BotB own the thread |
+| **R5: Auto-Release** | Bot sees @mention without itself → releases ownership |
+| **R6: No @ No Change** | Message without @ doesn't change ownership, all owners respond |
+
+### Decision Flow (Per Bot)
+
+```
+User sends message in Thread
+           │
+           ▼
+┌─────────────────────┐
+│ Extract thread_ts   │
+│ Extract channel_id  │
+│ thread_key = ch:ts  │
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐    YES    ┌──────────────────────────┐
+│ Has @mention?       ├──────────►│ Am I in @mention list?   │
+└─────────┬───────────┘           │ - YES → ADD to owned     │
+          │ NO                    │ - NO  → REMOVE from owned│
+          ▼                       │ Then: respond if added   │
+┌─────────────────────┐           └──────────────────────────┘
+│ Do I own this thread│
+│ (check owned_set)?  │
+└─────────┬───────────┘
+          │
+    ┌─────┴─────┐
+    ▼           ▼
+   YES         NO
+    │           │
+    ▼           ▼
+ Respond     Silent
+```
+
+### Example Scenarios
+
+#### Scenario 1: New Thread
+
+```
+1. User creates Thread T1 in Channel C1
+2. User: "Hello?" (no @)
+   → BotA, BotB, BotC all silent (no owner yet)
+3. User: "@BotA help me"
+   → BotA: claims ownership, responds
+   → BotB, BotC: silent
+4. User: "Thanks" (no @)
+   → BotA: responds (owns T1)
+   → BotB, BotC: silent
+```
+
+#### Scenario 2: Ownership Transfer
+
+```
+1. Thread T1 owned by BotA
+2. User: "@BotB take over"
+   → BotA: releases ownership (sees @BotB, not self)
+   → BotB: claims ownership, responds
+3. User: "Continue" (no @)
+   → BotB: responds (now owns T1)
+   → BotA: silent
+```
+
+#### Scenario 3: Multi-Owner
+
+```
+1. Thread T1 owned by BotA
+2. User: "@BotA @BotB collaborate on this"
+   → BotA: keeps ownership
+   → BotB: claims ownership
+3. User: "What do you think?" (no @)
+   → BotA: responds
+   → BotB: responds
+   (Two responses)
+```
 
 ---
 
@@ -43,148 +122,148 @@ In channels with multiple HotPlex bots (container-isolated processes), when a us
 ```go
 // chatapps/slack/thread_ownership.go
 
-// ThreadOwnership tracks which bot owns a specific thread
+// ThreadOwnership tracks threads owned by THIS bot
 type ThreadOwnership struct {
-    mu       sync.RWMutex
-    threads  map[string]*OwnerInfo // key: "channelID:threadTS"
-    ttl      time.Duration
-    logger   *slog.Logger
+    mu      sync.RWMutex
+    owned   map[string]*OwnedThreadInfo // key: "channelID:threadTS"
+    ttl     time.Duration
+    logger  *slog.Logger
+
+    // Optional: persistence via storage plugin
+    store   storage.ThreadOwnershipStore
 }
 
-type OwnerInfo struct {
-    BotUserID   string    // Owning bot's user ID
+type OwnedThreadInfo struct {
     ClaimedAt   time.Time // When ownership was claimed
-    LastActive  time.Time // Last activity timestamp
-}
-
-func NewThreadOwnership(ttl time.Duration, logger *slog.Logger) *ThreadOwnership {
-    if ttl == 0 {
-        ttl = 24 * time.Hour
-    }
-    return &ThreadOwnership{
-        threads: make(map[string]*OwnerInfo),
-        ttl:     ttl,
-        logger:  logger,
-    }
+    LastActive  time.Time // Last activity in this thread
 }
 ```
 
 ### 2. Core Methods
 
 ```go
-// Get retrieves the owner of a thread
-func (t *ThreadOwnership) Get(channelID, threadTS string) string {
+// IsOwned checks if THIS bot owns the thread
+func (t *ThreadOwnership) IsOwned(channelID, threadTS string) bool {
     key := t.key(channelID, threadTS)
     t.mu.RLock()
     defer t.mu.RUnlock()
 
-    info, exists := t.threads[key]
-    if !exists || time.Since(info.LastActive) > t.ttl {
-        return ""
+    info, exists := t.owned[key]
+    if !exists {
+        return false
     }
-    return info.BotUserID
+    // Check TTL
+    if time.Since(info.LastActive) > t.ttl {
+        return false
+    }
+    return true
 }
 
-// Set assigns ownership of a thread
-func (t *ThreadOwnership) Set(channelID, threadTS, botUserID string) {
+// Claim adds thread to owned set
+func (t *ThreadOwnership) Claim(channelID, threadTS string) {
     key := t.key(channelID, threadTS)
     t.mu.Lock()
     defer t.mu.Unlock()
 
-    t.threads[key] = &OwnerInfo{
-        BotUserID:  botUserID,
+    t.owned[key] = &OwnedThreadInfo{
         ClaimedAt:  time.Now(),
         LastActive: time.Now(),
     }
-    t.logger.Debug("Thread ownership set",
+    t.logger.Debug("Thread ownership claimed",
         "channel", channelID,
-        "thread_ts", threadTS,
-        "owner", botUserID)
+        "thread_ts", threadTS)
+
+    // Persist if storage enabled
+    if t.store != nil {
+        ctx := context.Background()
+        _ = t.store.Store(ctx, channelID, threadTS, true)
+    }
 }
 
-// key generates a unique key for thread lookup
-func (t *ThreadOwnership) key(channelID, threadTS string) string {
-    return channelID + ":" + threadTS
-}
-
-// Cleanup removes expired entries
-func (t *ThreadOwnership) Cleanup() {
+// Release removes thread from owned set
+func (t *ThreadOwnership) Release(channelID, threadTS string) {
+    key := t.key(channelID, threadTS)
     t.mu.Lock()
     defer t.mu.Unlock()
 
-    now := time.Now()
-    for key, info := range t.threads {
-        if now.Sub(info.LastActive) > t.ttl {
-            delete(t.threads, key)
-        }
+    delete(t.owned, key)
+    t.logger.Debug("Thread ownership released",
+        "channel", channelID,
+        "thread_ts", threadTS)
+
+    // Persist if storage enabled
+    if t.store != nil {
+        ctx := context.Background()
+        _ = t.store.Store(ctx, channelID, threadTS, false)
     }
+}
+
+func (t *ThreadOwnership) key(channelID, threadTS string) string {
+    return channelID + ":" + threadTS
 }
 ```
 
-### 3. Decision Flow
-
-```
-User sends message in Thread
-           │
-           ▼
-┌─────────────────────┐
-│ Extract thread_ts   │
-│ Extract channel_id  │
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐    YES    ┌─────────────────────┐
-│ Has @mention?       ├──────────►│ Check who is @'d    │
-└─────────┬───────────┘           │ - @self → respond   │
-          │ NO                    │ - @other → transfer │
-          ▼                       └─────────────────────┘
-┌─────────────────────┐
-│ Query thread owner  │
-│ (cache or API)      │
-└─────────┬───────────┘
-          │
-    ┌─────┴─────┐
-    ▼           ▼
- Has owner    No owner
-    │             │
-    ▼             ▼
-┌───────┐   ┌─────────────────┐
-│Is self│   │ Check thread    │
-│?      │   │ history via API │
-└───┬───┘   └────────┬────────┘
-    │                │
-    ▼                ▼
- YES → respond    Found bot reply?
- NO  → silent        │
-                    ▼
-              YES → claim & respond
-              NO  → silent
-```
-
-### 4. API Integration
+### 3. Decision Logic
 
 ```go
-// getThreadOwnerFromAPI fetches thread history to determine owner
-func (a *Adapter) getThreadOwnerFromAPI(ctx context.Context, channelID, threadTS string) (string, error) {
-    msgs, _, err := a.client.GetConversationRepliesContext(ctx,
-        &slack.GetConversationRepliesParameters{
-            ChannelID: channelID,
-            Timestamp: threadTS,
-            Limit:     100,
-        },
-    )
-    if err != nil {
-        return "", fmt.Errorf("get conversation replies: %w", err)
-    }
+// shouldRespondInThread determines if bot should respond
+// Returns: (shouldRespond, ownershipAction)
+// ownershipAction: "claim" | "release" | "none"
+func (a *Adapter) shouldRespondInThread(msgEvent MessageEvent) (respond bool, action string) {
+    channelID := msgEvent.Channel
+    threadTS := msgEvent.ThreadTS
 
-    // Find first bot reply (they own the thread)
-    for _, msg := range msgs {
-        if msg.BotID != "" {
-            return msg.BotID, nil
+    // Check for @mentions
+    mentioned := ExtractMentionedUsers(msgEvent.Text)
+    iAmMentioned := slices.Contains(mentioned, a.config.BotUserID)
+
+    if len(mentioned) > 0 {
+        // Has @mentions - update ownership
+        if iAmMentioned {
+            // I am mentioned - claim and respond
+            return true, "claim"
         }
+        // Others mentioned but not me - release ownership
+        if a.ownership.IsOwned(channelID, threadTS) {
+            return false, "release"
+        }
+        return false, "none"
     }
 
-    return "", nil // No bot has replied yet
+    // No @mentions - check if I own this thread
+    if a.ownership.IsOwned(channelID, threadTS) {
+        return true, "none"
+    }
+
+    // No @, not owner - stay silent
+    return false, "none"
+}
+```
+
+### 4. Event Handling Integration
+
+```go
+// In handleEventCallback (events.go)
+
+// Thread-specific handling (only when ThreadPolicy != "broadcast")
+if msgEvent.ThreadTS != "" && a.config.ThreadPolicy == "ownership" {
+    respond, action := a.shouldRespondInThread(msgEvent)
+
+    // Apply ownership action
+    switch action {
+    case "claim":
+        a.ownership.Claim(msgEvent.Channel, msgEvent.ThreadTS)
+    case "release":
+        a.ownership.Release(msgEvent.Channel, msgEvent.ThreadTS)
+    }
+
+    if !respond {
+        a.logger.Debug("Thread: not responding",
+            "channel", msgEvent.Channel,
+            "thread_ts", msgEvent.ThreadTS,
+            "reason", "not_owner")
+        return
+    }
 }
 ```
 
@@ -195,156 +274,104 @@ type Config struct {
     // ...existing fields...
 
     // ThreadPolicy controls bot behavior in threads:
-    // - "broadcast": Same as channel (polite response on no @) [default for backward compat]
-    // - "silent": No response without @mention
-    // - "ownership": First responder owns the thread
+    // - "broadcast": Same as channel (polite response on no @) [default, backward compat]
+    // - "ownership": Track thread ownership (recommended for multi-bot)
     ThreadPolicy string
 
-    // ThreadOwnershipTTL: How long to remember thread ownership
+    // ThreadOwnershipTTL: How long to remember owned threads
     // Default: 24h
     ThreadOwnershipTTL time.Duration
 }
 ```
 
-### 6. Event Handling Integration
+### 6. Persistence Integration
+
+When Storage Plugin is enabled, persist ownership:
 
 ```go
-// In handleEventCallback (events.go)
+// storage/thread_ownership.go
 
-// Thread-specific handling
-if msgEvent.ThreadTS != "" && a.config.ThreadPolicy != "broadcast" {
-    shouldRespond, shouldClaim := a.shouldRespondInThread(ctx, msgEvent)
-    if !shouldRespond {
+type ThreadOwnershipStore interface {
+    // Store saves ownership status
+    // owned=true means this bot owns the thread
+    Store(ctx context.Context, channelID, threadTS string, owned bool) error
+
+    // IsOwned checks ownership from persistent storage
+    IsOwned(ctx context.Context, channelID, threadTS string) (bool, error)
+}
+```
+
+**Integration Point**: Reuse existing `MessageStorePlugin` infrastructure.
+
+---
+
+## Initialization Flow
+
+```go
+// On bot startup:
+func (a *Adapter) initThreadOwnership() {
+    if a.config.ThreadPolicy != "ownership" {
         return
     }
-    if shouldClaim {
-        a.ownership.Set(msgEvent.Channel, msgEvent.ThreadTS, a.config.BotUserID)
-    }
-}
 
-func (a *Adapter) shouldRespondInThread(ctx context.Context, msgEvent MessageEvent) (respond bool, claim bool) {
-    channelID := msgEvent.Channel
-    threadTS := msgEvent.ThreadTS
-
-    // Check for explicit @mentions
-    mentioned := ExtractMentionedUsers(msgEvent.Text)
-    if len(mentioned) > 0 {
-        if slices.Contains(mentioned, a.config.BotUserID) {
-            // Explicitly @mentioned - respond and claim
-            return true, true
+    // If storage enabled, load ownership from persistent store
+    if a.store != nil {
+        ownedThreads, err := a.store.LoadOwnedThreads(context.Background())
+        if err != nil {
+            a.logger.Warn("Failed to load thread ownership", "error", err)
+            return
         }
-        // Other bot mentioned - stay silent
-        return false, false
-    }
-
-    // No @mention - check ownership
-    switch a.config.ThreadPolicy {
-    case "silent":
-        // Silent mode: no @ = no response
-        return false, false
-
-    case "ownership":
-        owner := a.ownership.Get(channelID, threadTS)
-        if owner == "" {
-            // No cached owner - check API
-            apiOwner, err := a.getThreadOwnerFromAPI(ctx, channelID, threadTS)
-            if err != nil {
-                a.logger.Warn("Failed to get thread owner", "error", err)
-                return false, false
-            }
-            if apiOwner == "" {
-                // No bot has replied - stay silent, wait for explicit @
-                return false, false
-            }
-            owner = apiOwner
-            a.ownership.Set(channelID, threadTS, owner)
+        for _, t := range ownedThreads {
+            a.ownership.Claim(t.ChannelID, t.ThreadTS)
         }
-
-        // Only respond if we own this thread
-        return owner == a.config.BotUserID, false
-
-    default: // "broadcast"
-        return true, false
     }
 }
 ```
 
 ---
 
-## Slack API Reference
+## Fallback: Local Storage Query
 
-### conversations.replies
-
-- **Purpose**: Retrieve thread message history
-- **Auth**: `bot` token required
-- **Scopes**: `conversations:history` or `channels:history` + `groups:history`
-- **Rate Limit**: Tier 3 (50+ requests/minute)
+When ownership not in memory but storage is enabled:
 
 ```go
-// SDK usage
-msgs, hasMore, nextCursor, err := client.GetConversationRepliesContext(ctx,
-    &slack.GetConversationRepliesParameters{
-        ChannelID: "C1234567890",
-        Timestamp: "1234567890.123456", // thread_ts
-        Limit:     100,
-        Cursor:    "", // for pagination
-    },
-)
+func (a *Adapter) checkOwnershipFromStorage(ctx context.Context, channelID, threadTS string) bool {
+    if a.store == nil {
+        return false
+    }
+
+    // Query local storage for bot's previous messages in this thread
+    msgs, err := a.store.List(ctx, &storage.MessageQuery{
+        ChannelID: channelID,
+        ThreadID:  threadTS,
+        FromBotID: a.config.BotUserID,
+        Limit:     1,
+    })
+    if err != nil {
+        return false
+    }
+
+    // If bot has responded before, it owns the thread
+    return len(msgs) > 0
+}
 ```
 
-### Best Practices (from Slack Docs)
-
-1. **Keep chat titles updated** - Use `assistant.threads.setTitle`
-2. **Status updates** - Use `assistant.threads.setStatus` for "thinking" state
-3. **Context continuity** - Call `conversations.replies` to maintain context
-
 ---
 
-## Migration Path
+## Summary
 
-### Phase 1: Add Config (Non-breaking)
-
-- Add `ThreadPolicy` with default `"broadcast"`
-- Existing behavior unchanged
-
-### Phase 2: Implement Ownership
-
-- Add `thread_ownership.go`
-- Implement `ThreadOwnership` struct
-- Add API integration
-
-### Phase 3: Update Event Handling
-
-- Modify `handleEventCallback` to use thread policy
-- Add ownership checks
-
-### Phase 4: Documentation
-
-- Update README with new config options
-- Add migration guide
-
----
-
-## Recommended Defaults
-
-| Environment | ThreadPolicy | Rationale |
-|-------------|-------------|-----------|
-| Production | `silent` | Minimal noise |
-| Multi-bot | `ownership` | Clear ownership |
-| Legacy | `broadcast` | Backward compat |
-
----
-
-## Open Questions
-
-1. **Ownership persistence** - Should we persist ownership across restarts?
-2. **Cross-channel threads** - How to handle thread_broadcast subtype?
-3. **Bot identity sync** - How to know all bot user IDs in workspace?
+| Aspect | Design |
+|--------|--------|
+| **State** | Per-bot `owned_threads: Set<string>` |
+| **Claim** | First response OR @mention of self |
+| **Release** | @mention of others (not self) |
+| **Query** | Memory first, local storage fallback |
+| **Persist** | Via Storage Plugin (if enabled) |
+| **No API** | No Slack API calls |
 
 ---
 
 ## References
 
 - [Slack AI Apps Best Practices](https://docs.slack.dev/ai/ai-apps-best-practices/)
-- [conversations.replies API](https://docs.slack.dev/reference/methods/conversations.replies)
 - Issue: #241
