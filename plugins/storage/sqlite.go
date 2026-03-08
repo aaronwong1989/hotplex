@@ -172,7 +172,31 @@ func (s *SQLiteStorage) storeMessage(ctx context.Context, msg *ChatAppMessage) e
 		string(msg.MessageType), msg.FromUserID, msg.FromUserName, msg.ToUserID,
 		msg.Content, string(metadataJSON), msg.CreatedAt, msg.UpdatedAt,
 	)
+
+	if err == nil {
+		s.updateSessionMeta(ctx, msg)
+	}
+
 	return err
+}
+
+// updateSessionMeta updates session metadata after storing a message
+func (s *SQLiteStorage) updateSessionMeta(ctx context.Context, msg *ChatAppMessage) {
+	query := `
+		INSERT INTO session_metadata (chat_session_id, chat_platform, chat_user_id, last_message_id, last_message_at, message_count, updated_at)
+		VALUES (?, ?, ?, ?, ?, 1, ?)
+		ON CONFLICT(chat_session_id) DO UPDATE SET
+			last_message_id = excluded.last_message_id,
+			last_message_at = excluded.last_message_at,
+			message_count = message_count + 1,
+			updated_at = excluded.updated_at
+	`
+	_, err := s.db.ExecContext(ctx, query,
+		msg.ChatSessionID, msg.ChatPlatform, msg.ChatUserID,
+		msg.ID, msg.CreatedAt, msg.UpdatedAt,
+	)
+	// Ignore errors to ensure main flow is not affected
+	_ = err
 }
 
 func (s *SQLiteStorage) GetSessionMeta(ctx context.Context, chatSessionID string) (*SessionMeta, error) {
