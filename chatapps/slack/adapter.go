@@ -70,9 +70,13 @@ type Adapter struct {
 var _ base.StatusProvider = (*Adapter)(nil)
 
 func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption) *Adapter {
-	// Validate config
+	// Validate config - fail fast on invalid configuration
 	if err := config.Validate(); err != nil {
 		logger.Error("Invalid Slack config", "error", err)
+		return &Adapter{
+			Adapter: base.NewAdapter("slack", base.Config{}, logger),
+			config:  config,
+		}
 	}
 
 	// Initialize base adapter fields
@@ -250,7 +254,12 @@ func (a *Adapter) registerCommands() {
 
 // Stop waits for pending webhook goroutines to complete
 func (a *Adapter) Stop() error {
-	// Stop ownership cleanup goroutine
+	// Stop thread ownership tracker first (waits for cleanup goroutine)
+	if a.ownershipTracker != nil {
+		a.ownershipTracker.Stop()
+	}
+
+	// Stop ownership cleanup context (legacy, kept for compatibility)
 	if a.ownershipCleanupCancel != nil {
 		a.ownershipCleanupCancel()
 	}

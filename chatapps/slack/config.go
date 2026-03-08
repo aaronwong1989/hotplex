@@ -387,8 +387,9 @@ func (c *Config) CanRespond(userID string) bool {
 	case OwnerPolicyOwnerOnly:
 		return false
 	default:
-		// Unknown policy defaults to public
-		return true
+		// Unknown policy - fail secure: treat as owner_only
+		// This prevents accidental public access due to config typos
+		return false
 	}
 }
 

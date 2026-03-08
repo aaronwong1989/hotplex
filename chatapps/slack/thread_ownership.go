@@ -12,7 +12,11 @@ import (
 type ThreadKey string
 
 // NewThreadKey creates a ThreadKey from channel ID and thread timestamp.
+// Returns empty ThreadKey if either parameter is empty to prevent key collisions.
 func NewThreadKey(channelID, threadTS string) ThreadKey {
+	if channelID == "" || threadTS == "" {
+		return ""
+	}
 	return ThreadKey(channelID + ":" + threadTS)
 }
 
@@ -83,7 +87,12 @@ func NewThreadOwnershipTracker(ttl time.Duration, logger *slog.Logger) *ThreadOw
 
 // Claim claims ownership of a thread for THIS bot.
 // Returns true if this is a new claim.
+// Returns false if key is empty (invalid thread key).
 func (t *ThreadOwnershipTracker) Claim(key ThreadKey) bool {
+	if key == "" {
+		return false
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -116,7 +125,12 @@ func (t *ThreadOwnershipTracker) Release(key ThreadKey) {
 }
 
 // Owns checks if THIS bot owns a thread (and ownership hasn't expired).
+// Returns false if key is empty (invalid thread key).
 func (t *ThreadOwnershipTracker) Owns(key ThreadKey) bool {
+	if key == "" {
+		return false
+	}
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 

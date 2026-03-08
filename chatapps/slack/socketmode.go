@@ -137,7 +137,8 @@ func (a *Adapter) handleAppMentionEvent(teamID string, ev *slackevents.AppMentio
 	}
 
 	// Claim thread ownership (Phase 1: Bot Behavior Spec)
-	if a.config.IsThreadOwnershipEnabled() {
+	// Note: ownershipTracker may be nil if initialization failed
+	if a.config.IsThreadOwnershipEnabled() && a.ownershipTracker != nil {
 		threadKey := NewThreadKey(ev.Channel, threadID)
 		// R3/R4: This bot claims ownership when @mentioned
 		// Each bot in multi-bot scenarios independently tracks its own owned threads
