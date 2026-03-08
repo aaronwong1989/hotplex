@@ -1,5 +1,36 @@
 # CHANGELOG.md
 
+## [v0.22.1] - 2026-03-08
+
+### 🔧 Patch Release
+
+This release fixes duplicate Slack message sends and adds stream TTL monitoring.
+
+### Fixed
+
+#### 🔄 Duplicate Message Prevention (#236)
+- **Coordinated Fallback** - Added `FallbackUsed() bool` to `StreamWriter` interface for cross-component coordination
+- **State Cleanup** - `handleAnswer` now properly marks state after fallback success
+- **Conditional Fallback** - `handleSessionStats` checks `FallbackUsed()` before sending
+
+**Root Cause**: Three fallback mechanisms could independently send messages:
+1. `handleAnswer` - when `writer.Write()` fails
+2. `NativeStreamingWriter.Close()` - on integrity check failure
+3. `handleSessionStats` - when streaming was never active
+
+#### ⏱️ Stream TTL Monitoring (#237)
+- **Proactive Timeout** - Added 4-minute `StreamTTL` constant for early detection
+- **TTL Tracking** - Track `streamStartTime` in `Write()` for monitoring
+- **Expiration Detection** - Detect `message_not_in_streaming_state` error and mark stream expired
+- **Content Protection** - Check TTL in `flushBuffer()` before `AppendStream` to prevent content loss
+
+**Background**: Slack native streaming messages have ~5 min TTL. After timeout:
+- `AppendStream` fails with `message_not_in_streaming_state`
+- Content written during invalid stream period was lost
+
+### Reference Commits
+- fix(slack): prevent duplicate message sends from multiple fallback triggers (#236)
+
 ## [v0.22.0] - 2026-03-08
 
 ### 🚀 Minor Release - Native Brain & Message Persistence
