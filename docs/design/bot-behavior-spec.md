@@ -2,7 +2,6 @@
 
 > Issue: #241
 > Status: v1.0
-> Related: [Thread Ownership Policy](./thread-ownership-policy.md)
 
 ## Overview
 
