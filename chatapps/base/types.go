@@ -225,3 +225,53 @@ func MessageTypeToStatusType(msgType MessageType) StatusType {
 		return StatusIdle
 	}
 }
+
+// ThreadHistoryProvider is an OPTIONAL interface for adapters with message persistence.
+// Implement this if your platform supports:
+//   - Storing and retrieving thread conversation history
+//   - User-filtered history queries
+//
+// Use Cases:
+//   - Providing conversation context to AI models
+//   - User-specific message history retrieval
+//   - Multi-user thread analysis
+//
+// Platforms: Slack, Discord, Telegram (with persistence enabled)
+//
+// Note: This interface uses platform-agnostic ThreadMessage type.
+// Adapters using storage.ChatAppMessage should implement conversion.
+type ThreadHistoryProvider interface {
+	// GetThreadMessages retrieves all messages in a thread as platform-agnostic type
+	// channelID: the channel/room ID
+	// threadID: the thread/topic ID (e.g., Slack thread_ts)
+	// limit: maximum messages to return (0 or negative uses default)
+	GetThreadMessages(ctx context.Context, channelID, threadID string, limit int) ([]ThreadMessage, error)
+
+	// GetThreadMessagesByUser retrieves messages from a specific user in a thread
+	// userID: the user ID to filter by
+	GetThreadMessagesByUser(ctx context.Context, channelID, threadID, userID string, limit int) ([]ThreadMessage, error)
+
+	// GetThreadMessagesAsString returns formatted thread history for AI context
+	GetThreadMessagesAsString(ctx context.Context, channelID, threadID string, limit int) (string, error)
+
+	// GetThreadMessagesByUserAsString returns formatted user-filtered history
+	GetThreadMessagesByUserAsString(ctx context.Context, channelID, threadID, userID string, limit int) (string, error)
+}
+
+// ThreadMessage represents a message in a thread history.
+// This is a platform-agnostic representation of stored messages.
+type ThreadMessage struct {
+	ID         string
+	SessionID  string
+	Platform   string
+	UserID     string
+	BotUserID  string
+	ChannelID  string
+	ThreadID   string
+	Type       string    // "user_input", "final_response", etc.
+	Content    string
+	FromUser   string
+	ToUser     string
+	CreatedAt  time.Time
+	Metadata   map[string]any
+}

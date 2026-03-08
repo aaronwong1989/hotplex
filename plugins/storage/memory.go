@@ -66,6 +66,12 @@ func (m *MemoryStorage) List(ctx context.Context, query *MessageQuery) ([]*ChatA
 		}
 		results = append(results, msg)
 	}
+
+	// Apply limit
+	if query.Limit > 0 && len(results) > query.Limit {
+		results = results[:query.Limit]
+	}
+
 	return results, nil
 }
 

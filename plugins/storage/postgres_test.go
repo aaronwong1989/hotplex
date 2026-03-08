@@ -224,3 +224,163 @@ func TestPostgreFactory(t *testing.T) {
 	factory := &PostgreFactory{}
 	_ = factory // Avoid unused warning
 }
+
+// TestParsePostgresDSN tests DSN/URL parsing for PostgreSQL
+func TestParsePostgresDSN(t *testing.T) {
+	tests := []struct {
+		name     string
+		dsn      string
+		expected PostgreSQLConfig
+	}{
+		{
+			name: "full URL with all components",
+			dsn:  "postgres://admin:secret@db.example.com:5432/mydb?sslmode=require",
+			expected: PostgreSQLConfig{
+				Host:     "db.example.com",
+				Port:     5432,
+				User:     "admin",
+				Password: "secret",
+				Database: "mydb",
+				SSLMode:  "require",
+			},
+		},
+		{
+			name: "URL without password",
+			dsn:  "postgres://admin@localhost:5432/testdb",
+			expected: PostgreSQLConfig{
+				Host:     "localhost",
+				Port:     5432,
+				User:     "admin",
+				Password: "",
+				Database: "testdb",
+				SSLMode:  "disable", // default
+			},
+		},
+		{
+			name: "URL without port (uses default)",
+			dsn:  "postgres://user:pass@myhost/production",
+			expected: PostgreSQLConfig{
+				Host:     "myhost",
+				Port:     5432, // default
+				User:     "user",
+				Password: "pass",
+				Database: "production",
+				SSLMode:  "disable",
+			},
+		},
+		{
+			name: "postgresql:// scheme (alternative)",
+			dsn:  "postgresql://testuser:testpass@127.0.0.1:5433/test?sslmode=verify-full",
+			expected: PostgreSQLConfig{
+				Host:     "127.0.0.1",
+				Port:     5433,
+				User:     "testuser",
+				Password: "testpass",
+				Database: "test",
+				SSLMode:  "verify-full",
+			},
+		},
+		{
+			name: "URL with no query params",
+			dsn:  "postgres://user:pass@host:5432/db",
+			expected: PostgreSQLConfig{
+				Host:     "host",
+				Port:     5432,
+				User:     "user",
+				Password: "pass",
+				Database: "db",
+				SSLMode:  "disable", // default
+			},
+		},
+		{
+			name: "invalid URL returns defaults",
+			dsn:  "not-a-valid-url",
+			expected: PostgreSQLConfig{
+				Host:     "localhost",
+				Port:     5432,
+				User:     "hotplex",
+				Password: "",
+				Database: "hotplex",
+				SSLMode:  "disable",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parsePostgresDSN(tt.dsn)
+
+			if result.Host != tt.expected.Host {
+				t.Errorf("Host: expected %q, got %q", tt.expected.Host, result.Host)
+			}
+			if result.Port != tt.expected.Port {
+				t.Errorf("Port: expected %d, got %d", tt.expected.Port, result.Port)
+			}
+			if result.User != tt.expected.User {
+				t.Errorf("User: expected %q, got %q", tt.expected.User, result.User)
+			}
+			if result.Password != tt.expected.Password {
+				t.Errorf("Password: expected %q, got %q", tt.expected.Password, result.Password)
+			}
+			if result.Database != tt.expected.Database {
+				t.Errorf("Database: expected %q, got %q", tt.expected.Database, result.Database)
+			}
+			if result.SSLMode != tt.expected.SSLMode {
+				t.Errorf("SSLMode: expected %q, got %q", tt.expected.SSLMode, result.SSLMode)
+			}
+		})
+	}
+}
+
+// TestGetPostgreConfigWithURL tests that URL takes precedence over individual fields
+func TestGetPostgreConfigWithURL(t *testing.T) {
+	pluginConfig := PluginConfig{
+		"url":       "postgres://urluser:urlpass@urlhost:5433/urldb?sslmode=require",
+		"host":      "fieldhost",
+		"user":      "fielduser",
+		"password":  "fieldpass",
+		"database":  "fielddb",
+		"ssl_mode":  "disable",
+	}
+
+	pgConfig := getPostgreConfig(pluginConfig)
+
+	// URL should take precedence
+	if pgConfig.Host != "urlhost" {
+		t.Errorf("Expected URL host 'urlhost', got %q", pgConfig.Host)
+	}
+	if pgConfig.User != "urluser" {
+		t.Errorf("Expected URL user 'urluser', got %q", pgConfig.User)
+	}
+	if pgConfig.Password != "urlpass" {
+		t.Errorf("Expected URL password 'urlpass', got %q", pgConfig.Password)
+	}
+	if pgConfig.Database != "urldb" {
+		t.Errorf("Expected URL database 'urldb', got %q", pgConfig.Database)
+	}
+	if pgConfig.SSLMode != "require" {
+		t.Errorf("Expected URL sslmode 'require', got %q", pgConfig.SSLMode)
+	}
+}
+
+// TestGetPostgreConfigWithDSN tests DSN key as alternative to URL
+func TestGetPostgreConfigWithDSN(t *testing.T) {
+	pluginConfig := PluginConfig{
+		"dsn": "postgres://dsnuser@dsnhost:5434/dsndb",
+	}
+
+	pgConfig := getPostgreConfig(pluginConfig)
+
+	if pgConfig.Host != "dsnhost" {
+		t.Errorf("Expected DSN host 'dsnhost', got %q", pgConfig.Host)
+	}
+	if pgConfig.User != "dsnuser" {
+		t.Errorf("Expected DSN user 'dsnuser', got %q", pgConfig.User)
+	}
+	if pgConfig.Database != "dsndb" {
+		t.Errorf("Expected DSN database 'dsndb', got %q", pgConfig.Database)
+	}
+	if pgConfig.Port != 5434 {
+		t.Errorf("Expected DSN port 5434, got %d", pgConfig.Port)
+	}
+}

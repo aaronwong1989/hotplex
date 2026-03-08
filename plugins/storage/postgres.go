@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,6 +77,11 @@ func NewPostgreStorage(pgConfig PostgreSQLConfig, pluginConfig PluginConfig) (*P
 }
 
 // getPostgreConfig 从 PluginConfig 提取 PostgreSQL 配置
+// Supports two configuration modes:
+//   - URL/DSN string via "url" or "dsn" key (e.g., "postgres://user:pass@host:5432/dbname?sslmode=disable")
+//   - Individual fields: host, port, user, password, database, ssl_mode, etc.
+//
+// URL mode takes precedence if both are provided.
 func getPostgreConfig(config PluginConfig) PostgreSQLConfig {
 	getString := func(key string, def string) string {
 		if v, ok := config[key].(string); ok {
@@ -89,6 +96,15 @@ func getPostgreConfig(config PluginConfig) PostgreSQLConfig {
 		return def
 	}
 
+	// Check for URL/DSN first (takes precedence)
+	if dsn := getString("url", ""); dsn != "" {
+		return parsePostgresDSN(dsn)
+	}
+	if dsn := getString("dsn", ""); dsn != "" {
+		return parsePostgresDSN(dsn)
+	}
+
+	// Fall back to individual fields
 	return PostgreSQLConfig{
 		Host:         getString("host", "localhost"),
 		Port:         getInt("port", 5432),
@@ -100,6 +116,61 @@ func getPostgreConfig(config PluginConfig) PostgreSQLConfig {
 		MaxIdleConns: getInt("max_idle_conns", 5),
 		MaxLifetime:  time.Duration(getInt("max_lifetime", 300)) * time.Second,
 	}
+}
+
+// parsePostgresDSN parses a PostgreSQL connection URL/DSN into PostgreSQLConfig.
+// Supported formats:
+//   - postgres://user:password@host:port/database?sslmode=disable
+//   - postgresql://user:password@host:port/database?sslmode=disable
+func parsePostgresDSN(dsn string) PostgreSQLConfig {
+	cfg := PostgreSQLConfig{
+		Host:         "localhost",
+		Port:         5432,
+		User:         "hotplex",
+		Password:     "",
+		Database:     "hotplex",
+		SSLMode:      "disable",
+		MaxOpenConns: 25,
+		MaxIdleConns: 5,
+		MaxLifetime:  300 * time.Second,
+	}
+
+	// Parse as URL if it starts with postgres:// or postgresql://
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			return cfg // Return defaults on parse error
+		}
+
+		if u.Host != "" {
+			hostParts := strings.Split(u.Host, ":")
+			cfg.Host = hostParts[0]
+			if len(hostParts) > 1 {
+				if port, err := strconv.Atoi(hostParts[1]); err == nil {
+					cfg.Port = port
+				}
+			}
+		}
+
+		if u.User != nil {
+			cfg.User = u.User.Username()
+			if pass, ok := u.User.Password(); ok {
+				cfg.Password = pass
+			}
+		}
+
+		// Remove leading slash from path to get database name
+		if u.Path != "" && u.Path != "/" {
+			cfg.Database = strings.TrimPrefix(u.Path, "/")
+		}
+
+		// Parse query parameters
+		if sslmode := u.Query().Get("sslmode"); sslmode != "" {
+			cfg.SSLMode = sslmode
+		}
+	}
+
+	return cfg
 }
 
 // Initialize 初始化数据库表结构

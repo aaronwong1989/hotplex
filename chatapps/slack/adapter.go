@@ -490,6 +490,68 @@ func (a *Adapter) GetThreadHistoryByUserAsString(ctx context.Context, channelID,
 	return formatMessagesAsString(messages), nil
 }
 
+// =============================================================================
+// ThreadHistoryProvider Interface Implementation (Issue #230)
+// =============================================================================
+
+// convertToThreadMessage converts storage.ChatAppMessage to base.ThreadMessage
+func convertToThreadMessage(msg *storage.ChatAppMessage) base.ThreadMessage {
+	return base.ThreadMessage{
+		ID:         msg.ID,
+		SessionID:  msg.ChatSessionID,
+		Platform:   msg.ChatPlatform,
+		UserID:     msg.ChatUserID,
+		BotUserID:  msg.ChatBotUserID,
+		ChannelID:  msg.ChatChannelID,
+		ThreadID:   msg.ChatThreadID,
+		Type:       string(msg.MessageType),
+		Content:    msg.Content,
+		FromUser:   msg.FromUserName,
+		ToUser:     msg.ToUserID,
+		CreatedAt:  msg.CreatedAt,
+	}
+}
+
+// convertToThreadMessages converts a slice of storage.ChatAppMessage to base.ThreadMessage
+func convertToThreadMessages(msgs []*storage.ChatAppMessage) []base.ThreadMessage {
+	if len(msgs) == 0 {
+		return nil
+	}
+	result := make([]base.ThreadMessage, len(msgs))
+	for i, msg := range msgs {
+		result[i] = convertToThreadMessage(msg)
+	}
+	return result
+}
+
+// GetThreadMessages implements base.ThreadHistoryProvider
+func (a *Adapter) GetThreadMessages(ctx context.Context, channelID, threadID string, limit int) ([]base.ThreadMessage, error) {
+	msgs, err := a.GetThreadHistory(ctx, channelID, threadID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return convertToThreadMessages(msgs), nil
+}
+
+// GetThreadMessagesByUser implements base.ThreadHistoryProvider
+func (a *Adapter) GetThreadMessagesByUser(ctx context.Context, channelID, threadID, userID string, limit int) ([]base.ThreadMessage, error) {
+	msgs, err := a.GetThreadHistoryByUser(ctx, channelID, threadID, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return convertToThreadMessages(msgs), nil
+}
+
+// GetThreadMessagesAsString implements base.ThreadHistoryProvider
+func (a *Adapter) GetThreadMessagesAsString(ctx context.Context, channelID, threadID string, limit int) (string, error) {
+	return a.GetThreadHistoryAsString(ctx, channelID, threadID, limit)
+}
+
+// GetThreadMessagesByUserAsString implements base.ThreadHistoryProvider
+func (a *Adapter) GetThreadMessagesByUserAsString(ctx context.Context, channelID, threadID, userID string, limit int) (string, error) {
+	return a.GetThreadHistoryByUserAsString(ctx, channelID, threadID, userID, limit)
+}
+
 // Start starts the adapter
 func (a *Adapter) Start(ctx context.Context) error {
 	// Start Socket Mode if enabled (preferred mode)
@@ -503,11 +565,12 @@ func (a *Adapter) Start(ctx context.Context) error {
 
 // Compile-time interface compliance checks
 var (
-	_ base.ChatAdapter       = (*Adapter)(nil)
-	_ base.EngineSupport     = (*Adapter)(nil)
-	_ base.MessageOperations = (*Adapter)(nil)
-	_ base.SessionOperations = (*Adapter)(nil)
-	_ base.WebhookProvider   = (*Adapter)(nil)
+	_ base.ChatAdapter           = (*Adapter)(nil)
+	_ base.EngineSupport         = (*Adapter)(nil)
+	_ base.MessageOperations     = (*Adapter)(nil)
+	_ base.SessionOperations     = (*Adapter)(nil)
+	_ base.ThreadHistoryProvider = (*Adapter)(nil)
+	_ base.WebhookProvider       = (*Adapter)(nil)
 )
 
 // MessageOperations implementation for Slack
