@@ -302,13 +302,13 @@ bot:
 
 ### Phase 1: MVP (Required)
 
-- [ ] @mention detection and response
-- [ ] Respond in thread (not channel message)
-- [ ] Owner policy configuration
-- [ ] Thread ownership tracking
-- [ ] Ownership transfer on @mention
-- [ ] Multi-owner support
-- [ ] TTL expiration
+- [x] @mention detection and response
+- [x] Respond in thread (not channel message)
+- [x] Owner policy configuration
+- [x] Thread ownership tracking (bot-centric model)
+- [x] Ownership transfer on @mention (R3)
+- [x] Multi-owner support (independent bot tracking)
+- [x] TTL expiration
 
 ### Phase 2: Enhanced UX
 
