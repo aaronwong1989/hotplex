@@ -358,16 +358,133 @@ func (a *Adapter) checkOwnershipFromStorage(ctx context.Context, channelID, thre
 
 ---
 
+## Slack Thread Creation Flow Analysis
+
+### Key Concept: Slack Thread Mechanics
+
+```
+Slack Message Types:
+├── Channel Message: ts="1234.5678", thread_ts=null
+│   └── This is a message in the main channel (potential thread parent)
+│
+└── Thread Reply: ts="1234.9999", thread_ts="1234.5678"
+    └── This is a reply within a thread (references parent via thread_ts)
+```
+
+### Thread Creation Scenarios
+
+#### Scenario A: User @mentions Bot from Channel
+
+```
+Timeline:
+1. User sends channel message: "@BotA help me"
+   → Event: {ts: "1000.0001", thread_ts: null, text: "@BotA help me"}
+
+2. BotA receives event, processes, responds:
+   → BotA sends with MsgOptionTS("1000.0001")
+   → Response becomes thread reply: {ts: "1000.0002", thread_ts: "1000.0001"}
+
+3. Thread is now "owned" by BotA (first responder)
+
+4. User continues in thread:
+   → Event: {ts: "1000.0003", thread_ts: "1000.0001", text: "Thanks"}
+   → BotA: owns thread → responds
+   → BotB, BotC: don't own → silent
+```
+
+#### Scenario B: User sends message without @ (from Channel)
+
+```
+Timeline:
+1. User sends channel message: "Hello everyone"
+   → Event: {ts: "1000.0001", thread_ts: null, text: "Hello everyone"}
+
+2. ALL bots receive this event
+   → Current behavior (multibot): All send polite response
+   → Problem: Multiple responses, no clear owner
+
+3. NEW BEHAVIOR (ThreadPolicy="ownership"):
+   → All bots: check ownership → no owner → check @mention → no @
+   → All bots: SILENT (wait for explicit @)
+
+4. User @mentions: "@BotA actually I need you"
+   → BotA: @mentioned → CLAIM ownership → respond
+   → BotB, BotC: not mentioned → silent
+
+5. User continues without @: "Thanks"
+   → BotA: owns thread → responds
+   → BotB, BotC: silent
+```
+
+#### Scenario C: User sends message INSIDE existing Thread
+
+```
+Timeline:
+1. Thread T1 already exists (thread_ts="1000.0001")
+2. User sends thread reply: "Follow up question"
+   → Event: {ts: "1000.0005", thread_ts: "1000.0001", text: "Follow up question"}
+
+3. Bot decision:
+   → If thread_ts in owned_set → respond
+   → If thread_ts NOT in owned_set → check storage (if enabled) → respond if found
+   → Otherwise → silent (wait for @)
+```
+
+### Critical Insight: Ownership Claim Timing
+
+**Ownership is claimed when:**
+1. Bot receives @mention in ANY message (channel or thread)
+2. Bot successfully sends a response
+
+**Ownership claim point:**
+
+```go
+// In defaultSender (messages.go) - AFTER successful send
+func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base.ChatMessage) error {
+    // ... send message ...
+
+    if err == nil && types.MessageType(msg.Type).IsStorable() {
+        // CLAIM ownership after successful response
+        if a.config.ThreadPolicy == "ownership" && threadTS != "" {
+            a.ownership.Claim(channelID, threadTS)
+        }
+
+        // Store bot response
+        a.storeBotResponse(ctx, sessionID, channelID, threadTS, content)
+    }
+    return err
+}
+```
+
+### Fallback: Check Storage for Historical Ownership
+
+When bot restarts or memory is lost, check local storage:
+
+```go
+// In shouldRespondInThread - before returning false
+if !a.ownership.IsOwned(channelID, threadTS) {
+    // Fallback: check if bot has history in this thread
+    if a.checkOwnershipFromStorage(ctx, channelID, threadTS) {
+        // Found history - reclaim ownership
+        a.ownership.Claim(channelID, threadTS)
+        return true, "none"
+    }
+}
+```
+
+---
+
 ## Summary
 
 | Aspect | Design |
 |--------|--------|
 | **State** | Per-bot `owned_threads: Set<string>` |
-| **Claim** | First response OR @mention of self |
-| **Release** | @mention of others (not self) |
-| **Query** | Memory first, local storage fallback |
+| **Claim Trigger** | (1) @mention of self OR (2) successful response send |
+| **Claim Timing** | After `PostMessage` API success |
+| **Release Trigger** | @mention of others (not self) |
+| **Query Order** | Memory → Local Storage → Silent |
 | **Persist** | Via Storage Plugin (if enabled) |
-| **No API** | No Slack API calls |
+| **No API** | No Slack API calls for ownership check |
 
 ---
 
