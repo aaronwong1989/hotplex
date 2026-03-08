@@ -15,12 +15,29 @@ type Metrics struct {
 	dangersBlocked  int64
 	requestDuration time.Duration
 
+	// Dimensioned metrics (platform, task_type)
+	sessionDurationBuckets map[sessionKey]durationBucket
+	sessionTurns          map[sessionKey]int64
+	sessionErrors         map[sessionKey]int64
+	toolsInvokedByType   map[sessionKey]int64
+
 	// Slack permission metrics
 	slackPermissionAllowed        int64
 	slackPermissionBlockedUser    int64
 	slackPermissionBlockedDM      int64
 	slackPermissionBlockedMention int64
 	mu                            sync.RWMutex
+}
+
+type sessionKey struct {
+	platform  string
+	taskType  string
+	direction string // input/output for tokens
+}
+
+type durationBucket struct {
+	sum   time.Duration
+	count int64
 }
 
 var (
@@ -32,7 +49,13 @@ func NewMetrics(logger *slog.Logger) *Metrics {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Metrics{logger: logger}
+	return &Metrics{
+		logger:                  logger,
+		sessionDurationBuckets:  make(map[sessionKey]durationBucket),
+		sessionTurns:            make(map[sessionKey]int64),
+		sessionErrors:           make(map[sessionKey]int64),
+		toolsInvokedByType:     make(map[sessionKey]int64),
+	}
 }
 
 func (m *Metrics) IncSessionsActive() {
@@ -145,4 +168,81 @@ func GetMetrics() *Metrics {
 		}
 	})
 	return globalMetrics
+}
+
+// Dimensioned Metrics Methods
+
+// RecordSessionDuration records session duration with platform and task_type dimensions.
+func (m *Metrics) RecordSessionDuration(platform, taskType string, duration time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := sessionKey{platform: platform, taskType: taskType}
+	bucket := m.sessionDurationBuckets[key]
+	bucket.sum += duration
+	bucket.count++
+	m.sessionDurationBuckets[key] = bucket
+}
+
+// IncSessionTurns increments turn count with platform and task_type dimensions.
+func (m *Metrics) IncSessionTurns(platform, taskType string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := sessionKey{platform: platform, taskType: taskType}
+	m.sessionTurns[key]++
+}
+
+// IncSessionErrorsByType increments error count with platform and task_type dimensions.
+func (m *Metrics) IncSessionErrorsByType(platform, taskType string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := sessionKey{platform: platform, taskType: taskType}
+	m.sessionErrors[key]++
+}
+
+// IncToolsInvokedByType increments tools invoked with platform and task_type dimensions.
+func (m *Metrics) IncToolsInvokedByType(platform, taskType string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := sessionKey{platform: platform, taskType: taskType}
+	m.toolsInvokedByType[key]++
+}
+
+// GetSessionStats returns session statistics by platform and task_type.
+func (m *Metrics) GetSessionStats() map[string]map[string]struct {
+	Turns   int64
+	Errors  int64
+	AvgDuration time.Duration
+} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	stats := make(map[string]map[string]struct {
+		Turns       int64
+		Errors      int64
+		AvgDuration time.Duration
+	})
+
+	for key, bucket := range m.sessionDurationBuckets {
+		if stats[key.platform] == nil {
+			stats[key.platform] = make(map[string]struct {
+				Turns       int64
+				Errors      int64
+				AvgDuration time.Duration
+			})
+		}
+		avgDur := time.Duration(0)
+		if bucket.count > 0 {
+			avgDur = bucket.sum / time.Duration(bucket.count)
+		}
+		stats[key.platform][key.taskType] = struct {
+			Turns       int64
+			Errors      int64
+			AvgDuration time.Duration
+		}{
+			Turns:       m.sessionTurns[key],
+			Errors:      m.sessionErrors[key],
+			AvgDuration: avgDur,
+		}
+	}
+	return stats
 }

@@ -30,6 +30,45 @@ const (
 	CleanupCheckInterval = 1 * time.Minute  // Interval between idle session cleanup checks
 )
 
+// TaskType defines the type of task for a session.
+type TaskType string
+
+const (
+	TaskTypeCode     TaskType = "code"      // Code-related tasks
+	TaskTypeChat     TaskType = "chat"      // General conversation
+	TaskTypeAnalysis TaskType = "analysis"  // Analysis tasks
+	TaskTypeDebug    TaskType = "debug"     // Debug tasks
+	TaskTypeGit      TaskType = "git"       // Git operations
+	TaskTypeUnknown  TaskType = "unknown"   // Unknown type
+)
+
+// SessionContext holds semantic information about a session for observability and intelligent routing.
+type SessionContext struct {
+	// Source information
+	Platform    string    // slack/feishu/discord/telegram
+	UserID      string    // User identifier
+	ChannelID   string    // Source channel/group
+	TeamID      string    // Team/workspace identifier
+
+	// Task information
+	TaskType      TaskType // code/chat/analysis/debug/git
+	PromptSummary string   // First prompt summary (first 50 chars)
+
+	// Trace information
+	TraceID      string // OpenTelemetry TraceID
+	ParentSpanID string // Parent SpanID (optional)
+
+	// Time information
+	CreatedAt    time.Time
+	LastActiveAt time.Time
+
+	// State information
+	TurnCount  int   // Conversation turns
+	TokenUsed int64 // Consumed tokens
+	ErrorCount int   // Error count
+	LastError string // Last error summary
+}
+
 // SessionConfig contains the minimal configuration needed for session management.
 // This is a subset of the root Config to avoid circular dependencies.
 type SessionConfig struct {

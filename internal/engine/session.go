@@ -26,6 +26,9 @@ type Session struct {
 	Config            SessionConfig // Snapshot of the configuration used to initialize the session
 	TaskInstructions  string        // Persistent instructions for the session
 
+	// Semantic context for observability and intelligent routing
+	Context *SessionContext
+
 	// Process management
 	cmd       *exec.Cmd
 	stdin     io.WriteCloser
@@ -311,5 +314,42 @@ func NewTestSession(id string, status SessionStatus) *Session {
 		ProviderSessionID: "test-provider-session",
 		Status:            status,
 		statusChange:      make(chan SessionStatus, 10),
+	}
+}
+
+// SetContext sets the session context for observability.
+func (s *Session) SetContext(ctx *SessionContext) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Context = ctx
+}
+
+// GetContext returns the session context.
+func (s *Session) GetContext() *SessionContext {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Context
+}
+
+// WithContext returns a context with session info for logging.
+func (s *Session) WithContext(ctx context.Context) context.Context {
+	if s.Context == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, "session_context", s.Context)
+}
+
+// ToSlogAttrs returns session context as slog attributes for structured logging.
+func (s *Session) ToSlogAttrs() []any {
+	if s.Context == nil {
+		return []any{"session_id", s.ID}
+	}
+	return []any{
+		"session_id", s.ID,
+		"platform", s.Context.Platform,
+		"user_id", s.Context.UserID,
+		"channel_id", s.Context.ChannelID,
+		"task_type", s.Context.TaskType,
+		"trace_id", s.Context.TraceID,
 	}
 }

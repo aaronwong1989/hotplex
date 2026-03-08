@@ -288,3 +288,46 @@ func (r *Router) GetDefaultStrategy() RouteStrategy {
 	defer r.mu.RUnlock()
 	return r.config.DefaultStrategy
 }
+
+// SelectEngineBySession selects the best model based on session context.
+// This enables intelligent routing based on task type, platform, and other session attributes.
+func (r *Router) SelectEngineBySession(ctx context.Context, platform, taskType string) (*ModelConfig, error) {
+	// Map task type to scenario
+	var scenario Scenario
+	switch taskType {
+	case "code":
+		scenario = ScenarioCode
+	case "analysis":
+		scenario = ScenarioAnalyze
+	case "debug":
+		scenario = ScenarioCode // Debug uses code capabilities
+	case "git":
+		scenario = ScenarioCode // Git uses code capabilities
+	default:
+		scenario = ScenarioChat
+	}
+
+	// Use balanced strategy for most cases
+	strategy := StrategyBalanced
+
+	// For high-cost platforms or unknown task types, prefer cost priority
+	if platform == "" || taskType == "unknown" {
+		strategy = StrategyCostPriority
+	}
+
+	return r.SelectModel(ctx, scenario, strategy)
+}
+
+// MapTaskTypeToScenario maps engine TaskType to router Scenario.
+func MapTaskTypeToScenario(taskType string) Scenario {
+	switch taskType {
+	case "code":
+		return ScenarioCode
+	case "analysis":
+		return ScenarioAnalyze
+	case "debug", "git":
+		return ScenarioCode
+	default:
+		return ScenarioChat
+	}
+}
