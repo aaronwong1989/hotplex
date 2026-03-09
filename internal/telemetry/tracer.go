@@ -178,3 +178,290 @@ func Get() *Tracer {
 	}
 	return globalTracer
 }
+
+// ========================================
+// Security Event Tracing Extensions
+// ========================================
+
+// SecurityEventType represents types of security events for tracing.
+type SecurityEventType string
+
+const (
+	SecurityEventDangerBlock      SecurityEventType = "danger_block"
+	SecurityEventThreatDetected  SecurityEventType = "threat_detected"
+	SecurityEventWorkspaceAccess  SecurityEventType = "workspace_access"
+	SecurityEventPermissionDenied SecurityEventType = "permission_denied"
+	SecurityEventAuditLog         SecurityEventType = "audit_log"
+	SecurityEventBypassAttempt    SecurityEventType = "bypass_attempt"
+	SecurityEventLandlockEnforce  SecurityEventType = "landlock_enforce"
+)
+
+// DangerLevel represents the severity level of security events.
+type DangerLevel int
+
+const (
+	DangerLevelSafe      DangerLevel = -1
+	DangerLevelCritical  DangerLevel = 0
+	DangerLevelHigh      DangerLevel = 1
+	DangerLevelModerate  DangerLevel = 2
+	DangerLevelLow       DangerLevel = 3
+)
+
+// LandlockEventType represents types of Landlock filesystem enforcement events.
+type LandlockEventType string
+
+const (
+	LandlockEventAccessDenied  LandlockEventType = "access_denied"
+	LandlockEventPathViolation LandlockEventType = "path_violation"
+	LandlockEventRuleApplied   LandlockEventType = "rule_applied"
+)
+
+// StartSecurityEvent starts a new security event span.
+func (t *Tracer) StartSecurityEvent(ctx context.Context, eventType SecurityEventType, operation string) (context.Context, trace.Span) {
+	if !t.enabled {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+
+	ctx, span := t.tracer.Start(ctx, "security.event",
+		trace.WithAttributes(
+			attribute.String("security.event_type", string(eventType)),
+			attribute.String("security.operation", operation),
+			attribute.Int64("security.timestamp", time.Now().UnixMilli()),
+		),
+	)
+	return ctx, span
+}
+
+// RecordDangerDetection records a dangerous command detection event.
+func (t *Tracer) RecordDangerDetection(ctx context.Context, event *DangerDetectionEvent) {
+	if !t.enabled || event == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("security.event_type", string(SecurityEventDangerBlock)),
+		attribute.String("danger.operation", event.Operation),
+		attribute.String("danger.reason", event.Reason),
+		attribute.String("danger.pattern_matched", event.PatternMatched),
+		attribute.Int("danger.level", int(event.Level)),
+		attribute.String("danger.category", event.Category),
+		attribute.Bool("danger.bypass_allowed", event.BypassAllowed),
+	}
+
+	if event.SessionID != "" {
+		attrs = append(attrs, attribute.String("session.id", event.SessionID))
+	}
+	if event.UserID != "" {
+		attrs = append(attrs, attribute.String("user.id", event.UserID))
+	}
+	if event.WorkspaceID != "" {
+		attrs = append(attrs, attribute.String("workspace.id", event.WorkspaceID))
+	}
+
+	_, span := t.tracer.Start(ctx, "security.danger_detected",
+		trace.WithAttributes(attrs...),
+	)
+	span.End()
+}
+
+// DangerDetectionEvent contains details about a detected dangerous operation.
+type DangerDetectionEvent struct {
+	Operation      string
+	Reason         string
+	PatternMatched string
+	Level          DangerLevel
+	Category       string
+	BypassAllowed  bool
+	SessionID      string
+	UserID         string
+	WorkspaceID    string
+}
+
+// RecordThreatDetection records a threat detection event (AI Guard).
+func (t *Tracer) RecordThreatDetection(ctx context.Context, event *ThreatDetectionEvent) {
+	if !t.enabled || event == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("security.event_type", string(SecurityEventThreatDetected)),
+		attribute.String("threat.input_type", event.InputType),
+		attribute.String("threat.category", event.Category),
+		attribute.Float64("threat.score", event.Score),
+		attribute.Bool("threat.blocked", event.Blocked),
+		attribute.String("threat.verdict", event.Verdict),
+	}
+
+	if event.SessionID != "" {
+		attrs = append(attrs, attribute.String("session.id", event.SessionID))
+	}
+	if len(event.Details) > 0 {
+		attrs = append(attrs, attribute.String("threat.details", event.Details))
+	}
+
+	_, span := t.tracer.Start(ctx, "security.threat_detected",
+		trace.WithAttributes(attrs...),
+	)
+	span.End()
+}
+
+// ThreatDetectionEvent contains details about an AI Guard threat detection.
+type ThreatDetectionEvent struct {
+	InputType  string
+	Category   string
+	Score      float64
+	Blocked    bool
+	Verdict    string
+	SessionID  string
+	Details    string
+}
+
+// RecordWorkspaceAccess records workspace isolation access events.
+func (t *Tracer) RecordWorkspaceAccess(ctx context.Context, event *WorkspaceAccessEvent) {
+	if !t.enabled || event == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("security.event_type", string(SecurityEventWorkspaceAccess)),
+		attribute.String("workspace.id", event.WorkspaceID),
+		attribute.String("workspace.operation", event.Operation),
+		attribute.Bool("workspace.allowed", event.Allowed),
+	}
+
+	if event.Path != "" {
+		attrs = append(attrs, attribute.String("workspace.path", event.Path))
+	}
+	if event.SessionID != "" {
+		attrs = append(attrs, attribute.String("session.id", event.SessionID))
+	}
+	if event.UserID != "" {
+		attrs = append(attrs, attribute.String("user.id", event.UserID))
+	}
+
+	_, span := t.tracer.Start(ctx, "security.workspace_access",
+		trace.WithAttributes(attrs...),
+	)
+	span.End()
+}
+
+// WorkspaceAccessEvent contains details about workspace access operations.
+type WorkspaceAccessEvent struct {
+	WorkspaceID string
+	Operation   string
+	Path        string
+	Allowed     bool
+	SessionID   string
+	UserID      string
+}
+
+// RecordLandlockEvent records Landlock filesystem enforcement events.
+func (t *Tracer) RecordLandlockEvent(ctx context.Context, event *LandlockEvent) {
+	if !t.enabled || event == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("security.event_type", string(SecurityEventLandlockEnforce)),
+		attribute.String("landlock.event_type", string(event.EventType)),
+		attribute.String("landlock.operation", event.Operation),
+		attribute.String("landlock.path", event.Path),
+		attribute.Bool("landlock.allowed", event.Allowed),
+	}
+
+	if event.WorkspaceID != "" {
+		attrs = append(attrs, attribute.String("workspace.id", event.WorkspaceID))
+	}
+	if len(event.AccessMask) > 0 {
+		// Convert string slice to comma-separated string
+		accessMaskStr := ""
+		for i, m := range event.AccessMask {
+			if i > 0 {
+				accessMaskStr += ","
+			}
+			accessMaskStr += m
+		}
+		attrs = append(attrs, attribute.String("landlock.access_mask", accessMaskStr))
+	}
+
+	_, span := t.tracer.Start(ctx, "security.landlock_enforce",
+		trace.WithAttributes(attrs...),
+	)
+	span.End()
+}
+
+// LandlockEvent contains details about a Landlock enforcement event.
+type LandlockEvent struct {
+	EventType   LandlockEventType
+	Operation   string
+	Path        string
+	Allowed     bool
+	WorkspaceID string
+	AccessMask  []string
+}
+
+// RecordPermissionDenied records permission denial events.
+func (t *Tracer) RecordPermissionDenied(ctx context.Context, event *PermissionDeniedEvent) {
+	if !t.enabled || event == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("security.event_type", string(SecurityEventPermissionDenied)),
+		attribute.String("permission.resource", event.Resource),
+		attribute.String("permission.operation", event.Operation),
+		attribute.String("permission.reason", event.Reason),
+	}
+
+	if event.SessionID != "" {
+		attrs = append(attrs, attribute.String("session.id", event.SessionID))
+	}
+	if event.UserID != "" {
+		attrs = append(attrs, attribute.String("user.id", event.UserID))
+	}
+
+	_, span := t.tracer.Start(ctx, "security.permission_denied",
+		trace.WithAttributes(attrs...),
+	)
+	span.End()
+}
+
+// PermissionDeniedEvent contains details about a permission denial.
+type PermissionDeniedEvent struct {
+	Resource  string
+	Operation string
+	Reason    string
+	SessionID string
+	UserID    string
+}
+
+// RecordBypassAttempt records security bypass attempts.
+func (t *Tracer) RecordBypassAttempt(ctx context.Context, event *BypassAttemptEvent) {
+	if !t.enabled || event == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("security.event_type", string(SecurityEventBypassAttempt)),
+		attribute.String("bypass.target_rule", event.TargetRule),
+		attribute.Bool("bypass.success", event.Success),
+		attribute.String("bypass.attempted_by", event.AttemptedBy),
+	}
+
+	if event.SessionID != "" {
+		attrs = append(attrs, attribute.String("session.id", event.SessionID))
+	}
+
+	_, span := t.tracer.Start(ctx, "security.bypass_attempt",
+		trace.WithAttributes(attrs...),
+	)
+	span.End()
+}
+
+// BypassAttemptEvent contains details about a security bypass attempt.
+type BypassAttemptEvent struct {
+	TargetRule  string
+	Success     bool
+	AttemptedBy string
+	SessionID   string
+}

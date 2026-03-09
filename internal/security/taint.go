@@ -1,7 +1,6 @@
 package security
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -64,7 +63,7 @@ type TaintTag struct {
 	Operations []string
 
 	// Metadata contains additional information.
-	Metadata map[string]interface{}
+	Metadata map[string]any
 
 	// CreatedAt indicates when this taint was created.
 	// Timestamp is tracked via the Taint itself.
@@ -157,10 +156,10 @@ func (tt *TaintTracker) MarkUntrusted(value string, source TaintSource) *Taint {
 	taint := &Taint{
 		Value: value,
 		Tag: TaintTag{
-			Source: source,
-			Level:  TaintLevelUntrusted,
-			Path:   []string{source.String()},
-			Metadata: make(map[string]interface{}),
+			Source:   source,
+			Level:    TaintLevelUntrusted,
+			Path:     []string{source.String()},
+			Metadata: make(map[string]any),
 		},
 		ID: generateTaintID(),
 	}
@@ -191,10 +190,10 @@ func (tt *TaintTracker) MarkTrusted(value string) *Taint {
 	taint := &Taint{
 		Value: value,
 		Tag: TaintTag{
-			Source: TaintSafe,
-			Level:  TaintLevelTrusted,
-			Path:   []string{"trusted"},
-			Metadata: make(map[string]interface{}),
+			Source:   TaintSafe,
+			Level:    TaintLevelTrusted,
+			Path:     []string{"trusted"},
+			Metadata: make(map[string]any),
 		},
 		ID: generateTaintID(),
 	}
@@ -233,7 +232,7 @@ func (tt *TaintTracker) GetValue(id string) (string, error) {
 		value = sanitizer(value)
 		tt.mu.Lock()
 		taint.Tag.Operations = append(taint.Tag.Operations, "sanitized")
-		tt.Tag.Level = TaintLevelSanitized
+		taint.Tag.Level = TaintLevelSanitized
 		tt.mu.Unlock()
 	}
 
@@ -253,11 +252,11 @@ func (tt *TaintTracker) Propagate(parentID string, newValue string, operation st
 	child := &Taint{
 		Value: newValue,
 		Tag: TaintTag{
-			Source: parent.Tag.Source,
-			Level:  parent.Tag.Level, // Propagate at same level
-			Path:   append([]string{}, parent.Tag.Path...),
+			Source:     parent.Tag.Source,
+			Level:      parent.Tag.Level,
+			Path:       append([]string{}, parent.Tag.Path...),
 			Operations: append([]string{}, parent.Tag.Operations...),
-			Metadata: make(map[string]interface{}),
+			Metadata:   make(map[string]any),
 		},
 		ID:       generateTaintID(),
 		ParentID: parentID,
@@ -359,7 +358,6 @@ func (tt *TaintTracker) Sanitize(id string) (string, error) {
 	}
 
 	if sanitizer == nil {
-		// Use default sanitization
 		return defaultSanitize(taint.Value), nil
 	}
 
@@ -389,7 +387,7 @@ func (tt *TaintTracker) Clear(id string) {
 }
 
 // GetTaintInfo returns information about a taint.
-func (tt *TaintTracker) GetTaintInfo(id string) (map[string]interface{}, bool) {
+func (tt *TaintTracker) GetTaintInfo(id string) (map[string]any, bool) {
 	tt.mu.RLock()
 	defer tt.mu.RUnlock()
 
@@ -398,7 +396,7 @@ func (tt *TaintTracker) GetTaintInfo(id string) (map[string]interface{}, bool) {
 		return nil, false
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"id":         taint.ID,
 		"parent_id":  taint.ParentID,
 		"value":      strutil.Truncate(taint.Value, 100),
@@ -423,11 +421,11 @@ func (tt *TaintTracker) ListActive() []*Taint {
 }
 
 // GetStatistics returns statistics about taint tracking.
-func (tt *TaintTracker) GetStatistics() map[string]interface{} {
+func (tt *TaintTracker) GetStatistics() map[string]any {
 	tt.mu.RLock()
 	defer tt.mu.RUnlock()
 
-	stats := map[string]interface{}{
+	stats := map[string]any{
 		"active_count":   len(tt.activeTaints),
 		"history_count":  len(tt.taintHistory),
 		"max_history":    tt.maxHistory,
@@ -437,7 +435,9 @@ func (tt *TaintTracker) GetStatistics() map[string]interface{} {
 	levelCounts := make(map[string]int)
 	levelNames := []string{"untrusted", "external", "validated", "sanitized", "trusted"}
 	for _, t := range tt.activeTaints {
-		levelCounts[levelNames[t.Tag.Level]]++
+		if int(t.Tag.Level) < len(levelNames) {
+			levelCounts[levelNames[t.Tag.Level]]++
+		}
 	}
 	stats["by_level"] = levelCounts
 
@@ -500,18 +500,16 @@ func (tl TaintLevel) String() string {
 
 // generateTaintID generates a unique taint ID.
 func generateTaintID() string {
-	return fmt.Sprintf("t_%d_%d", len(activeTaintCount), getTaintCounter())
+	return fmt.Sprintf("t_%d_%d", activeTaintCount, getTaintCounter())
 }
 
 var taintCounter uint64
+var activeTaintCount int
 
 func getTaintCounter() uint64 {
-	// Simple atomic counter
 	taintCounter++
 	return taintCounter
 }
-
-var activeTaintCount int
 
 // defaultSanitize provides default sanitization for untrusted strings.
 func defaultSanitize(value string) string {
@@ -525,14 +523,13 @@ func defaultSanitize(value string) string {
 	value = escapeShellMetacharacters(value)
 
 	// Normalize whitespace
-	value = normalizeWhitespace(value)
+	value = normalizeWhitespaceStr(value)
 
 	return value
 }
 
 // escapeShellMetacharacters escapes dangerous shell characters.
 func escapeShellMetacharacters(value string) string {
-	// Characters that need escaping in shell
 	dangerous := []string{
 		";", "&", "|", "`", "$", "(", ")", "<", ">", "\n", "\r",
 	}
@@ -547,32 +544,31 @@ func escapeShellMetacharacters(value string) string {
 
 // escapeHTML escapes HTML entities.
 func escapeHTML(value string) string {
-	result := strings.Builder{}
-	result.Grow(len(value) * 2)
+	var sb strings.Builder
+	sb.Grow(len(value) * 2)
 
 	for _, r := range value {
 		switch r {
 		case '<':
-			result.WriteString("&lt;")
+			sb.WriteString("&lt;")
 		case '>':
-			result.WriteString("&gt;")
+			sb.WriteString("&gt;")
 		case '&':
-			result.WriteString("&amp;")
+			sb.WriteString("&amp;")
 		case '"':
-			result.WriteString("&quot;")
+			sb.WriteString("&quot;")
 		case '\'':
-			result.WriteString("&#39;")
+			sb.WriteString("&#39;")
 		default:
-			result.WriteRune(r)
+			sb.WriteRune(r)
 		}
 	}
 
-	return result.String()
+	return sb.String()
 }
 
-// normalizeWhitespace normalizes whitespace in the string.
-func normalizeWhitespace(value string) return string {
-	// Replace multiple whitespace with single space
+// normalizeWhitespaceStr normalizes whitespace in the string.
+func normalizeWhitespaceStr(value string) string {
 	result := strings.Fields(value)
 	return strings.Join(result, " ")
 }
@@ -635,7 +631,6 @@ func NewSQLInjectionGuard(tracker *TaintTracker, logger *slog.Logger) *SQLInject
 
 // CheckQuery checks a SQL query for taint-based SQL injection vulnerabilities.
 func (sig *SQLInjectionGuard) CheckQuery(query string, taintIDs []string) (bool, string) {
-	// Look for common SQL injection patterns
 	dangerPatterns := []struct {
 		pattern string
 		desc    string
@@ -661,7 +656,6 @@ func (sig *SQLInjectionGuard) CheckQuery(query string, taintIDs []string) (bool,
 		upperValue := strings.ToUpper(taint.Value)
 		for _, pattern := range dangerPatterns {
 			if strings.Contains(upperValue, strings.ToUpper(pattern.pattern)) {
-				// Check if the taint level is high enough
 				if taint.Tag.Level < TaintLevelValidated {
 					return false, fmt.Sprintf("potential SQL injection: %s in taint from %s",
 						pattern.desc, taint.Tag.Source)
