@@ -57,25 +57,24 @@ jobs:
         run: make test-ci
 
       - name: Generate Coverage
-        if: github.event_name == 'pull_request'
+        if: needs.changes.outputs.go == 'true'
         run: go test -coverprofile=coverage.out -covermode=atomic -short ./...
 
       - name: Upload Coverage to Codecov
-        if: github.event_name == 'pull_request'
+        if: needs.changes.outputs.go == 'true'
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.out
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
-          verbose: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   test-integration:
     name: Integration Tests
     needs: changes
-    if: needs.changes.outputs.go == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
+    if: needs.changes.outputs.go == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
