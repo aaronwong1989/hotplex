@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,6 +24,8 @@ import (
 // SessionPool implements the SessionManager as a thread-safe singleton.
 // It orchestrates the lifecycle of multiple CLI processes, ensuring that
 // idle processes are garbage collected to conserve system memory.
+// SessionPool optionally integrates with WorkspaceManager for multi-tenant isolation
+// and per-workspace resource quota enforcement.
 type SessionPool struct {
 	sessions      map[string]*Session
 	mu            sync.RWMutex
@@ -36,6 +39,10 @@ type SessionPool struct {
 	markerStore   persistence.SessionMarkerStore
 	pending       map[string]chan struct{}
 	resetSessions map[string]bool // Sessions that need new ProviderSessionID on restart (for /clear)
+
+	// Workspace integration for multi-tenancy
+	workspaceManager WorkspaceManager
+	defaultWorkspaceID string
 }
 
 // blockedEnvPrefixes contains environment variable prefixes that should be filtered
@@ -178,6 +185,79 @@ func (sm *SessionPool) CleanupSessionFiles(providerSessionID string, workDir str
 	if sm.provider != nil {
 		return sm.provider.CleanupSession(providerSessionID, workDir)
 	}
+	return nil
+}
+
+// SetWorkspaceManager sets the workspace manager for multi-tenant isolation.
+// This enables per-workspace resource quota enforcement and audit logging.
+func (sm *SessionPool) SetWorkspaceManager(wm WorkspaceManager, defaultWorkspaceID string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.workspaceManager = wm
+	sm.defaultWorkspaceID = defaultWorkspaceID
+}
+
+// GetWorkspaceManager returns the current workspace manager.
+func (sm *SessionPool) GetWorkspaceManager() WorkspaceManager {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return sm.workspaceManager
+}
+
+// ValidateWorkspacePath validates that a work directory is within the workspace boundaries.
+// This provides path traversal protection for multi-tenant deployments.
+func (sm *SessionPool) ValidateWorkspacePath(ctx context.Context, workspaceID, workDir string) (bool, error) {
+	sm.mu.RLock()
+	wm := sm.workspaceManager
+	sm.mu.RUnlock()
+
+	if wm == nil {
+		// No workspace manager configured, allow all paths
+		return true, nil
+	}
+
+	return wm.ValidatePath(ctx, workspaceID, workDir)
+}
+
+// GetWorkspaceUsage returns the current resource usage for a workspace.
+func (sm *SessionPool) GetWorkspaceUsage(ctx context.Context, workspaceID string) (WorkspaceUsage, error) {
+	sm.mu.RLock()
+	wm := sm.workspaceManager
+	sm.mu.RUnlock()
+
+	if wm == nil {
+		return WorkspaceUsage{}, errors.New("workspace manager not configured")
+	}
+
+	return wm.GetUsage(ctx, workspaceID)
+}
+
+// EnforceWorkspaceQuota checks if workspace quota is exceeded before creating a session.
+func (sm *SessionPool) EnforceWorkspaceQuota(ctx context.Context, workspaceID string) error {
+	sm.mu.RLock()
+	wm := sm.workspaceManager
+	sm.mu.RUnlock()
+
+	if wm == nil {
+		return nil // No quota enforcement without workspace manager
+	}
+
+	usage, err := wm.GetUsage(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+
+	ws, ok := wm.GetWorkspace(ctx, workspaceID)
+	if !ok {
+		return errors.New("workspace not found")
+	}
+
+	quota := ws.Quota
+	if quota.MaxSessions > 0 && usage.ActiveSessions >= quota.MaxSessions {
+		return fmt.Errorf("workspace %s: session limit exceeded (%d/%d)", 
+			workspaceID, usage.ActiveSessions, quota.MaxSessions)
+	}
+
 	return nil
 }
 
@@ -526,5 +606,10 @@ func (sm *SessionPool) Shutdown() {
 	// Terminate all sessions
 	for sessionID := range sm.sessions {
 		_ = sm.cleanupSessionLocked(sessionID)
+	}
+
+	// Shutdown workspace manager if configured
+	if sm.workspaceManager != nil {
+		sm.workspaceManager.Shutdown()
 	}
 }
