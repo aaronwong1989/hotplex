@@ -2,11 +2,18 @@ package security
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testLogger returns a logger for testing.
+func testLogger(t *testing.T) *slog.Logger {
+	t.Helper()
+	return slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
 
 // MockAIClient is a mock implementation of AIClientInterface for testing.
 type MockAIClient struct {
@@ -98,11 +105,10 @@ func TestAIGuardWithMockClient(t *testing.T) {
 	// Note: We can't easily test the full AI flow without proper mocking
 	// because the interface differs. This is a placeholder for integration tests.
 	config := AIGuardConfig{
-		Logger:               testLogger(t),
+		Logger:                 testLogger(t),
 		EnablePromptInjection: true,
 		EnableIntentAnalysis:  true,
-		Threshold:            0.7,
-		MockClient:           nil, // Would need to implement full interface
+		Threshold:             0.7,
 	}
 
 	guard, err := NewAIGuard(config)
