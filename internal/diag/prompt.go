@@ -1,5 +1,7 @@
 package diag
 
+import "fmt"
+
 // Prompts for LLM-based diagnosis
 const (
 	// DiagnosePrompt is the main prompt for analyzing errors and generating issue previews.
@@ -90,14 +92,14 @@ func BuildDiagnosisContext(diagCtx *DiagContext) string {
 		context += "- Type: " + string(diagCtx.Error.Type) + "\n"
 		context += "- Message: " + diagCtx.Error.Message + "\n"
 		if diagCtx.Error.ExitCode != 0 {
-			context += "- Exit Code: " + string(rune(diagCtx.Error.ExitCode)) + "\n"
+			context += fmt.Sprintf("- Exit Code: %d\n", diagCtx.Error.ExitCode)
 		}
 		context += "\n"
 	}
 
 	if diagCtx.Conversation != nil {
 		context += "### Recent Conversation\n"
-		context += "- Messages: " + string(rune(diagCtx.Conversation.MessageCount)) + "\n"
+		context += fmt.Sprintf("- Messages: %d\n", diagCtx.Conversation.MessageCount)
 		if diagCtx.Conversation.IsSummarized {
 			context += "- (Summarized)\n"
 		}
