@@ -53,7 +53,7 @@ RUN apk add --no-cache \
     unzip \
     tar \
     # Java
-    openjdk21 \
+    openjdk25 \
     # Font (for Java apps)
     fontconfig \
     ttf-dejavu \

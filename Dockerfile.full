@@ -68,7 +68,7 @@ RUN apk add --no-cache \
     # Protobuf (for gRPC)
     protobuf-dev \
     # Java
-    openjdk21 \
+    openjdk25 \
     fontconfig \
     ttf-dejavu \
     # Runtime deps
