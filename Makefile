@@ -308,10 +308,29 @@ DOCKER_TAG      ?= latest
 DOCKER_REGISTRY ?= ghcr.io/hrygo
 HOST_UID        ?= $(shell id -u)
 
-docker-build: ## @docker Build image (multi-stage, hotplexd always rebuilt)
-	@printf "${CYAN}🐳 Building Docker image (multi-stage)...${NC}\n"
-	@printf "${DIM}Builder stage always rebuilds, runtime stages cached.${NC}\n"
-	HOST_UID=$(HOST_UID) VERSION=$(VERSION) COMMIT=$(COMMIT) BUILD_TIME=$(BUILD_TIME) docker compose build
+docker-build: ## @docker Build image (multi-stage, inherits from base)
+	@printf "${CYAN}🐳 Building Docker images (Base + App)...${NC}\n"
+	@$(MAKE) docker-build-base
+	COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml \
+		HOST_UID=$(HOST_UID) VERSION=$(VERSION) COMMIT=$(COMMIT) BUILD_TIME=$(BUILD_TIME) \
+		docker compose build hotplex
+
+docker-build-base: ## @docker Build the shared foundation image
+	@printf "${CYAN}🏗️  Building hotplex:base फाउंडेशन...${NC}\n"
+	docker build -t hotplex:base \
+		--build-arg HTTP_PROXY=$(HTTP_PROXY) --build-arg HTTPS_PROXY=$(HTTPS_PROXY) \
+		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_TIME=$(BUILD_TIME) \
+		-f docker/Dockerfile.base .
+
+docker-build-stacks: ## @docker Build all tech stack images (Node, Python, Java, Rust, Full)
+	@printf "${CYAN}🚀 Building all tech stack images...${NC}\n"
+	@$(MAKE) docker-build-base
+	@for stack in node python java rust full; do \
+		printf "${BLUE}📦 Building hotplex:$$stack...${NC}\n"; \
+		docker build -t hotplex:$$stack \
+			--build-arg BASE_IMAGE=hotplex:base \
+			-f docker/Dockerfile.$$stack .; \
+	done
 
 docker-build-cache: ## @docker Build image (legacy, full cache - for debugging)
 	@printf "${CYAN}🐳 Building Docker image (legacy mode)...${NC}\n"

@@ -1,11 +1,11 @@
 # ==============================================================================
-# HotPlex Docker Ignore
+# HotPlex Docker Build Context Filter
 # ==============================================================================
-# Prevents sensitive files and unnecessary files from being included in Docker
-# build context. This improves build speed and prevents secret leakage.
+# Excludes non-essential files to speed up build context transfer.
+# Only Go source, go.mod/go.sum, docker/ and docker-entrypoint.sh are needed.
 # ==============================================================================
 
-# Secrets - NEVER include in image
+# --- Secrets & Environment (NEVER include in image) ---
 .env
 .env.*
 !.env.example
@@ -14,63 +14,72 @@
 credentials.json
 secrets/
 
-# Git
+# --- Version Control ---
 .git
+.github
 .gitignore
 .gitattributes
 
-# Build artifacts (built inside container)
-dist/
-bin/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# --- AI Agent State ---
+.claude
+.agent
+.serena
 
-# Logs
-.logs/
-*.log
-
-# IDE and editors
-.idea/
-.vscode/
+# --- IDE ---
+.vscode
+.idea
 *.swp
 *.swo
 *~
 
-# Development files
-.agent/
-.github/
-.serena/
-.claude/
+# --- OS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
 
-# Documentation (not needed in container)
+# --- Build Artifacts (built inside container) ---
+dist/
+bin/
+out/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# --- Documentation (not needed in container) ---
 docs/
 *.md
 !README.md
 
-# Test files
-*_test.go
-testdata/
-tests/
-
-# CI/CD (CI scripts not needed in container)
+# --- Compose & Makefile (not needed inside build context) ---
+docker-compose*.yml
 Makefile
+
+# --- Project Config & Scripts ---
 scripts/
+configs/
 
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Temporary files
-tmp/
-temp/
+# --- Logs & Temp ---
+.logs/
+logs/
+*.log
 *.tmp
 *.temp
+*.bak
 
-# Docker
-docker-compose*.yml
-Dockerfile*
+# --- Test artifacts ---
+coverage.*
+cover.out
+
+# --- Language runtimes ---
+node_modules/
+__pycache__/
+.venv/
+
+# --- Misc ---
+.loki/
+.worktrees/
 .docker/
+RELEASE_NOTES.md

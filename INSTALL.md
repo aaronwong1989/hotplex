@@ -126,6 +126,7 @@ Edit `~/.hotplex/.env`:
 HOTPLEX_API_KEY=your-secure-api-key
 
 # Slack Bot config
+HOTPLEX_SLACK_PRIMARY_OWNER=UXXXXXXXXXX
 HOTPLEX_SLACK_BOT_USER_ID=UXXXXXXXXXX
 HOTPLEX_SLACK_BOT_TOKEN=xoxb-your-token
 HOTPLEX_SLACK_APP_TOKEN=xapp-your-token

@@ -27,7 +27,7 @@ engine:
 security:
   verify_signature: true
   owner:
-    primary: ${HOTPLEX_SLACK_PRIMARY_OWNER}  # Your Slack User ID (e.g. U12345678)
+    primary: ${HOTPLEX_SLACK_PRIMARY_OWNER}  # Primary owner's Slack User ID
     policy: trusted                         # owner_only | trusted | public
     trusted_users: []
 

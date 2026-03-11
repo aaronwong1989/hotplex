@@ -103,6 +103,7 @@
 # ------------------------------------------------------------------------------
 x-hotplex-common: &hotplex-common
   image: ghcr.io/hrygo/hotplex:latest
+  init: true                          # Proper PID 1 signal handling
   environment: &common-env
     HOST_UID: ${HOST_UID:-1000}
     # ─────────────────────────────────────────────────────────────────
@@ -122,6 +123,14 @@ x-hotplex-common: &hotplex-common
     NO_PROXY: localhost,127.0.0.1,host.docker.internal
   extra_hosts:
     - "host.docker.internal:host-gateway" # Allows container to reach host
+  # ─────────────────────────────────────────────────────────────────
+  # Security Hardening
+  # ─────────────────────────────────────────────────────────────────
+  cap_drop:
+    - NET_RAW
+    - NET_ADMIN
+  security_opt:
+    - no-new-privileges:true
   healthcheck: &common-healthcheck
     test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/health" ]
     interval: 30s
@@ -160,18 +169,10 @@ services:
   # Role: Production bot with Claude Opus
   # Config: .env
   # Port:  127.0.0.1:18080 → 8080 (localhost only for security)
-  # Note:  build: . means use local code (dev mode), remove to use remote image
+  # Build: Defined in docker-compose.build.yml (activated via COMPOSE_FILE)
   # ============================================================================
   hotplex:
     <<: *hotplex-common
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      args:
-        HOST_UID: ${HOST_UID:-1000}
-        VERSION: ${VERSION:-dev}
-        COMMIT: ${COMMIT:-unknown}
-        BUILD_TIME: ${BUILD_TIME:-unknown}
     container_name: hotplex
     ports:
       - "127.0.0.1:18080:8080"
@@ -201,9 +202,6 @@ services:
   hotplex-secondary:
     <<: *hotplex-common
     container_name: hotplex-secondary
-    depends_on:
-      hotplex:
-        condition: service_started # Wait for hotplex to build the image first
     ports:
       - "127.0.0.1:18081:8080"
     env_file:

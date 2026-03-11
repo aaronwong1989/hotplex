@@ -1,0 +1,121 @@
+# ==============================================================================
+# HotPlex Base Image (Foundation for all tech stacks)
+# ==============================================================================
+# Includes: OS (Alpine), Core Tools, Go Toolchain, Claude Code, and hotplexd binary
+# ==============================================================================
+
+# --- Stage 1: Build hotplexd ---
+FROM golang:1.25-alpine AS builder
+
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
+COPY . .
+RUN CGO_ENABLED=0 go build \
+    -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_TIME} -X main.builtBy=docker" \
+    -o hotplexd ./cmd/hotplexd
+
+# --- Stage 2: Base Runtime ---
+FROM golang:1.25-alpine AS base
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+WORKDIR /app
+
+# System packages (Common to all stacks)
+RUN apk add --no-cache \
+    # Version control
+    git github-cli \
+    # Build tools
+    make bash cmake gcc g++ musl-dev \
+    # Modern file tools (Claude Code recommended)
+    ripgrep fd bat fzf eza \
+    # Network debugging
+    curl jq wget netcat-openbsd openssl \
+    # Node.js (for Claude Code)
+    nodejs npm \
+    # Process management
+    procps htop \
+    # User management & Privilege drop
+    shadow util-linux \
+    # Config processing
+    yq \
+    # Script runtime
+    python3 \
+    # Editor
+    vim \
+    # Timezone support
+    tzdata \
+    # Archive tools
+    zip unzip tar \
+    # Runtime deps
+    ca-certificates
+
+# --- Stage 3: Go tools ---
+RUN go install github.com/air-verse/air@latest && \
+    go install github.com/go-delve/delve/cmd/dlv@latest && \
+    go install golang.org/x/tools/cmd/goimports@latest && \
+    go install mvdan.cc/gofumpt@latest && \
+    go install honnef.co/go/tools/cmd/staticcheck@latest && \
+    go install github.com/securego/gosec/v2/cmd/gosec@latest && \
+    go install golang.org/x/vuln/cmd/govulncheck@latest && \
+    go install github.com/golang/mock/mockgen@latest && \
+    go install gotest.tools/gotestsum@latest && \
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
+    go clean -cache -modcache
+
+# --- Stage 4: Third-party tools & Claude Code ---
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then ARCH="x86_64"; \
+    elif [ "$ARCH" = "aarch64" ]; then ARCH="aarch64"; fi && \
+    wget -qO /usr/local/bin/websocat \
+    "https://github.com/vi/websocat/releases/download/v1.14.1/websocat.${ARCH}-unknown-linux-musl" && \
+    chmod +x /usr/local/bin/websocat
+
+RUN npm install -g @anthropic-ai/claude-code@latest && \
+    npm cache clean --force
+
+# --- Stage 5: Final Base Assembly ---
+FROM base AS final
+
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+
+LABEL org.opencontainers.image.title="HotPlex Base"
+LABEL org.opencontainers.image.description="Base environment for all HotPlex AI Agent tech stacks"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.revision="${COMMIT}"
+LABEL org.opencontainers.image.created="${BUILD_TIME}"
+LABEL org.opencontainers.image.source="https://github.com/hrygo/hotplex"
+LABEL org.opencontainers.image.licenses="MIT"
+
+# Copy binary from builder
+COPY --from=builder /build/hotplexd /app/hotplexd
+# Copy entrypoint script
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+
+# User setup
+ARG HOST_UID=1000
+RUN adduser -D -u ${HOST_UID} hotplex && \
+    mkdir -p /home/hotplex/go/pkg/mod /home/hotplex/.cache/go-build && \
+    chmod +x /app/docker-entrypoint.sh && \
+    chown -R hotplex:hotplex /home/hotplex /app
+
+# Environment
+ENV GOPATH=/home/hotplex/go
+ENV GOCACHE=/home/hotplex/.cache/go-build
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+USER hotplex
+EXPOSE 8080
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["/app/hotplexd"]
