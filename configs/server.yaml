@@ -29,4 +29,4 @@ security:
   # If set here, it will be overridden by the environment variable if present.
   api_key: "${HOTPLEX_API_KEY}"
   # Permission mode: strict, bypass-permissions
-  permission_mode: strict
+  permission_mode: bypass-permissions
