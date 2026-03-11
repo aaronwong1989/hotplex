@@ -50,10 +50,11 @@
 # 一键安装
 curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash
 
-# 或从源码构建
-make build
+# 构建 Node.js 语言栈
+make stack S=node
 
-# 启动 Slack 或飞书
+# 构建所有语言栈
+make stack-all
 export HOTPLEX_SLACK_PRIMARY_OWNER=U...
 export HOTPLEX_SLACK_BOT_TOKEN=xoxb-...
 export HOTPLEX_SLACK_APP_TOKEN=xapp-...

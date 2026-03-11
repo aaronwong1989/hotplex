@@ -242,6 +242,11 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 ```bash
 # Development setup
 go mod download   # Install dependencies
+# Build the Node.js language stack
+make stack S=node
+
+# Build all language stacks
+make stack-all
 make test         # Run tests
 make lint         # Run linter
 make build        # Build binary

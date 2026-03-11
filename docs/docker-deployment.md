@@ -10,10 +10,10 @@ HotPlex uses a high-efficiency **1+n** Docker architecture: 1 shared **Base** im
 
 ```bash
 # Step 1: Build the foundational base image
-make docker-build-base
+make db T=base
 
 # Step 2: Build specific language stack (e.g., node, python, rust, java, or 'full' for all)
-make stack-node
+make stack S=node
 # Or build all stacks in one go:
 make stack-all
 ```
@@ -35,7 +35,7 @@ This method seamlessly integrates with your host machine's configuration:
 
 ```bash
 # Using Makefile
-make docker-run
+make docker-up
 # or manually (replace 15721/7897 with your actual ports)
 docker run -d \
   --name hotplex \
