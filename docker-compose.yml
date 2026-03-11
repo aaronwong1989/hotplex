@@ -8,11 +8,29 @@
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
+# Architecture Overview
+# ------------------------------------------------------------------------------
+#   ┌─────────────────────────────────────────────────────────────────────────┐
+#   │  Bot 01 (hotplex)          │  Bot 02 (hotplex-secondary)              │
+#   │  ├─ .env                   │  ├─ .env.secondary                       │
+#   │  ├─ Port: 18080            │  ├─ Port: 18081                          │
+#   │  ├─ projects: BOT_U0A...   │  ├─ projects: BOT_U0A...  (独立目录)     │
+#   │  └─ gitconfig: -hotplex    │  └─ gitconfig: -secondary  (独立配置)    │
+#   └─────────────────────────────────────────────────────────────────────────┘
+#                              │
+#                    ┌─────────┴─────────┐
+#                    │   Shared Resources │
+#                    │   • ~/.hotplex     │  ← Message DB, configs
+#                    │   • ~/.claude      │  ← Session state
+#                    │   • Go cache       │  ← Named volumes
+#                    └───────────────────┘
+
+# ------------------------------------------------------------------------------
 # 🛠️ Common Configurations (YAML Anchors)
 # ------------------------------------------------------------------------------
 x-hotplex-common: &hotplex-common
   image: ghcr.io/hrygo/hotplex:latest
-  init: true                          # Proper PID 1 signal handling
+  init: true # Proper PID 1 signal handling
   environment: &common-env
     HOST_UID: ${HOST_UID:-1000}
     # ─────────────────────────────────────────────────────────────────
