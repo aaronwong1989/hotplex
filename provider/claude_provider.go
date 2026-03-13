@@ -457,17 +457,38 @@ func (p *ClaudeCodeProvider) CleanupSession(providerSessionID string, workDir st
 		}
 	}
 
-	// Claude Code stores sessions in ~/.claude/projects/<workspace-key>/<providerSessionID>.jsonl
+	// Claude Code stores sessions in ~/.claude/projects/<workspace-key>/
 	projectsDir := filepath.Join(os.Getenv("HOME"), ".claude", "projects")
 	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
-	sessionPath := filepath.Join(projectsDir, workspaceKey, providerSessionID+".jsonl")
+	workspaceDir := filepath.Join(projectsDir, workspaceKey)
 
-	// Best effort deletion
-	if err := os.Remove(sessionPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("remove Claude Code session file: %w", err)
+	// Delete session file: <session-id>.jsonl
+	sessionFile := filepath.Join(workspaceDir, providerSessionID+".jsonl")
+	if err := os.Remove(sessionFile); err != nil && !os.IsNotExist(err) {
+		p.logger.Warn("Failed to remove session file", "path", sessionFile, "error", err)
 	}
 
-	p.logger.Debug("Cleaned up Claude Code session file", "path", sessionPath)
+	// Delete session working directory: <session-id>/
+	// Claude Code creates a working directory for each session containing tools state, memory locks, etc.
+	sessionDir := filepath.Join(workspaceDir, providerSessionID)
+	if err := os.RemoveAll(sessionDir); err != nil && !os.IsNotExist(err) {
+		p.logger.Warn("Failed to remove session directory", "path", sessionDir, "error", err)
+	}
+
+	// Also clean up any leftover directories that might be locking the session
+	// Pattern: <session-id>-* (e.g., session-id-working, session-id-temp)
+	pattern := filepath.Join(workspaceDir, providerSessionID+"-*")
+	if matches, err := filepath.Glob(pattern); err == nil {
+		for _, match := range matches {
+			if info, err := os.Stat(match); err == nil && info.IsDir() {
+				if rmErr := os.RemoveAll(match); rmErr != nil {
+					p.logger.Warn("Failed to remove session subdirectory", "path", match, "error", rmErr)
+				}
+			}
+		}
+	}
+
+	p.logger.Debug("Cleaned up Claude Code session", "session_id", providerSessionID, "workspace", workspaceDir)
 	return nil
 }
 

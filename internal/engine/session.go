@@ -53,6 +53,13 @@ type Session struct {
 	logFile    *os.File // Session-specific log file for stderr persistence
 	ext        any      // Extension payload for consumer packages
 	IsResuming bool     // True if session was resumed from persistent marker
+
+	// readyCheck tracks whether the process has produced output (indicating it's truly ready)
+	// This prevents false positives from processes that start but immediately exit
+	readyCheck struct {
+		mu          sync.Mutex
+		hasOutput   bool
+	}
 }
 
 // IsAlive checks if the process is still running.
@@ -112,7 +119,7 @@ func (s *Session) GetStatusChange() <-chan SessionStatus {
 }
 
 // waitForReady monitors the session and transitions from Starting to Ready
-// when the process is confirmed alive and responsive.
+// when the process is confirmed alive AND responsive (has produced output).
 func (s *Session) waitForReady(ctx context.Context, timeout time.Duration) {
 	panicx.SafeGo(s.logger, func() {
 		deadlineTimer := time.NewTimer(timeout)
@@ -138,10 +145,17 @@ func (s *Session) waitForReady(ctx context.Context, timeout time.Duration) {
 					s.mu.Unlock()
 					return
 				}
+				// Process must be alive AND have produced output to be considered ready
+				// This prevents false positives from processes that start but immediately exit
 				if s.isAliveLocked() {
-					s.mu.Unlock()
-					s.SetStatus(SessionStatusReady)
-					return
+					s.readyCheck.mu.Lock()
+					hasOutput := s.readyCheck.hasOutput
+					s.readyCheck.mu.Unlock()
+					if hasOutput {
+						s.mu.Unlock()
+						s.SetStatus(SessionStatusReady)
+						return
+					}
 				}
 				s.mu.Unlock()
 			}
@@ -278,6 +292,13 @@ func (s *Session) ReadStdout() {
 		if line == "" {
 			continue
 		}
+
+		// Mark that we've received output - process is truly alive and responsive
+		s.readyCheck.mu.Lock()
+		if !s.readyCheck.hasOutput {
+			s.readyCheck.hasOutput = true
+		}
+		s.readyCheck.mu.Unlock()
 
 		cb := s.GetCallback()
 		if cb != nil {

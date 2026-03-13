@@ -253,7 +253,12 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 		"provider_session_id", providerSessionID,
 	)
 
-	args := sm.buildCLIArgs(providerSessionID, sessLog, prompt, cfg)
+	// Check if this is a resume BEFORE building CLI args
+	// This must be done before buildCLIArgs because buildCLIArgs may create the marker
+	// causing all new sessions to be incorrectly identified as resuming
+	isResuming := sm.markerStore.Exists(providerSessionID)
+
+	args := sm.buildCLIArgs(providerSessionID, isResuming, sessLog, prompt, cfg)
 	cmd := exec.CommandContext(sessCtx, sm.cliPath, args...)
 
 	// Clear CLAUDECODE env var to allow nested CLI sessions
@@ -366,7 +371,7 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 	return sess, nil
 }
 
-func (sm *SessionPool) buildCLIArgs(providerSessionID string, sessLog *slog.Logger, prompt string, cfg SessionConfig) []string {
+func (sm *SessionPool) buildCLIArgs(providerSessionID string, isResuming bool, sessLog *slog.Logger, prompt string, cfg SessionConfig) []string {
 	// Determine system prompt: session-level override takes precedence over engine-level
 	baseSystemPrompt := cfg.BaseSystemPrompt
 	if baseSystemPrompt == "" {
@@ -386,8 +391,9 @@ func (sm *SessionPool) buildCLIArgs(providerSessionID string, sessLog *slog.Logg
 		SessionID:                  providerSessionID,
 	}
 
-	// Check if we need to resume using marker store
-	if sm.markerStore.Exists(providerSessionID) {
+	// Use the pre-checked isResuming flag to determine session behavior
+	// This avoids the race condition where buildCLIArgs would check Exists after already creating the marker
+	if isResuming {
 		opts.ResumeSession = true
 		opts.ProviderSessionID = providerSessionID
 		sessLog.Info("Resuming existing persistent CLI session")
