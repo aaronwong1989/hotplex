@@ -5,7 +5,8 @@
 # Only override in .env-* files when necessary.
 # ------------------------------------------------------------------------------
 x-hotplex-common: &hotplex-common
-  image: ${HOTPLEX_IMAGE:-ghcr.io/hrygo/hotplex:latest}
+  # Default to Remote Go image unless overridden by HOTPLEX_IMAGE env var
+  image: ${HOTPLEX_IMAGE:-ghcr.io/hrygo/hotplex:latest-go}
   init: true # Proper PID 1 signal handling
   environment: &common-env
     HOST_UID: ${HOST_UID:-1000}

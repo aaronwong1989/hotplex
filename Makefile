@@ -492,12 +492,13 @@ docker-prepare: ## @docker Prepare host directories for all bot instances
 	done
 	@printf "${GREEN}✅ Host environment ready${NC}\n"
 
-docker-up: docker-prepare ## @docker Sync configs and start services
+docker-up: docker-prepare ## @docker Start Matrix services using REMOTE image
 	@cp -r configs/* $(HOST_CONFIGS_DIR)/ 2>/dev/null || true
 	@printf "${CYAN}🔄 Configs synced to ${BOLD}$(HOST_CONFIGS_DIR)${NC}\n"
-	@IMG=$${HOTPLEX_IMAGE:-$$(grep "^HOTPLEX_IMAGE=" docker/matrix/.env-01 2>/dev/null | head -1 | cut -d= -f2- | tr -d ' ')}; \
-	[ -z "$$IMG" ] && IMG="ghcr.io/hrygo/hotplex:latest (default)"; \
-	printf "${PURPLE}🐳 Image: ${BOLD}$$IMG${NC}\n"
+	@IMG=$$(cd docker/matrix && docker compose config --images 2>/dev/null | head -n 1); \
+	[ -z "$$IMG" ] && IMG="ghcr.io/hrygo/hotplex:latest-go (default)"; \
+	printf "${YELLOW}🚀 Environment: MATRIX (REMOTE)${NC}\n"; \
+	printf "${PURPLE}🐳 Image: ${BOLD}$$IMG${NC}\n"; \
 	@cd docker/matrix && \
 		HOST_UID=$(HOST_UID) \
 		VERSION=$(VERSION) \
@@ -505,6 +506,22 @@ docker-up: docker-prepare ## @docker Sync configs and start services
 		BUILD_TIME=$(BUILD_TIME) \
 		HOTPLEX_HOST_CONFIGS_DIR=$(HOST_CONFIGS_DIR) \
 		docker compose up -d
+
+docker-dev: docker-prepare ## @docker Start Matrix services using LOCAL image (hotplex:go)
+	@cp -r configs/* $(HOST_CONFIGS_DIR)/ 2>/dev/null || true
+	@printf "${CYAN}🔄 Configs synced to ${BOLD}$(HOST_CONFIGS_DIR)${NC}\n"
+	@printf "${YELLOW}🚀 Environment: LOCAL DEVELOPMENT${NC}\n"; \
+	printf "${PURPLE}🐳 Image: ${BOLD}hotplex:go${NC}\n"; \
+	@cd docker/matrix && \
+		HOTPLEX_IMAGE=hotplex:go \
+		HOST_UID=$(HOST_UID) \
+		VERSION=$(VERSION) \
+		COMMIT=$(COMMIT) \
+		BUILD_TIME=$(BUILD_TIME) \
+		HOTPLEX_HOST_CONFIGS_DIR=$(HOST_CONFIGS_DIR) \
+		docker compose up -d
+
+docker-dev-all: docker-build-go docker-dev ## @docker Rebuild local Go image and start dev services
 
 docker-down: ## @docker Stop and remove services
 	@cd docker/matrix && docker compose down --timeout 30
