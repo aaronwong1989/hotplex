@@ -153,9 +153,18 @@ docker exec hotplex nslookup host.docker.internal
 
 ## Configuration
 
-Default ports:
-- Primary bot: 18080
-- Secondary bot: 18081
+### Dynamic Container Names
+When user mentions a specific bot, use the corresponding container name:
+- Ask user which bot they want to diagnose if not specified
+- Use `docker compose ps` to list available containers
+- Replace `<BOT>` in commands below with actual container name (e.g., hotplex-01, hotplex-02)
+
+### Default Ports (Examples)
+Port numbers are configured in docker-compose.yml. Examples:
+- hotplex-01: 18080 (example)
+- hotplex-02: 18081 (example)
+
+> **Important**: Each bot runs as a single instance. Do NOT run multiple instances of the same bot.
 
 Health endpoint: `/health`
 WebSocket endpoint: `/ws`
