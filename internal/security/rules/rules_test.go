@@ -68,8 +68,8 @@ func TestMemoryRuleSource_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func() {
 			for j := 0; j < 100; j++ {
-				mrs.LoadRules(context.Background())
-				mrs.Name()
+				_, _ = mrs.LoadRules(context.Background())
+				_ = mrs.Name()
 			}
 			done <- true
 		}()
@@ -147,12 +147,12 @@ func TestFileRuleSource_LoadRules_JSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 	
 	f := NewFileRuleSource(tmpFile.Name())
 	rules, err := f.LoadRules(context.Background())
@@ -213,17 +213,17 @@ func TestFileRuleSource_LoadRules_FileNotFound(t *testing.T) {
 func TestFileRuleSource_InvalidJSON(t *testing.T) {
 	// Create a temp file with invalid JSON (falls back to line-based)
 	content := `not valid json`
-	
+
 	tmpFile, err := os.CreateTemp("", "rules-*.txt")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 	
 	f := NewFileRuleSource(tmpFile.Name())
 	rules, err := f.LoadRules(context.Background())
