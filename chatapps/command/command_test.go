@@ -40,11 +40,8 @@ func (m *mockExecutor) Execute(ctx context.Context, req *Request, callback event
 
 func TestNewRegistry(t *testing.T) {
 	r := NewRegistry()
-	if r.cmds == nil {
-		t.Error("cmds map should be initialized")
-	}
-	if r == nil {
-		t.Error("NewRegistry should not return nil")
+	if r == nil || r.cmds == nil {
+		t.Error("NewRegistry should not return nil or with uninitialized cmds")
 	}
 }
 
