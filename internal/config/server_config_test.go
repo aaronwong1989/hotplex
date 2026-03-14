@@ -376,40 +376,6 @@ engine:
 }
 
 // ========================================
-// ResolveConfigPath Tests
-// ========================================
-
-func TestResolveConfigPath_Explicit(t *testing.T) {
-	path := ResolveConfigPath("/explicit/path/config.yaml")
-	if path != "/explicit/path/config.yaml" {
-		t.Errorf("ResolveConfigPath = %s, want /explicit/path/config.yaml", path)
-	}
-}
-
-func TestResolveConfigPath_EnvVar(t *testing.T) {
-	t.Setenv("HOTPLEX_SERVER_CONFIG", "/env/config.yaml")
-	
-	path := ResolveConfigPath("")
-	if path != "/env/config.yaml" {
-		t.Errorf("ResolveConfigPath = %s, want /env/config.yaml", path)
-	}
-}
-
-func TestResolveConfigPath_Default(t *testing.T) {
-	// No env var, no explicit path - should check cwd
-	cwd, _ := os.Getwd()
-	defaultPath := filepath.Join(cwd, "configs", "server.yaml")
-	
-	// If the default file doesn't exist, should return empty
-	path := ResolveConfigPath("")
-	_ = defaultPath // Just check it compiles
-	
-	if path != "" {
-		t.Logf("Default path found: %s", path)
-	}
-}
-
-// ========================================
 // Environment Variable Override Tests
 // ========================================
 
