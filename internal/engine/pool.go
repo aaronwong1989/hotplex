@@ -48,15 +48,16 @@ func NewSessionPool(logger *slog.Logger, timeout time.Duration, opts EngineOptio
 	}
 
 	sm := &SessionPool{
-		sessions:    make(map[string]*Session),
-		logger:      logger,
-		timeout:     timeout,
-		opts:        opts,
-		cliPath:     cliPath,
-		provider:    prv,
-		done:        make(chan struct{}),
-		markerStore: persistence.NewDefaultFileMarkerStore(),
-		pending:     make(map[string]chan struct{}),
+		sessions:      make(map[string]*Session),
+		logger:        logger,
+		timeout:       timeout,
+		opts:          opts,
+		cliPath:       cliPath,
+		provider:      prv,
+		done:          make(chan struct{}),
+		markerStore:   persistence.NewDefaultFileMarkerStore(),
+		pending:       make(map[string]chan struct{}),
+		resetSessions: make(map[string]bool),
 	}
 
 	// Start idle session cleanup goroutine
@@ -237,13 +238,36 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 	uniqueStr := sm.opts.Namespace + ":session:" + sessionID
 	// Check if session needs new ProviderSessionID (for /clear command)
 	var providerSessionID string
-	if sm.resetSessions[sessionID] {
+	var oldProviderSessionID string // Track old ID for cleanup
+	var needsReset bool
+	sm.mu.Lock()
+	needsReset = sm.resetSessions[sessionID]
+	if needsReset {
+		delete(sm.resetSessions, sessionID) // Clear the flag
+	}
+	sm.mu.Unlock()
+
+	if needsReset {
+		// Calculate old ID for cleanup
+		oldProviderSessionID = uuid.NewSHA1(uuid.NameSpaceURL, []byte(uniqueStr)).String()
+
 		// Generate random UUID for fresh session
 		providerSessionID = uuid.New().String()
-		delete(sm.resetSessions, sessionID) // Clear the flag
-		sm.logger.Info("Generated new random ProviderSessionID for cleared session",
+		sm.logger.Info("Generated new random ProviderSessionID for reset session",
 			"session_id", sessionID,
-			"provider_session_id", providerSessionID)
+			"old_provider_session_id", oldProviderSessionID,
+			"new_provider_session_id", providerSessionID)
+
+		// Cleanup old marker and CLI session files to prevent "Session ID is already in use"
+		if delErr := sm.markerStore.Delete(oldProviderSessionID); delErr != nil {
+			sm.logger.Error("Failed to delete old session marker during reset",
+				"error", delErr,
+				"old_provider_session_id", oldProviderSessionID,
+				"session_id", sessionID)
+		}
+		if err := sm.provider.CleanupSession(oldProviderSessionID, cfg.WorkDir); err != nil {
+			sm.logger.Warn("Failed to cleanup old CLI session after reset", "error", err)
+		}
 	} else {
 		// Use deterministic SHA1 for consistent session resumption
 		providerSessionID = uuid.NewSHA1(uuid.NameSpaceURL, []byte(uniqueStr)).String()
@@ -253,6 +277,10 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 		"session_id", sessionID,
 		"provider_session_id", providerSessionID,
 	)
+
+	// Check if this is a resume BEFORE building CLI args
+	// This is critical because buildCLIArgs may create the marker
+	isResuming := sm.markerStore.Exists(providerSessionID)
 
 	args := sm.buildCLIArgs(providerSessionID, sessLog, prompt, cfg)
 	cmd := exec.CommandContext(sessCtx, sm.cliPath, args...)
@@ -305,14 +333,24 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 		}
 	}
 
+	// Create marker AFTER CLI process successfully starts
+	// This prevents creating markers for failed session starts
+	if !isResuming {
+		if err := sm.markerStore.Create(providerSessionID); err != nil {
+			sessLog.Error("Session will not be persistent - marker creation failed",
+				"error", err,
+				"provider_session_id", providerSessionID,
+				"impact", "Session cannot be resumed after daemon restart")
+		} else {
+			sessLog.Info("Created session marker after successful CLI start", "provider_session_id", providerSessionID)
+		}
+	}
+
 	startedCh <- nil
 
 	sessLog.Info("OS Process started (Cold Start)",
 		"pid", cmd.Process.Pid,
 		"pgid", cmd.Process.Pid)
-
-	// Check if this was a resume from persistent store
-	isResuming := sm.markerStore.Exists(providerSessionID)
 
 	sess := &Session{
 		ID:                sessionID,
@@ -345,14 +383,28 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 		err := cmd.Wait()
 		if sess.GetStatus() != SessionStatusDead {
 			sessLog.Warn("Session OS process exited unexpectedly", "exit_error", err, "is_resuming", isResuming)
-			// If this was a resume attempt that failed, delete the stale marker
+			// If this was a resume attempt that failed, delete the stale marker and CLI session file
 			// This allows the next request to create a fresh session instead of retrying with a dead session
 			if isResuming {
+				// Delete marker first
 				if delErr := sm.markerStore.Delete(providerSessionID); delErr != nil {
 					sessLog.Warn("Failed to delete stale session marker", "error", delErr)
 				} else {
 					sessLog.Info("Deleted stale session marker after failed resume", "provider_session_id", providerSessionID)
 				}
+				// Also clean up the CLI session file to prevent "Session ID is already in use" errors
+				// This is critical because the CLI's internal session state may conflict on next retry
+				if cleanupErr := sm.provider.CleanupSession(providerSessionID, sess.Config.WorkDir); cleanupErr != nil {
+					sessLog.Warn("Failed to cleanup CLI session file after failed resume", "error", cleanupErr)
+				} else {
+					sessLog.Info("Cleaned up CLI session file after failed resume", "provider_session_id", providerSessionID)
+				}
+				// Mark this session for fresh provider_session_id regeneration on next retry
+				// This ensures we get a completely new CLI session instead of retrying with the same ID
+				sm.mu.Lock()
+				sm.resetSessions[sessionID] = true
+				sm.mu.Unlock()
+				sessLog.Info("Marked session for fresh ProviderSessionID after failed resume", "session_id", sessionID)
 			}
 			// Update status to Dead and notify callback
 			sess.SetStatus(SessionStatusDead)
@@ -391,11 +443,27 @@ func (sm *SessionPool) buildCLIArgs(providerSessionID string, sessLog *slog.Logg
 	if sm.markerStore.Exists(providerSessionID) {
 		opts.ResumeSession = true
 		opts.ProviderSessionID = providerSessionID
+
+		// CRITICAL: Cleanup CLI session file BEFORE resume attempt
+		// This handles "zombie markers" from old code that created markers before CLI started.
+		//
+		// Why this is safe:
+		// - If CLI process is dead: cleanup allows fresh start
+		// - If CLI process is alive: it will recreate the file as needed
+		//
+		// This prevents "Session ID is already in use" errors on the FIRST attempt,
+		// eliminating the need for retry with new ProviderSessionID.
+		if err := sm.provider.CleanupSession(providerSessionID, cfg.WorkDir); err != nil {
+			sessLog.Warn("Failed to cleanup CLI session file before resume", "error", err)
+		} else {
+			sessLog.Debug("Cleaned up CLI session file before resume attempt", "provider_session_id", providerSessionID)
+		}
+
 		sessLog.Info("Resuming existing persistent CLI session")
 	} else {
 		opts.ProviderSessionID = providerSessionID
 
-		// Critical: Delete stale CLI session file before creating new marker
+		// Critical: Delete stale CLI session file before starting new session
 		// This prevents "Session ID is already in use" errors when:
 		// - /reset deleted the marker but not the CLI session file (old bug)
 		// - Daemon restart with stale CLI session files on disk
@@ -403,8 +471,8 @@ func (sm *SessionPool) buildCLIArgs(providerSessionID string, sessLog *slog.Logg
 			sessLog.Warn("Failed to cleanup stale CLI session file", "error", err)
 		}
 
-		_ = sm.markerStore.Create(providerSessionID)
 		sessLog.Info("Creating new persistent CLI session")
+		// NOTE: Marker will be created AFTER CLI successfully starts in startSession()
 	}
 
 	return sm.provider.BuildCLIArgs(providerSessionID, opts)
