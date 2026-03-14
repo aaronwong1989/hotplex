@@ -88,3 +88,5 @@ services:
       - ~/.claude:/home/hotplex/.claude_seed:ro
       - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
       - matrix-go-build:/home/hotplex/.cache/go-build:rw
+      # Temporary: Override entrypoint until remote image is updated (fix git config HOME)
+      - ../../../docker/docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
