@@ -1,5 +1,34 @@
 # CHANGELOG.md
 
+## [v0.28.0] - 2026-03-15
+
+### Added
+- **Docker PIP_TOOLS Support** - Auto-install Python packages via `uv`/`pip` on container startup:
+  - New `PIP_TOOLS` environment variable (format: `pkg[:bin]`)
+  - Package name validation to prevent command injection
+  - Example: `PIP_TOOLS=notebooklm-py:notebooklm pandas`
+
+### Changed
+- **Docker Entrypoint Enhancement** - Hardened and optimized container initialization:
+  - Added `validate_pkg_name()` for security
+  - Added stale temp file cleanup on startup
+  - Unified Bash style (`[[ ]]`, `${VAR}` braces)
+  - Fixed `runuser` HOME environment handling
+  - Improved permission fixes for Go cache, pip packages
+
+- **Dockerfile.full Optimization** - Synced binary download pattern from Dockerfile.golang:
+  - Replaced `go install` with pre-built binaries (saves ~3GB build cache)
+  - Added 10 Go tools via binary: golangci-lint, goreleaser, buf, mockery, air, gotestsum, swag, gofumpt, sqlc, staticcheck
+  - Architecture auto-detection (amd64/arm64)
+  - Organized into 5 phases with clear structure
+
+- **common.yml Improvements** - Enhanced docker-compose configuration:
+  - `user: "0:0"` with privilege drop pattern
+  - Improved healthcheck with curl
+  - Added `PIP_TOOLS` environment variable support
+
+---
+
 ## [v0.27.5] - 2026-03-14
 
 ### Changed
