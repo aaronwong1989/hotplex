@@ -17,9 +17,6 @@
     <a href="https://goreportcard.com/report/github.com/hrygo/hotplex">
       <img src="https://img.shields.io/badge/go-report-brightgreen?style=flat-square" alt="Go Report">
     </a>
-    <a href="https://github.com/hrygo/hotplex/actions/workflows/test.yml">
-      <img src="https://img.shields.io/github/actions/workflow/status/hrygo/hotplex/test.yml?style=flat-square" alt="Tests">
-    </a>
     <a href="https://codecov.io/gh/hrygo/hotplex">
       <img src="https://img.shields.io/codecov/c/github/hrygo/hotplex?style=flat-square" alt="Coverage">
     </a>
