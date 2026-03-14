@@ -78,11 +78,18 @@ RUN ARCH=$(cat /tmp/arch) && \
     curl -sSfL "https://github.com/air-verse/air/releases/download/v${AIR_VERSION}/air_${AIR_VERSION}_linux_${ARCH}.tar.gz" | \
     tar xz -C /usr/local/bin air
 
-# delve - Go debugger (Binary: ~20MB)
+# gotestsum - Go test runner (Binary: ~5MB)
 RUN ARCH=$(cat /tmp/arch) && \
-    DLV_VERSION="1.26.1" && \
-    curl -sSfL "https://github.com/go-delve/delve/releases/download/v${DLV_VERSION}/dlv_${DLV_VERSION}_linux_${ARCH}.tar.gz" | \
-    tar xz -C /usr/local/bin dlv
+    GOTESTSUM_VERSION="1.12.1" && \
+    curl -sSfL "https://github.com/gotestyourcode/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin gotestsum
+
+# swag - Swagger generator (Binary: ~10MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    SWAG_ARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "$ARCH") && \
+    SWAG_VERSION="1.16.4" && \
+    curl -sSfL "https://github.com/swaggo/swag/releases/download/v${SWAG_VERSION}/swag_${SWAG_VERSION}_linux_${SWAG_ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin swag
 
 # gofumpt - Go formatter (Binary: ~5MB)
 RUN ARCH=$(cat /tmp/arch) && \
@@ -104,25 +111,6 @@ RUN ARCH=$(cat /tmp/arch) && \
     mv /tmp/staticcheck/staticcheck /usr/local/bin/ && \
     rm -rf /tmp/staticcheck
 
-# govulncheck - Go vulnerability checker (Binary: ~10MB)
-RUN ARCH=$(cat /tmp/arch) && \
-    GOVULNCHECK_VERSION="1.1.4" && \
-    curl -sSfL "https://github.com/golang/vuln/releases/download/v${GOVULNCHECK_VERSION}/govulncheck_v${GOVULNCHECK_VERSION}_linux_${ARCH}.tar.gz" | \
-    tar xz -C /usr/local/bin govulncheck
-
-# gotestsum - Go test runner (Binary: ~5MB)
-RUN ARCH=$(cat /tmp/arch) && \
-    GOTESTSUM_VERSION="1.12.1" && \
-    curl -sSfL "https://github.com/gotestyourcode/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_linux_${ARCH}.tar.gz" | \
-    tar xz -C /usr/local/bin gotestsum
-
-# swag - Swagger generator (Binary: ~10MB)
-RUN ARCH=$(cat /tmp/arch) && \
-    SWAG_ARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "$ARCH") && \
-    SWAG_VERSION="1.16.4" && \
-    curl -sSfL "https://github.com/swaggo/swag/releases/download/v${SWAG_VERSION}/swag_${SWAG_VERSION}_linux_${SWAG_ARCH}.tar.gz" | \
-    tar xz -C /usr/local/bin swag
-
 # ==============================================================================
 # Phase 2: Protocol Buffers (requires apt)
 # ==============================================================================
@@ -139,6 +127,13 @@ RUN --mount=type=cache,target=/home/hotplex/.cache/go-build,uid=1000 \
     --mount=type=cache,target=/home/hotplex/go/pkg/mod,uid=1000 \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# delve - Go debugger (no pre-built binaries, use go install)
+# govulncheck - Go vulnerability checker (no pre-built binaries, use go install)
+RUN --mount=type=cache,target=/home/hotplex/.cache/go-build,uid=1000 \
+    --mount=type=cache,target=/home/hotplex/go/pkg/mod,uid=1000 \
+    go install github.com/go-delve/delve/cmd/dlv@latest && \
+    go install golang.org/x/vuln/cmd/govulncheck@latest
 
 # ==============================================================================
 # 🔥 Late Injection: The Binary (Changes frequently)
