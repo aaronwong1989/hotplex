@@ -3,11 +3,14 @@
 # ------------------------------------------------------------------------------
 # Convention over Configuration: All default values are defined here.
 # Only override in .env-* files when necessary.
+# Inspired by OpenClaw DevKit patterns.
 # ------------------------------------------------------------------------------
 x-hotplex-common: &hotplex-common
   # Default to Remote Go image unless overridden by HOTPLEX_IMAGE env var
   image: ${HOTPLEX_IMAGE:-ghcr.io/hrygo/hotplex:latest-go}
   init: true # Proper PID 1 signal handling
+  # Run as root to fix permissions via entrypoint, then drop to hotplex user
+  user: "0:0"
   environment: &common-env
     HOST_UID: ${HOST_UID:-1000}
     # ─────────────────────────────────────────────────────────────────
@@ -16,7 +19,7 @@ x-hotplex-common: &hotplex-common
     ANTHROPIC_BASE_URL: http://host.docker.internal:15721
     HTTP_PROXY: http://host.docker.internal:7897
     HTTPS_PROXY: http://host.docker.internal:7897
-    NO_PROXY: localhost,127.0.0.1,host.docker.internal
+    NO_PROXY: localhost,127.0.0.1,host.docker.internal,.local,.internal
     HOTPLEX_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
     # ─────────────────────────────────────────────────────────────────
     # Git Identity Defaults
@@ -47,12 +50,19 @@ x-hotplex-common: &hotplex-common
     HOTPLEX_MESSAGE_STORE_SQLITE_MAX_SIZE_MB: ${HOTPLEX_MESSAGE_STORE_SQLITE_MAX_SIZE_MB:-1024}
     HOTPLEX_MESSAGE_STORE_STREAMING_ENABLED: ${HOTPLEX_MESSAGE_STORE_STREAMING_ENABLED:-true}
     HOTPLEX_MESSAGE_STORE_STREAMING_TIMEOUT: ${HOTPLEX_MESSAGE_STORE_STREAMING_TIMEOUT:-5m}
+    # ─────────────────────────────────────────────────────────────────
+    # Python Tools Auto-Install (space-separated, format: pkg[:bin])
+    # Examples: "notebooklm", "pandas", "black:blackd"
+    # Tools are installed to system Python via uv on first startup
+    # ─────────────────────────────────────────────────────────────────
+    PIP_TOOLS: ${PIP_TOOLS:-}
   extra_hosts:
     - "host.docker.internal:host-gateway"
   cap_drop: [ NET_RAW, NET_ADMIN ]
   security_opt: [ no-new-privileges:true ]
   healthcheck: &common-healthcheck
-    test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/health" ]
+    # Use curl for health check (more reliable than wget --spider)
+    test: [ "CMD", "curl", "-sf", "http://localhost:8080/health" ]
     interval: 30s
     timeout: 10s
     retries: 3
