@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## [v0.27.1] - 2026-03-14
+
+### Added
+- **Release Skill** - New `hotplex-release` skill for automated semantic versioning (patch/minor/major) with CHANGELOG management and git tag workflow.
+- **NotebookLM Sync** - New `hotplex-notebooklm` skill for auto-syncing high-value documentation to NotebookLM.
+- **Documentation Anti-Corruption** - Added documentation consistency checks for minor/major releases.
+- **Container Naming** - Improved container naming with single-instance constraints for better production reliability.
+
+---
+
 ## [v0.27.0] - 2026-03-14
 
 ### 🚀 Major Release - Multi-Runtime Architecture & 2026 Best Practice Tooling
