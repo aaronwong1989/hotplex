@@ -57,15 +57,19 @@ RUN ARCH=$(cat /tmp/arch) && \
     tar xz -C /usr/local/bin goreleaser
 
 # buf (Binary: ~25MB vs go install: ~100MB)
+# Note: buf uses "x86_64" and "aarch64" (not amd64/arm64)
 RUN ARCH=$(cat /tmp/arch) && \
+    BUF_ARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || ([ "$ARCH" = "arm64" ] && echo "aarch64" || echo "$ARCH")) && \
     BUF_VERSION="1.50.0" && \
-    curl -sSfL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-linux-${ARCH}" -o /usr/local/bin/buf && \
+    curl -sSfL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-linux-${BUF_ARCH}" -o /usr/local/bin/buf && \
     chmod +x /usr/local/bin/buf
 
 # mockery (Binary: ~15MB vs go install: ~50MB)
+# Note: mockery uses "x86_64" for amd64 (arm64 is correct)
 RUN ARCH=$(cat /tmp/arch) && \
+    MOCKERY_ARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "$ARCH") && \
     MOCKERY_VERSION="2.53.2" && \
-    curl -sSfL "https://github.com/vektra/mockery/releases/download/v${MOCKERY_VERSION}/mockery_${MOCKERY_VERSION}_linux_${ARCH}.tar.gz" | \
+    curl -sSfL "https://github.com/vektra/mockery/releases/download/v${MOCKERY_VERSION}/mockery_${MOCKERY_VERSION}_linux_${MOCKERY_ARCH}.tar.gz" | \
     tar xz -C /usr/local/bin mockery
 
 # ==============================================================================
