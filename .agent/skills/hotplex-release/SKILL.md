@@ -1,6 +1,7 @@
 ---
 name: hotplex-release
 description: HotPlex 版本发布工具 - 支持 patch/minor/major 版本发布，自动更新版本号、CHANGELOG，创建并推送 git tag，检查发布状态。当用户提到发布版本、创建 release、版本升级、打 tag、发布新版本时触发此 skill。
+version: 0.1.0
 ---
 
 # HotPlex 版本发布 Skill
