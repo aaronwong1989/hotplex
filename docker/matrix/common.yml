@@ -88,5 +88,3 @@ services:
       - ~/.claude:/home/hotplex/.claude_seed:ro
       - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
       - matrix-go-build:/home/hotplex/.cache/go-build:rw
-      # TODO: Remove after ghcr.io/hrygo/hotplex:latest-go is rebuilt with fb334fa
-      - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
