@@ -12,11 +12,11 @@ CONFIG_DIR="${HOTPLEX_HOME}/.hotplex"
 
 # ------------------------------------------------------------------------------
 # Helper: Run commands as the hotplex user if currently root
-# Uses --setenv to explicitly override HOME (avoids -m preserving root's HOME)
+# Uses env to explicitly set HOME (runuser --setenv not available on Debian 12)
 # ------------------------------------------------------------------------------
 run_as_hotplex() {
     if [[ "$(id -u)" = "0" ]]; then
-        runuser -u hotplex --setenv HOME="${HOTPLEX_HOME}" -- "$@"
+        runuser -u hotplex -- env HOME="${HOTPLEX_HOME}" "$@"
     else
         "$@"
     fi
