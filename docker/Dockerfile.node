@@ -17,7 +17,7 @@ USER root
 
 # Development Tools (Cached)
 RUN if [ -n "$NPM_MIRROR" ]; then npm config set registry "$NPM_MIRROR"; fi && \
-    npm install -g pnpm@latest bun@latest typescript ts-node tsx eslint prettier @biomejs/biome && \
+    npm install -g typescript ts-node tsx eslint prettier @biomejs/biome && \
     npm cache clean --force
 
 ENV BUN_INSTALL="/usr/local/bun"

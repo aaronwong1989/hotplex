@@ -34,7 +34,11 @@ RUN if [ -n "$GOPROXY" ]; then go env -w GOPROXY=$GOPROXY; fi && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.5
 
-COPY --from=python-sdk /usr/local /usr/local
+# Selective Python SDK injection to avoid shadowing Go/Base tools
+COPY --from=python-sdk /usr/local/bin/python* /usr/local/bin/
+COPY --from=python-sdk /usr/local/bin/pip* /usr/local/bin/
+COPY --from=python-sdk /usr/local/lib/python3.14 /usr/local/lib/python3.14
+COPY --from=python-sdk /usr/local/include/python3.14 /usr/local/include/python3.14
 RUN ldconfig
 
 COPY --from=java-sdk /opt/java/openjdk /opt/java/openjdk
