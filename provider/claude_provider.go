@@ -16,6 +16,8 @@ import (
 // ClaudeCodeProvider implements the Provider interface for Claude Code CLI.
 // This is the default provider and maintains full backward compatibility
 // with the existing HotPlex implementation.
+var _ Provider = (*ClaudeCodeProvider)(nil)
+
 type ClaudeCodeProvider struct {
 	ProviderBase
 	opts          ProviderConfig

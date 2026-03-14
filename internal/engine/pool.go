@@ -23,6 +23,8 @@ import (
 // SessionPool implements the SessionManager as a thread-safe singleton.
 // It orchestrates the lifecycle of multiple CLI processes, ensuring that
 // idle processes are garbage collected to conserve system memory.
+var _ SessionManager = (*SessionPool)(nil)
+
 type SessionPool struct {
 	sessions      map[string]*Session
 	mu            sync.RWMutex
@@ -241,11 +243,11 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 	var oldProviderSessionID string // Track old ID for cleanup
 	var needsReset bool
 	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	needsReset = sm.resetSessions[sessionID]
 	if needsReset {
 		delete(sm.resetSessions, sessionID) // Clear the flag
 	}
-	sm.mu.Unlock()
 
 	if needsReset {
 		// Calculate old ID for cleanup
@@ -402,8 +404,8 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 				// Mark this session for fresh provider_session_id regeneration on next retry
 				// This ensures we get a completely new CLI session instead of retrying with the same ID
 				sm.mu.Lock()
+				defer sm.mu.Unlock()
 				sm.resetSessions[sessionID] = true
-				sm.mu.Unlock()
 				sessLog.Info("Marked session for fresh ProviderSessionID after failed resume", "session_id", sessionID)
 			}
 			// Update status to Dead and notify callback
