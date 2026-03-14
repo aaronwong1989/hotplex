@@ -1,0 +1,14 @@
+name: Setup Mock Claude CLI
+description: Creates a mock Claude CLI for testing purposes in CI environments
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Mock Claude CLI
+      shell: bash
+      run: |
+        mkdir -p $HOME/.local/bin
+        echo '#!/bin/bash' > $HOME/.local/bin/claude
+        echo 'echo "claude version 0.0.0-mock"' >> $HOME/.local/bin/claude
+        chmod +x $HOME/.local/bin/claude
+        echo "$HOME/.local/bin" >> $GITHUB_PATH

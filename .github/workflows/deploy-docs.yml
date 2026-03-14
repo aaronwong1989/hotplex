@@ -83,7 +83,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    # 只在 main 分支或 tag push 时部署，否则跳过（跳过视为成功）
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Deploy Site
         id: deployment
