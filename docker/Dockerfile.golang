@@ -59,9 +59,9 @@ RUN ARCH=$(cat /tmp/arch) && \
 # buf (Binary: ~25MB vs go install: ~100MB)
 # Note: buf uses "x86_64" and "aarch64" (not amd64/arm64)
 RUN ARCH=$(cat /tmp/arch) && \
-    BUF_ARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || ([ "$ARCH" = "arm64" ] && echo "aarch64" || echo "$ARCH")) && \
+    BUFARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || ([ "$ARCH" = "arm64" ] && echo "aarch64" || echo "$ARCH")) && \
     BUF_VERSION="1.50.0" && \
-    curl -sSfL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-linux-${BUF_ARCH}" -o /usr/local/bin/buf && \
+    curl -sSfL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-linux-${BUFARCH}" -o /usr/local/bin/buf && \
     chmod +x /usr/local/bin/buf
 
 # mockery (Binary: ~15MB vs go install: ~50MB)
@@ -72,28 +72,59 @@ RUN ARCH=$(cat /tmp/arch) && \
     curl -sSfL "https://github.com/vektra/mockery/releases/download/v${MOCKERY_VERSION}/mockery_${MOCKERY_VERSION}_linux_${MOCKERY_ARCH}.tar.gz" | \
     tar xz -C /usr/local/bin mockery
 
-# ==============================================================================
-# Phase 2: Go Tools via go install (with BuildKit cache mount)
-# These tools don't have convenient binaries or are small
-# Cache is NOT included in final image
-# ==============================================================================
-USER hotplex
-WORKDIR /home/hotplex
+# air - Go live reload (Binary: ~10MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    AIR_VERSION="1.64.5" && \
+    curl -sSfL "https://github.com/air-verse/air/releases/download/v${AIR_VERSION}/air_${AIR_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin air
 
-# Go Development Tools - with cache mount to keep build cache out of image
-RUN --mount=type=cache,target=/home/hotplex/.cache/go-build,uid=1000 \
-    --mount=type=cache,target=/home/hotplex/go/pkg/mod,uid=1000 \
-    go install github.com/air-verse/air@latest && \
-    go install github.com/go-delve/delve/cmd/dlv@latest && \
-    go install mvdan.cc/gofumpt@latest && \
-    go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest && \
-    go install staticcheck.io/cmd/staticcheck@latest && \
-    go install golang.org/x/vuln/cmd/govulncheck@latest && \
-    go install gotest.tools/gotestsum@latest && \
-    go install github.com/swaggo/swag/cmd/swag@latest
+# delve - Go debugger (Binary: ~20MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    DLV_VERSION="1.26.1" && \
+    curl -sSfL "https://github.com/go-delve/delve/releases/download/v${DLV_VERSION}/dlv_${DLV_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin dlv
+
+# gofumpt - Go formatter (Binary: ~5MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    GOFUMPT_VERSION="0.8.0" && \
+    curl -sSfL "https://github.com/mvdan/gofumpt/releases/download/v${GOFUMPT_VERSION}/gofumpt_v${GOFUMPT_VERSION}_linux_${ARCH}" -o /usr/local/bin/gofumpt && \
+    chmod +x /usr/local/bin/gofumpt
+
+# sqlc - SQL to Go code generator (Binary: ~15MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    SQLC_VERSION="1.30.0" && \
+    curl -sSfL "https://github.com/sqlc-dev/sqlc/releases/download/v${SQLC_VERSION}/sqlc_${SQLC_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin sqlc
+
+# staticcheck - Go static analysis (Binary: ~15MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    STATICCHECK_VERSION="2025.1.1" && \
+    curl -sSfL "https://github.com/dominikh/go-tools/releases/download/${STATICCHECK_VERSION}/staticcheck_linux_${ARCH}.tar.gz" | \
+    tar xz -C /tmp && \
+    mv /tmp/staticcheck/staticcheck /usr/local/bin/ && \
+    rm -rf /tmp/staticcheck
+
+# govulncheck - Go vulnerability checker (Binary: ~10MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    GOVULNCHECK_VERSION="1.1.4" && \
+    curl -sSfL "https://github.com/golang/vuln/releases/download/v${GOVULNCHECK_VERSION}/govulncheck_v${GOVULNCHECK_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin govulncheck
+
+# gotestsum - Go test runner (Binary: ~5MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    GOTESTSUM_VERSION="1.12.1" && \
+    curl -sSfL "https://github.com/gotestyourcode/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin gotestsum
+
+# swag - Swagger generator (Binary: ~10MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    SWAG_ARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "$ARCH") && \
+    SWAG_VERSION="1.16.4" && \
+    curl -sSfL "https://github.com/swaggo/swag/releases/download/v${SWAG_VERSION}/swag_${SWAG_VERSION}_linux_${SWAG_ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin swag
 
 # ==============================================================================
-# Phase 3: Protocol Buffers (requires apt)
+# Phase 2: Protocol Buffers (requires apt)
 # ==============================================================================
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -101,6 +132,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 USER hotplex
+WORKDIR /home/hotplex
+
+# protoc-gen-go and protoc-gen-go-grpc (small, use go install)
 RUN --mount=type=cache,target=/home/hotplex/.cache/go-build,uid=1000 \
     --mount=type=cache,target=/home/hotplex/go/pkg/mod,uid=1000 \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
