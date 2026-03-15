@@ -110,9 +110,23 @@ fi
 # ------------------------------------------------------------------------------
 CLAUDE_DIR="${HOTPLEX_HOME}/.claude"
 CLAUDE_SEED="/home/hotplex/.claude_seed"
+CLAUDE_JSON="${HOTPLEX_HOME}/.claude.json"
 
 # Ensure container-private .claude directory exists
 run_as_hotplex mkdir -p "${CLAUDE_DIR}"
+
+# Ensure .claude.json exists (Claude Code CLI requires this file)
+# Create empty JSON object if missing to prevent "configuration file not found" warnings
+# This file is a runtime state file containing userID, project configs, MCP servers, etc.
+# Reference: https://code.claude.com/docs/en/settings
+if [[ ! -f "${CLAUDE_JSON}" ]]; then
+    echo "--> Creating empty .claude.json configuration file..."
+    run_as_hotplex sh -c "echo '{}' > '${CLAUDE_JSON}'"
+    # Ensure correct permissions
+    if [[ "$(id -u)" = "0" ]]; then
+        chown hotplex:hotplex "${CLAUDE_JSON}" 2>/dev/null || true
+    fi
+fi
 
 if [[ -d "${CLAUDE_SEED}" ]]; then
     echo "--> Seeding Claude configurations from host..."

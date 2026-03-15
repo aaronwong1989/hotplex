@@ -1129,6 +1129,18 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 		c.logger.Warn("Failed to clear status for session_stats", "error", err)
 	}
 
+	// Skip sending session_stats message when session failed with no content
+	// This prevents "no_text" errors from Slack API when resuming a dead session
+	// Error condition: IsError=true AND no accumulated content AND no tokens used
+	if stats.IsError && strings.TrimSpace(accumulatedContent) == "" && stats.InputTokens == 0 && stats.OutputTokens == 0 {
+		c.logger.Debug("Skipping session_stats message for empty error session",
+			"session_id", stats.SessionID,
+			"error", stats.ErrorMessage)
+		// Still perform cleanup
+		c.processor.ResetSession(c.platform, c.sessionID)
+		return nil
+	}
+
 	// Use buildChatMessage helper for consistency
 	if err := c.buildChatMessage(base.MessageTypeSessionStats, "", map[string]any{
 		"event_type":           "session_stats",
