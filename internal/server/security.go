@@ -33,11 +33,11 @@ var DefaultAllowedOrigins = []string{
 	"http://127.0.0.1:8080",
 }
 
-// NewSecurityConfig creates a new SecurityConfig from environment variables.
+// NewSecurityConfig creates a new SecurityConfig from environment variables and optional configuration.
 // - HOTPLEX_ALLOWED_ORIGINS: Comma-separated list of allowed origins (defaults to localhost)
 // - HOTPLEX_API_KEY: Single API key for authentication
 // - HOTPLEX_API_KEYS: Multiple API keys (comma-separated, takes precedence over HOTPLEX_API_KEY)
-func NewSecurityConfig(logger *slog.Logger) *SecurityConfig {
+func NewSecurityConfig(logger *slog.Logger, cfgKeys ...string) *SecurityConfig {
 	c := &SecurityConfig{
 		allowedOrigins: make(map[string]bool),
 		apiKeys:        make(map[string]bool),
@@ -56,14 +56,24 @@ func NewSecurityConfig(logger *slog.Logger) *SecurityConfig {
 		c.allowedOrigins[strings.TrimSpace(origin)] = true
 	}
 
-	// Load API keys (optional)
+	// Load API keys from config first
+	for _, key := range cfgKeys {
+		if key != "" {
+			c.apiKeys[key] = true
+		}
+	}
+
+	// Then load from environment variables (overrides or complements)
 	apiKeys := parseAPIKeysFromEnv()
 	if len(apiKeys) > 0 {
-		c.apiKeyEnabled = true
 		for _, key := range apiKeys {
 			c.apiKeys[key] = true
 		}
-		logger.Info("API key authentication enabled", "key_count", len(apiKeys))
+	}
+
+	if len(c.apiKeys) > 0 {
+		c.apiKeyEnabled = true
+		logger.Info("API key authentication enabled", "key_count", len(c.apiKeys))
 	} else {
 		// SECURITY WARNING: No API keys configured - authentication is disabled
 		if isProductionMode() {
@@ -152,8 +162,18 @@ func (c *SecurityConfig) CheckOrigin() func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		if origin == "" {
 			// Non-browser clients (e.g., curl, CLI tools) may not send Origin
-			// Allow these connections but log for auditing
-			c.logger.Debug("WebSocket connection without Origin header", "remote_addr", r.RemoteAddr)
+			// Security: Require API key validation for connections without Origin
+			if c.apiKeyEnabled {
+				// API key already validated in Step 1, connection is authenticated
+				c.logger.Debug("WebSocket connection authenticated via API key (no Origin)",
+					"remote_addr", r.RemoteAddr)
+				return true
+			}
+			// No API key mode (development environment) - allow for local testing
+			// WARNING: This is a security risk in production
+			c.logger.Warn("WebSocket connection without Origin and no API key validation",
+				"remote_addr", r.RemoteAddr,
+				"security_note", "Enable API key for production use")
 			return true
 		}
 
@@ -172,14 +192,35 @@ func (c *SecurityConfig) CheckOrigin() func(r *http.Request) bool {
 }
 
 // validateAPIKey checks for a valid API key in the request.
-// Supports both X-API-Key header and api_key query parameter.
+// Security priority: Header > WebSocket Protocol > Query Parameter (deprecated)
 func (c *SecurityConfig) validateAPIKey(r *http.Request) bool {
-	// Try header first
+	// Try header first (preferred method)
 	apiKey := r.Header.Get("X-API-Key")
 
-	// Fall back to query parameter
+	// Try WebSocket subprotocol (for native WebSocket clients)
+	// Format: Sec-WebSocket-Protocol: hotplex, hotplex-api-<token>
+	if apiKey == "" {
+		if protocols := r.Header.Get("Sec-WebSocket-Protocol"); protocols != "" {
+			for _, p := range strings.Split(protocols, ",") {
+				p = strings.TrimSpace(p)
+				if token, found := strings.CutPrefix(p, "hotplex-api-"); found {
+					apiKey = token
+					c.logger.Debug("API key extracted from WebSocket subprotocol")
+					break
+				}
+			}
+		}
+	}
+
+	// Fall back to query parameter (DEPRECATED - for backward compatibility only)
+	// WARNING: Query parameters are visible in server logs and browser history
 	if apiKey == "" {
 		apiKey = r.URL.Query().Get("api_key")
+		if apiKey != "" {
+			c.logger.Warn("API key passed via query parameter (DEPRECATED - use X-API-Key header)",
+				"remote_addr", r.RemoteAddr,
+				"recommendation", "Migrate to X-API-Key header or WebSocket subprotocol")
+		}
 	}
 
 	if apiKey == "" {

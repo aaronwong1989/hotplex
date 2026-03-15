@@ -32,13 +32,44 @@ func main() {
 
 	// 3. Initialize Engine with Provider and short IdleTimeout to demonstrate GC
 	// Note: Internal cleanup loop runs every 1 minute.
+	//
+	// =============================================================================
+	// SYSTEM PROMPT INJECTION EXAMPLES
+	// =============================================================================
+	// HotPlex 支持三种系统提示词注入方式：
+	//
+	// A) BaseSystemPrompt (Engine 级别) - 会话全程生效
+	//    用途：定义 AI 的核心身份、行为规范、输出风格
+	//
+	// B) TaskInstructions (Session 级别) - 每个 turn 追加
+	//    用途：任务特定指令、约束条件
+	//
+	// C) InitialPrompt (Session 级别) - 会话建立时自动执行的任务
+	//    用途：无需用户发送消息，AI 在会话启动时自动执行指定任务
+	//    例如："Show me git status" → 用户加入会话，AI 自动显示状态
+	//
+	// 示例 A: BaseSystemPrompt - 定义 AI 身份和输出风格
+	// =============================================================================
+	baseSystemPrompt := `You are HotPlex, a concise and practical AI coding assistant.
+
+## Core Principles
+- Think step by step before taking action
+- Provide working code with minimal explanation
+- Prefer Go, Python, or JavaScript for examples
+
+## Output Style
+- Use bullet points for lists (not paragraphs)
+- Code blocks must have language tags: [code]go
+- Never explain what you're about to do - just do it
+- If unsure, state your assumption clearly`
+
 	opts := hotplex.EngineOptions{
 		Namespace:        "demo_lifecycle",
 		Timeout:          5 * time.Minute,
 		IdleTimeout:      10 * time.Second, // We set it short for demonstration, but it cleans every 1m
 		Logger:           logger,
 		Provider:         provider, // Custom provider (or nil for default ClaudeCodeProvider)
-		BaseSystemPrompt: "You are a helpful assistant.",
+		BaseSystemPrompt: baseSystemPrompt,
 	}
 
 	engine, err := hotplex.NewEngine(opts)
@@ -56,20 +87,30 @@ func main() {
 		os.Exit(0)
 	}()
 
-	defer engine.Close()
+	defer func() { _ = engine.Close() }()
 
 	ctx := context.Background()
 
 	// ---------------------------------------------------------
 	// CASE 1: Cold Start & Multiplexing
 	// ---------------------------------------------------------
+	// =============================================================================
+	// 示例 B: TaskInstructions - 每个 turn 追加的指令
+	// =============================================================================
+	// 注意：BaseSystemPrompt 定义身份，TaskInstructions 定义行为约束
+	// =============================================================================
+	taskInstructions := `## Task Rules
+- Always respond in UPPERCASE for secret words
+- Keep responses under 3 sentences
+- End with an emoji`
+
 	sessionID := "persistent-task-42"
 	workDir, _ := os.Getwd()
 
 	cfg := &hotplex.Config{
 		SessionID:        sessionID,
 		WorkDir:          workDir,
-		TaskInstructions: "You are a helpful assistant who uses uppercase for secret words.",
+		TaskInstructions: taskInstructions,
 	}
 
 	fmt.Printf("\n[1] Running Turn 1 (Cold Start for session: %s)...\n", sessionID)
@@ -93,7 +134,7 @@ func main() {
 
 	// Re-initialize a new engine instance
 	engine, _ = hotplex.NewEngine(opts)
-	defer engine.Close()
+	defer func() { _ = engine.Close() }()
 
 	fmt.Println("New engine instance created. The underlying Claude CLI will use '--resume' because of marker files.")
 	err = engine.Execute(ctx, cfg, "I just restarted my logic. What was the secret word again?", printingCallback)

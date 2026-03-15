@@ -1,4 +1,9 @@
-# HotPlex 安装指南
+<div align="center">
+  <img src="docs/images/hotplex_beaver_banner.webp" alt="HotPlex 横幅"/>
+
+  # HotPlex 安装指南
+</div>
+
 
 本文档介绍如何在各种平台上安装和配置 HotPlex。
 
@@ -114,17 +119,18 @@ hotplexd -version
 curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash -s -- -c
 ```
 
-配置文件将生成在 `~/.hotplex/.env`
+配置文件默认生成在 `~/.config/hotplex/.env` (XDG 标准路径)
 
 ### 必要配置项
 
-编辑 `~/.hotplex/.env`，填写以下必要配置：
+编辑 `~/.config/hotplex/.env`，填写以下必要配置：
 
 ```bash
 # API 安全令牌 (生产环境必填)
 HOTPLEX_API_KEY=your-secure-api-key
 
 # Slack Bot 配置
+HOTPLEX_SLACK_PRIMARY_OWNER=UXXXXXXXXXX
 HOTPLEX_SLACK_BOT_USER_ID=UXXXXXXXXXX
 HOTPLEX_SLACK_BOT_TOKEN=xoxb-your-token
 HOTPLEX_SLACK_APP_TOKEN=xapp-your-token
@@ -133,43 +139,44 @@ HOTPLEX_SLACK_APP_TOKEN=xapp-your-token
 GITHUB_TOKEN=ghp_your-token
 ```
 
-### 配置文件位置
+### 配置文件搜索优先级
 
-HotPlex 按以下顺序查找配置文件：
+HotPlex 遵循 XDG 规范，按以下顺序查找配置文件：
 
-1. `-env` 参数指定的路径
-2. 当前目录的 `.env` 文件
-3. `~/.hotplex/.env`
+1. `--env-file` 参数指定的路径
+2. `ENV_FILE` 环境变量指定的路径
+3. 当前执行目录下的 `.env`
+4. `~/.config/hotplex/.env` (macOS/Linux 标准路径)
 
 ## 启动服务
 
 ```bash
-# 使用默认配置
+# 使用默认配置 (自动搜索 .env 和 server.yaml)
 hotplexd
 
-# 指定配置文件
-hotplexd -env ~/.hotplex/.env
+# 显式指定配置文件
+hotplexd --env-file ~/.config/hotplex/.env --config ~/.config/hotplex/server.yaml
 
-# 指定端口
-hotplexd -port 9090
+# 指定 ChatApps 配置目录
+hotplexd --config-dir ~/.config/hotplex/configs
 
 # 查看帮助
-hotplexd -h
+hotplexd --help
 ```
 
 ## Docker 部署
 
 ```bash
-# 拉取镜像
-docker pull ghcr.io/hrygo/hotplex:latest
+# 拉取镜像 (根据需求选择: base, node, python, rust, java, 或包含全部环境的 full)
+docker pull ghcr.io/hrygo/hotplex:node
 
 # 运行容器
 docker run -d \
   --name hotplex \
   -p 8080:8080 \
-  -v ~/.hotplex:/root/.hotplex \
+  -v ~/.config/hotplex:/root/.hotplex \
   -v ~/projects:/root/projects \
-  ghcr.io/hotplex:latest
+  ghcr.io/hrygo/hotplex:node
 ```
 
 ## 卸载
@@ -183,7 +190,7 @@ curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash 
 ```bash
 sudo rm /usr/local/bin/hotplexd
 # 可选：删除配置
-rm -rf ~/.hotplex
+rm -rf ~/.config/hotplex
 ```
 
 ## 故障排除
@@ -221,6 +228,15 @@ curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash
 
 ## 下一步
 
-- [配置 Slack Bot](./chatapps/configs/slack.yaml)
+- [配置 Slack Bot](./configs/chatapps/slack.yaml)
 - [查看 API 文档](./README_zh.md)
 - [贡献指南](./CONTRIBUTING.md)
+
+---
+
+<div align="center">
+  <img src="docs/images/logo.svg" alt="HotPlex 图标" width="100"/>
+  <br/>
+  <sub>为 AI 工程化社区倾力构建</sub>
+</div>
+

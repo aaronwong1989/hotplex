@@ -13,6 +13,7 @@ import (
 	"github.com/hrygo/hotplex/engine"
 	"github.com/hrygo/hotplex/event"
 	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/internal/strutil"
 	"github.com/hrygo/hotplex/provider"
 	"github.com/hrygo/hotplex/types"
 )
@@ -110,9 +111,14 @@ func (w *engineWrapper) GetSessionStats(sessionID string) *SessionStats {
 		return nil
 	}
 	return &SessionStats{
-		SessionID:     stats.SessionID,
-		Status:        stats.SessionID,
-		TotalTokens:   int64(stats.InputTokens + stats.OutputTokens + stats.CacheReadTokens + stats.CacheWriteTokens),
+		SessionID: stats.SessionID,
+		Status:    stats.SessionID,
+		// Token billing formula:
+		// input_tokens already includes cache_read_tokens
+		// output_tokens already includes cache_write_tokens
+		// Billable = input + output - cache_read*0.9 - cache_write*0.9
+		// (cache is charged at 10%, so we subtract 90% of cache tokens)
+		TotalTokens:   int64(stats.InputTokens) + int64(stats.OutputTokens) - int64(float64(stats.CacheReadTokens)*0.9) - int64(float64(stats.CacheWriteTokens)*0.9),
 		InputTokens:   int64(stats.InputTokens),
 		OutputTokens:  int64(stats.OutputTokens),
 		CacheRead:     int64(stats.CacheReadTokens),
@@ -275,6 +281,7 @@ type StreamCallback struct {
 	// Native streaming state - platform-agnostic streaming output
 	streamWriter       base.StreamWriter // Platform-agnostic streaming writer
 	streamWriterActive bool              // Whether native streaming is active
+	streamingDisabled  bool              // Disable streaming for long-running tasks (Loki Mode, etc.)
 
 	// Fallback mechanism - accumulate content when streaming unavailable
 	accumulatedContent strings.Builder // Accumulated answer content for fallback
@@ -325,21 +332,23 @@ func NewStreamCallback(
 	metadata map[string]any,
 	messageOps MessageOperations,
 	sessionOps SessionOperations,
+	streamingDisabled bool,
 ) *StreamCallback {
 	cb := &StreamCallback{
-		ctx:              ctx,
-		sessionID:        sessionID,
-		platform:         platform,
-		adapters:         adapters,
-		logger:           logger,
-		engine:           engine,
-		isHot:            isHot,
-		isFirst:          true,
-		metadata:         metadata,
-		messageOps:       messageOps,
-		sessionOps:       sessionOps,
-		lastStatusUpdate: time.Now(),
-		processor:        NewDefaultProcessorChain(ctx, logger),
+		ctx:               ctx,
+		sessionID:         sessionID,
+		platform:          platform,
+		adapters:          adapters,
+		logger:            logger,
+		engine:            engine,
+		isHot:             isHot,
+		isFirst:           true,
+		metadata:          metadata,
+		messageOps:        messageOps,
+		sessionOps:        sessionOps,
+		lastStatusUpdate:  time.Now(),
+		streamingDisabled: streamingDisabled,
+		processor:         NewDefaultProcessorChain(ctx, logger),
 	}
 
 	// Initialize StatusManager if StatusProvider is available
@@ -835,6 +844,13 @@ func (c *StreamCallback) handleAnswer(data any) error {
 	}
 
 	// Initialize native streaming on the FIRST real answer chunk
+	// Skip streaming initialization for long-running tasks (Loki Mode, etc.)
+	if c.streamingDisabled {
+		c.logger.Debug("Streaming disabled for long-running task, using fallback mode",
+			"channel_id", c.metadata["channel_id"])
+		c.mu.Unlock()
+		return nil
+	}
 	if !c.streamWriterActive && c.streamWriter == nil {
 		channelID := ""
 		threadTS := ""
@@ -1431,8 +1447,17 @@ func (h *EngineMessageHandler) Handle(ctx context.Context, msg *ChatMessage) err
 	sess, exists := h.engine.GetSession(msg.SessionID)
 	isHot := exists && sess != nil && (sess.Status() == "ready" || sess.Status() == "busy")
 
+	// P0-2: Detect long-running tasks (Loki Mode, autonomous agents, etc.)
+	// These tasks exceed Slack stream TTL (~10 min), so disable streaming to prevent content loss
+	isLongTask := isLongTaskPrompt(msg.Content)
+	if isLongTask {
+		h.logger.Info("Long-running task detected, disabling native streaming",
+			"session_id", msg.SessionID,
+			"prompt_preview", strutil.Truncate(msg.Content, 50))
+	}
+
 	// Create stream callback with injected dependencies
-	callback := NewStreamCallback(ctx, msg.SessionID, msg.Platform, h.adapters, h.logger, h.engine, isHot, msg.Metadata, messageOps, sessionOps)
+	callback := NewStreamCallback(ctx, msg.SessionID, msg.Platform, h.adapters, h.logger, h.engine, isHot, msg.Metadata, messageOps, sessionOps, isLongTask)
 	defer callback.Close() // Ensure processor resources are released
 
 	// Send user_message_received event FIRST to set initial reaction (📥 inbox_tray)
@@ -1736,4 +1761,33 @@ func formatDataLength(bytes int64) string {
 		return fmt.Sprintf("%.1fKB", float64(bytes)/1024)
 	}
 	return fmt.Sprintf("%d bytes", bytes)
+}
+
+// isLongTaskPrompt detects if a prompt is likely to trigger a long-running task
+// that exceeds Slack stream TTL (~10 minutes). These tasks should disable
+// streaming to prevent content loss.
+func isLongTaskPrompt(prompt string) bool {
+	promptLower := strings.ToLower(prompt)
+
+	// Long-running task indicators
+	longTaskKeywords := []string{
+		"loki mode",
+		"loki-mode",
+		"autonomous",
+		"multi-agent",
+		"run autonomously",
+		"complete all",
+		"fully implement",
+		"implement all",
+		"end-to-end",
+		"full implementation",
+		"complete implementation",
+	}
+
+	for _, keyword := range longTaskKeywords {
+		if strings.Contains(promptLower, keyword) {
+			return true
+		}
+	}
+	return false
 }

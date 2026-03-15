@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 最小权限原则
+permissions:
+  contents: read
+
 jobs:
   changes:
     name: Detect Changes
@@ -13,7 +21,7 @@ jobs:
     outputs:
       go: ${{ steps.filter.outputs.go }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -26,15 +34,16 @@ jobs:
               - 'scripts/**'
               - '.github/workflows/ci.yml'
 
+  # 当 Go 文件变化时运行，否则跳过（跳过视为成功）
   test-unit:
     name: Unit Tests
     needs: changes
-    if: needs.changes.outputs.go == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -46,25 +55,36 @@ jobs:
         run: go mod download
 
       - name: Setup Mock Claude CLI
-        run: |
-          mkdir -p $HOME/.local/bin
-          echo '#!/bin/bash' > $HOME/.local/bin/claude
-          echo 'echo "claude version 0.0.0-mock"' >> $HOME/.local/bin/claude
-          chmod +x $HOME/.local/bin/claude
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        uses: ./.github/actions/setup-mock-cli
 
       - name: Run Unit Tests (CI optimized)
         run: make test-ci
 
+      - name: Generate Coverage
+        if: needs.changes.outputs.go == 'true'
+        run: go test -coverprofile=coverage.out -covermode=atomic -short ./...
+
+      - name: Upload Coverage to Codecov
+        if: needs.changes.outputs.go == 'true'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # 当 Go 文件变化时运行，否则跳过（跳过视为成功）
   test-integration:
     name: Integration Tests
     needs: changes
-    if: needs.changes.outputs.go == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -76,23 +96,21 @@ jobs:
         run: go mod download
 
       - name: Setup Mock Claude CLI
-         # Reuse same setup
-        run: |
-          mkdir -p $HOME/.local/bin
-          echo '#!/bin/bash' > $HOME/.local/bin/claude
-          echo 'echo "claude version 0.0.0-mock"' >> $HOME/.local/bin/claude
-          chmod +x $HOME/.local/bin/claude
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        uses: ./.github/actions/setup-mock-cli
 
       - name: Run Integration Tests
         run: make test-integration
 
+  # 当 Go 文件变化时运行，否则跳过（跳过视为成功）
   lint:
     name: Lint
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5

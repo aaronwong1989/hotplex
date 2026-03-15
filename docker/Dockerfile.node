@@ -1,0 +1,34 @@
+# ==============================================================================
+# HotPlex Node.js Development Stack (2026)
+# ==============================================================================
+
+# 1. Source the binary provider
+FROM hotplex:artifacts AS binary-provider
+
+# 2. Target Foundation
+FROM hotplex:base
+
+ARG NPM_MIRROR
+
+USER root
+
+# Shared Node.js runtime is already in hotplex:base.
+# We only install stack-specific development tools here.
+
+# Development Tools (Cached)
+RUN if [ -n "$NPM_MIRROR" ]; then npm config set registry "$NPM_MIRROR"; fi && \
+    npm install -g typescript ts-node tsx eslint prettier @biomejs/biome && \
+    npm cache clean --force
+
+ENV BUN_INSTALL="/usr/local/bun"
+ENV PATH="${BUN_INSTALL}/bin:${PATH}"
+
+# ==============================================================================
+# 🔥 Late Injection: The Binary (Changes frequently)
+# ==============================================================================
+COPY --from=binary-provider /hotplexd /usr/local/bin/hotplexd
+# ==============================================================================
+
+USER hotplex
+CMD ["/usr/local/bin/hotplexd"]
+LABEL org.opencontainers.image.title="HotPlex Node"

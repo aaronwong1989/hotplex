@@ -1,5 +1,262 @@
 # CHANGELOG.md
 
+## [v0.28.1] - 2026-03-15
+
+### Fixed
+- **Docker CLI Symlink** - Fixed Claude Code CLI symlink breakage caused by npm package structure changes:
+  - Replaced hardcoded `bin/claude` path with npm-generated symlink
+  - Now auto-adapts to package.json `bin` field changes
+
+---
+
+## [v0.28.0] - 2026-03-15
+
+### Added
+- **Docker PIP_TOOLS Support** - Auto-install Python packages via `uv`/`pip` on container startup:
+  - New `PIP_TOOLS` environment variable (format: `pkg[:bin]`)
+  - Package name validation to prevent command injection
+  - Example: `PIP_TOOLS=notebooklm-py:notebooklm pandas`
+
+### Changed
+- **Docker Entrypoint Enhancement** - Hardened and optimized container initialization:
+  - Added `validate_pkg_name()` for security
+  - Added stale temp file cleanup on startup
+  - Unified Bash style (`[[ ]]`, `${VAR}` braces)
+  - Fixed `runuser` HOME environment handling
+  - Improved permission fixes for Go cache, pip packages
+
+- **Dockerfile.full Optimization** - Massive image size reduction (**10GB → 2.3GB, 77% smaller**):
+  - Replaced `go install` with pre-built binaries
+  - Added 10 Go tools via binary: golangci-lint, goreleaser, buf, mockery, air, gotestsum, swag, gofumpt, sqlc, staticcheck
+  - Architecture auto-detection (amd64/arm64)
+  - Organized into 5 phases with clear structure
+
+- **common.yml Improvements** - Enhanced docker-compose configuration:
+  - `user: "0:0"` with privilege drop pattern
+  - Improved healthcheck with curl
+  - Added `PIP_TOOLS` environment variable support
+
+---
+
+## [v0.27.5] - 2026-03-14
+
+### Changed
+- **GitHub Actions Node.js 24 Upgrade** - Proactively opted into Node.js 24 to eliminate deprecation warnings:
+  - Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` to all workflows
+  - Node.js 20 actions will be forced to Node.js 24 on June 2nd, 2026
+  - Affected workflows: ci.yml, release.yml, deploy-docs.yml
+
+---
+
+## [v0.27.4] - 2026-03-14
+
+### Changed
+- **Docker Image Size Optimization** - Reduced Go stack image from 10.9GB to ~4-5GB (60%+ reduction):
+  - Eliminated `chown -R` Copy-on-Write duplication by installing as hotplex user directly
+  - Replaced `go install` with binary downloads for large tools (golangci-lint, goreleaser, buf, mockery)
+  - Added BuildKit cache mounts to keep Go build cache out of final image
+  - Fixed same issue in Rust Dockerfile (chown CoW)
+
+### Technical Details
+- golangci-lint: 2GB → 50MB (binary vs go install)
+- goreleaser: 200MB → 20MB (binary vs go install)
+- buf: 100MB → 25MB (binary vs go install)
+- chown CoW fix: saved 3.4GB layer duplication
+
+---
+
+## [v0.27.3] - 2026-03-14
+
+### Fixed
+- **Docker Symlink Resolution** - Fixed container crash loop caused by hardcoded binary paths:
+  - Replaced manual `ln -s` with npm-generated symlinks for CLI tools
+  - Fixed `claude` binary path (`bin/claude` → `cli.js`)
+  - Fixed `pi` binary path (`bin/pi` → `dist/cli.js`)
+  - Future-proof: now auto-adapts to package.json `bin` field changes
+
+---
+
+## [v0.27.2] - 2026-03-14
+
+### Changed
+- **GitHub Actions Optimization** - Comprehensive workflow improvements following 2026 best practices:
+  - Added `permissions` declarations for principle of least privilege
+  - Added `timeout-minutes` to all jobs to prevent hanging
+  - Created composite action for mock CLI setup (DRY principle)
+  - Added concurrency control to pr-checks workflow
+  - Simplified CI conditions for consistent skip behavior
+
+---
+
+## [v0.27.1] - 2026-03-14
+
+### Added
+- **Release Skill** - New `hotplex-release` skill for automated semantic versioning (patch/minor/major) with CHANGELOG management and git tag workflow.
+- **NotebookLM Sync** - New `hotplex-notebooklm` skill for auto-syncing high-value documentation to NotebookLM.
+- **Documentation Anti-Corruption** - Added documentation consistency checks for minor/major releases.
+- **Container Naming** - Improved container naming with single-instance constraints for better production reliability.
+
+---
+
+## [v0.27.0] - 2026-03-14
+
+### 🚀 Major Release - Multi-Runtime Architecture & 2026 Best Practice Tooling
+
+This release fundamentally upgrades the HotPlex Docker ecosystem, introducing a multi-runtime base image and a state-of-the-art 2026 developer toolset across all tech stacks.
+
+### Added
+
+#### 🐳 Multi-Runtime Architecture
+- **Consolidated Base Image** - `hotplex:base` now natively includes **Python 3.14** and **Node.js 24**, providing a consistent foundation for cross-language Agent development.
+- **Optimized Stacks** - Inherited runtimes across all images (Go, Rust, Java), enabling immediate support for MCP servers and multi-language scripts.
+
+#### 🛠️ 2026 Best Practice Tooling
+- **Global DX & Security** - Integrated **`trivy`** (security scanning), **`lazygit`** (terminal Git UI), and **`uv`** (Python) / **`bun`** (Node) tools into the core foundation.
+- **Stack-Specific Performance** - Enhanced individual tech stacks with premium tools:
+  - **Go**: Added `gofumpt` for stricter code formatting.
+  - **Python**: Added `pydantic-ai` for production-grade Agent orchestration.
+  - **Rust**: Added `cargo-expand` (macro debugging) and `cargo-deny` (audit/security).
+
+#### 📚 Documentation Professionalization
+- **Architecture Ecosystem Docs** - Comprehensive refactor of `docker/README.md` and `docker/matrix/README.md` for better clarity and alignment.
+- **Simplified Quick Start** - New path-based selector at `docs/quick-start.md` for seamless onboarding.
+- **1+n Matrix Guide** - Updated multi-bot setup guide to reflect current automation and isolation standards.
+
+### Changed
+- **Image Efficiency** - Removed redundant layers and runtime installations from tech stack specific Dockerfiles.
+- **Consolidation** - Removed 4+ outdated deployment guides in favor of a single, authoritative documentation suite.
+
+---
+
+## [v0.26.2] - 2026-03-13
+
+### Added
+- **XDG Compliance** - Standardized configuration, data, and log paths (`~/.config/hotplex`, `~/.local/share/hotplex`).
+- **CLI Flags** - New explicit `--config`, `--env-file`, and `--config-dir` flags for robust configuration control.
+- **Startup Visibility** - Professional system info header in logs showing version, environment, and effective configuration paths.
+
+### Changed
+- **Service Management** - Improved `scripts/service.sh` with automated reload and explicit flag-based startup for macOS and Linux.
+- **Robust Path Expansion** - Enhanced `ExpandPath` with dynamic `HOME` fallback and sensitive path protection (WAF).
+- **Configuration Discovery** - Consolidated `server.yaml` and `.env` search logic with clear precedence (Explicit > Env > XDG > Root).
+
+### Fixed
+- **Read-Only Filesystem Error** - Resolved the "failed to create work directory: mkdir /.hotplex" error by ensuring correct `HOME` resolution in service environments.
+
+---
+
+## [v0.26.1] - 2026-03-12
+
+### Changed
+
+- **Version Sync** - Synchronized hotplex.go version number with CHANGELOG.md
+
+---
+
+## [v0.26.0] - 2026-03-12
+
+### 🚀 Major Release - Docker 1+n Architecture & Multi-Stack support
+
+This release introduces a fundamentally refactored Docker image hierarchy based on the **1+n architecture** (1 Base + n Stacks), significantly improving build efficiency and providing specialized environments for multiple tech stacks.
+
+### Added
+
+#### 🐳 Docker 1+n Architecture
+- **Hierarchical Build System** - Replaced monolithic Dockerfile with a shared `hotplex:base` image and language-specific stack images.
+- **Language Stacks** - New dedicated images for multiple development environments:
+  - `hotplex:node` - Node.js/TypeScript (v24) optimized environment.
+  - `hotplex:python` - Python (v3.14) optimized environment.
+  - `hotplex:java` - Java (v21) optimized environment.
+  - `hotplex:rust` - Rust (v1.94) optimized environment.
+  - `hotplex:full` - All-in-one environment containing all supported stacks.
+- **Improved Build Performance** - Leverage layer caching across all stacks via the shared base image.
+
+#### 🛠️ Makefile & Automation
+- **New Build Targets** - Added `docker-build-base`, `docker-build-stacks`, `stack-all`, and individual `stack-<lang>` targets.
+- **Unified Build Args** - Centralized proxy and mirror configurations for all Docker builds.
+
+### Changed
+
+#### 📚 Documentation Refactor
+- **1+n UX Guidance** - Updated all deployment guides to promote the 1+n architecture.
+- **Bilingual Updates** - Synchronized changes across `README.md`, `README_zh.md`, `INSTALL.md`, and `docker-deployment.md`.
+
+### Removed
+- **Dockerfile.release** - Removed outdated release-specific Dockerfile in favor of the new stack-based architecture.
+
+---
+
+## [v0.25.0] - 2026-03-11
+
+### 🚀 Minor Release - Slack App Home & Platform Cleanup
+
+This release introduces a new Slack App Home-based Capability Center, removes deprecated chatapp adapters, and enhances testing infrastructure.
+
+### Added
+
+#### 🏠 Slack App Home Capability Center
+- **Capability Registry** - New module with capability registry, builder, form, and executor
+- **Capabilities.yaml** - Predefined task templates for common operations
+- **PRD Documentation** - Full documentation for the capability center feature
+- **Intent Confirmation** - Improved case-insensitive intent confirmation
+- **Validation Response** - Proper Slack ViewSubmissionResponse for validation errors
+- **Unit Tests** - Added comprehensive tests (coverage improved from 34.3% to 40.9%)
+
+#### 🧪 Testing Infrastructure
+- **Thinking Tag Verification** - Added test scripts to verify Claude CLI's thinking tag behavior:
+  - `test_claude_thinking.py` - Check for thinking tags in events
+  - `test_thinking_simple.py` - Simplified WebSocket-based test
+  - `test_thinking_via_ws.py` - Direct WebSocket testing
+
+#### 📚 Example Enhancement
+- **Java HTTP Client** - Added Java examples (`SimpleClient.java`, `HotPlexWsClient.java`)
+- **Example Verification** - Verified all Go/Python/Node.js examples compile with current codebase
+
+#### 🤖 Claude Code Skills
+- **Container Operations** - Skill for Docker container lifecycle management
+- **Data Management** - Skill for session and message persistence
+- **Diagnostics** - Skill for health monitoring and debugging
+
+### Changed
+
+#### 🧹 Code Cleanup
+- **Deprecated Adapters Removed** - Removed unused chatapp adapters:
+  - DingTalk (`chatapps/dingtalk/`)
+  - Discord (`chatapps/discord/`)
+  - Telegram (`chatapps/telegram/`)
+  - WhatsApp (`chatapps/whatsapp/`)
+- **Docker Configuration** - Refactored multi-stage builds, added Java/Node/Python variants
+- **Documentation** - Updated bilingual docs, removed obsolete configurations
+
+---
+
+## [v0.24.0] - 2026-03-10
+
+### 🚀 Minor Release - System Prompt Injection & API Docs Expansion
+
+This release introduces native support for session-level system prompt injection across all access channels, provides updated client examples, and significantly enhances the official API documentation.
+
+### Added
+
+#### 🧠 System Prompt Injection
+- **OpenCode HTTP Support** - New `system_prompt` field in `POST /session/{id}/message` and `prompt_async` endpoints.
+- **WebSocket Native Support** - Explicit documentation and example usage of `system_prompt` in `execute` requests.
+- **Priority Logic** - Clarified that `instructions` (per-request) take precedence over `system_prompt` (per-session/task).
+
+#### 📚 Expanded API Documentation
+- **Event Lifecycle** - Documented missing events: `permission_request`, `plan_mode`, `exit_plan_mode`, and updated `session_stats`.
+- **Bilingual Docs** - Full updates to both `api.md` (English) and `api_zh.md` (Chinese).
+- **Client Examples** - Added system prompt injection patterns to:
+  - `_examples/node_claude_websocket/client.js`
+  - `_examples/node_claude_websocket/enterprise_client.js`
+  - `_examples/python_opencode_http/client.py`
+
+### Fixed
+
+- **Code Cleanup** - Removed unused `agent` and `model` parameters from server-side execution logic to resolve linting warnings and simplify the API.
+
+---
+
 ## [v0.23.4] - 2026-03-09
 
 ### 🔧 Patch Release
@@ -260,15 +517,15 @@ This release upgrades all GitHub Actions to latest versions and fixes CI/CD work
 ### Changed
 
 #### GitHub Actions Upgrade
-| Action | Before | After |
-|--------|--------|-------|
-| `goreleaser/goreleaser-action` | v6 | v7 |
-| `docker/build-push-action` | v6 | v7 |
-| `docker/metadata-action` | v5 | v6 |
-| `docker/setup-buildx-action` | v3 | v4 |
-| `docker/setup-qemu-action` | v3 | v4 |
-| `docker/login-action` | v3 | v4 |
-| `golangci/golangci-lint-action` | v7 | v9 |
+| Action                          | Before | After |
+| ------------------------------- | ------ | ----- |
+| `goreleaser/goreleaser-action`  | v6     | v7    |
+| `docker/build-push-action`      | v6     | v7    |
+| `docker/metadata-action`        | v5     | v6    |
+| `docker/setup-buildx-action`    | v3     | v4    |
+| `docker/setup-qemu-action`      | v3     | v4    |
+| `docker/login-action`           | v3     | v4    |
+| `golangci/golangci-lint-action` | v7     | v9    |
 
 ### Technical Notes
 

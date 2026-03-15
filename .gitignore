@@ -38,7 +38,6 @@ Thumbs.db
 # Output Directories
 dist/
 bin/
-build/
 out/
 
 # Go Binaries
@@ -90,9 +89,13 @@ yarn-error.log*
 
 .env*
 !.env.example
+!docker/matrix/.env
 *.pem
 *.key
 cert.log
+
+# Server config may contain sensitive settings (api_key, etc.)
+/configs/server.yaml
 
 
 # ------------------------------------------------------------------------------
@@ -100,15 +103,15 @@ cert.log
 # ------------------------------------------------------------------------------
 
 # Claude / Serena / HotPlex Agents
-.claude/
+.claude/*
 !.claude/skills
 !.claude/rules
 !.claude/workflows
 
-.agent/
+.agent/*
 !.agent/rules
-!.agent/skills
-!.agent/workflows
+!.agent/skills/
+!.agent/workflows/
 
 # .serena is used for workspace state (project.yml is usually tracked, others ignored)
 # We keep current behavior but make it cleaner

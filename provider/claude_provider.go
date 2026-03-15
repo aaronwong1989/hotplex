@@ -16,6 +16,8 @@ import (
 // ClaudeCodeProvider implements the Provider interface for Claude Code CLI.
 // This is the default provider and maintains full backward compatibility
 // with the existing HotPlex implementation.
+var _ Provider = (*ClaudeCodeProvider)(nil)
+
 type ClaudeCodeProvider struct {
 	ProviderBase
 	opts          ProviderConfig
@@ -83,11 +85,10 @@ func (p *ClaudeCodeProvider) BuildCLIArgs(providerSessionID string, opts *Provid
 		p.logger.Debug("Resuming existing Claude Code session", "session_id", providerSessionID)
 	} else {
 		args = append(args, "--session-id", providerSessionID)
-		// Create marker for persistence detection
-		if err := p.markerStore.Create(providerSessionID); err != nil {
-			p.logger.Warn("Failed to create session marker", "session_id", providerSessionID, "error", err)
-		}
 		p.logger.Debug("Creating new Claude Code session", "session_id", providerSessionID)
+		// NOTE: Marker is NOT created here anymore!
+		// It will be created in pool.go AFTER the CLI process successfully starts.
+		// This prevents creating markers for failed session starts.
 	}
 
 	// Permission mode
@@ -184,6 +185,9 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 	// Map Claude Code types to normalized types
 	switch msg.Type {
 	case "result":
+		if msg.Result == "" && msg.Content == nil && len(msg.ModelUsage) == 0 {
+			p.logger.Warn("[PROVIDER] received empty result event", "line", line)
+		}
 		event := newBaseEvent(EventTypeResult)
 		event.Content = msg.Result
 		// Always create metadata for result events to ensure tokens are tracked
@@ -233,11 +237,14 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 		events = append(events, event)
 
 	case "error":
+		if msg.Error == "" {
+			msg.Error = "Unknown provider error (empty error field)"
+		}
 		event := newBaseEvent(EventTypeError)
 		event.Content = msg.Error
 		events = append(events, event)
 
-	case "thinking", "status":
+	case "thinking", "think", "think_delta", "status":
 		blocks := msg.GetContentBlocks()
 		if len(blocks) > 0 {
 			for _, block := range blocks {
@@ -323,6 +330,13 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 		event.Content = msg.Output
 		event.ToolID = msg.MessageID // Some use MessageID for result
 		event.ToolName = msg.Name
+
+		// Debug log: track tool name for skill detection
+		if msg.Name != "" {
+			p.logger.Debug("Tool result",
+				"tool_name", msg.Name,
+				"subtype", msg.Subtype)
+		}
 
 		for _, block := range msg.GetContentBlocks() {
 			if block.Type == "tool_result" {

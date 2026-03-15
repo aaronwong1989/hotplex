@@ -1,0 +1,41 @@
+# ==============================================================================
+# HotPlex Python Development Stack (2026)
+# ==============================================================================
+
+# 1. Source the binary provider
+FROM hotplex:artifacts AS binary-provider
+
+# 2. SDK Layer
+FROM python:3.14-bookworm AS sdk-source
+
+# 3. Target Foundation
+FROM hotplex:base
+
+ARG PYTHON_MIRROR
+
+# Inject Python 3.14 SDK (Cached)
+# Use granular copies to avoid shadowing /usr/local tools from base (gh, uv, etc.)
+COPY --from=sdk-source /usr/local/bin/python* /usr/local/bin/
+COPY --from=sdk-source /usr/local/bin/pip* /usr/local/bin/
+COPY --from=sdk-source /usr/local/bin/2to3* /usr/local/bin/
+COPY --from=sdk-source /usr/local/bin/idle* /usr/local/bin/
+COPY --from=sdk-source /usr/local/bin/pydoc* /usr/local/bin/
+COPY --from=sdk-source /usr/local/lib/python3.14 /usr/local/lib/python3.14
+COPY --from=sdk-source /usr/local/lib/libpython3.14* /usr/local/lib/
+COPY --from=sdk-source /usr/local/include/python3.14 /usr/local/include/python3.14
+RUN ldconfig
+
+# Development Tools (Cached)
+# uv is already provided by hotplex:base
+RUN if [ -n "$PYTHON_MIRROR" ]; then pip config set global.index-url "$PYTHON_MIRROR"; fi && \
+    pip install --break-system-packages poetry ruff black isort mypy pytest fastapi uvicorn httpx pydantic-ai
+
+# ==============================================================================
+# 🔥 Late Injection: The Binary (Changes frequently)
+# ==============================================================================
+COPY --from=binary-provider /hotplexd /usr/local/bin/hotplexd
+# ==============================================================================
+
+USER hotplex
+CMD ["/usr/local/bin/hotplexd"]
+LABEL org.opencontainers.image.title="HotPlex Python"

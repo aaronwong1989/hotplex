@@ -22,7 +22,7 @@ HotPlex 使用分层配置系统，优先级从高到低：
 ```
 1. 命令行参数     (--config, --port 等)
 2. 环境变量       (HOTPLEX_*)
-3. YAML 配置文件  (chatapps/configs/*.yaml)
+3. YAML 配置文件  (configs/chatapps/*.yaml)
 4. 默认值         (内置默认值)
 ```
 
@@ -91,7 +91,7 @@ HotPlex 使用分层配置系统，优先级从高到低：
 | ------------------------------------------ | -------------------------------- | ------------------------------ |
 | `HOTPLEX_MESSAGE_STORE_ENABLED`            | `true`                           | 启用消息持久化                 |
 | `HOTPLEX_MESSAGE_STORE_TYPE`               | `sqlite`                         | 存储：sqlite, postgres, memory |
-| `HOTPLEX_MESSAGE_STORE_SQLITE_PATH`        | `~/.hotplex/chatapp_messages.db` | SQLite 数据库路径              |
+| `HOTPLEX_MESSAGE_STORE_SQLITE_PATH`        | `~/.config/hotplex/chatapp_messages.db` | SQLite 数据库路径              |
 | `HOTPLEX_MESSAGE_STORE_SQLITE_MAX_SIZE_MB` | `1024`                           | 最大数据库大小                 |
 | `HOTPLEX_MESSAGE_STORE_STREAMING_ENABLED`  | `true`                           | 启用流式存储                   |
 | `HOTPLEX_MESSAGE_STORE_STREAMING_TIMEOUT`  | `5m`                             | 流式超时                       |
@@ -110,34 +110,11 @@ HotPlex 使用分层配置系统，优先级从高到低：
 
 | 变量                           | 必填        | 描述                      |
 | ------------------------------ | ----------- | ------------------------- |
-| `HOTPLEX_SLACK_BOT_USER_ID`    | **是**      | Bot 用户 ID (UXXXXXXXXXX) |
-| `HOTPLEX_SLACK_BOT_TOKEN`      | **是**      | Bot Token (xoxb-...)      |
-| `HOTPLEX_SLACK_APP_TOKEN`      | Socket Mode | App Token (xapp-...)      |
-| `HOTPLEX_SLACK_SIGNING_SECRET` | HTTP Mode   | 签名验证密钥              |
-
-### Telegram
-
-| 变量                            | 描述                         |
-| ------------------------------- | ---------------------------- |
-| `HOTPLEX_TELEGRAM_BOT_TOKEN`    | 来自 @BotFather 的 bot token |
-| `HOTPLEX_TELEGRAM_WEBHOOK_URL`  | Webhook URL（生产环境）      |
-| `HOTPLEX_TELEGRAM_SECRET_TOKEN` | Webhook 密钥                 |
-
-### Discord
-
-| 变量                         | 描述      |
-| ---------------------------- | --------- |
-| `HOTPLEX_DISCORD_BOT_TOKEN`  | Bot token |
-| `HOTPLEX_DISCORD_PUBLIC_KEY` | 应用公钥  |
-
-### 钉钉
-
-| 变量                              | 描述       |
-| --------------------------------- | ---------- |
-| `HOTPLEX_DINGTALK_APP_ID`         | App ID     |
-| `HOTPLEX_DINGTALK_APP_SECRET`     | App secret |
-| `HOTPLEX_DINGTALK_CALLBACK_TOKEN` | 回调 token |
-| `HOTPLEX_DINGTALK_CALLBACK_KEY`   | 回调 key   |
+| `HOTPLEX_SLACK_PRIMARY_OWNER`  | **是**      | 主要所有者的 Slack 用户 ID |
+| `HOTPLEX_SLACK_BOT_USER_ID`    | **是**      | Bot 用户 ID (UXXXXXXXXXX)   |
+| `HOTPLEX_SLACK_BOT_TOKEN`      | **是**      | Bot Token (xoxb-...)        |
+| `HOTPLEX_SLACK_APP_TOKEN`      | Socket Mode | App Token (xapp-...)        |
+| `HOTPLEX_SLACK_SIGNING_SECRET` | HTTP Mode   | 签名验证密钥                |
 
 ### 飞书
 
@@ -148,22 +125,6 @@ HotPlex 使用分层配置系统，优先级从高到低：
 | `HOTPLEX_FEISHU_VERIFICATION_TOKEN` | 验证 token |
 | `HOTPLEX_FEISHU_ENCRYPT_KEY`        | 加密 key   |
 
-### WhatsApp
-
-| 变量                               | 描述               |
-| ---------------------------------- | ------------------ |
-| `HOTPLEX_WHATSAPP_PHONE_NUMBER_ID` | 电话号码 ID        |
-| `HOTPLEX_WHATSAPP_ACCESS_TOKEN`    | Access token       |
-| `HOTPLEX_WHATSAPP_VERIFY_TOKEN`    | Webhook 验证 token |
-
-### 告警
-
-| 变量                             | 描述                 |
-| -------------------------------- | -------------------- |
-| `HOTPLEX_DINGTALK_WEBHOOK_URL`   | 钉钉告警 webhook     |
-| `HOTPLEX_DINGTALK_SECRET`        | Webhook secret       |
-| `HOTPLEX_DINGTALK_FILTER_EVENTS` | 过滤事件（逗号分隔） |
-
 ---
 
 ## YAML 配置
@@ -171,7 +132,7 @@ HotPlex 使用分层配置系统，优先级从高到低：
 ### 结构
 
 ```yaml
-# chatapps/configs/slack.yaml
+# configs/chatapps/slack.yaml
 
 # [必填] 平台标识
 platform: slack
@@ -302,28 +263,6 @@ server_addr: :8080
 
 security:
   verify_signature: true
-```
-
-### Telegram
-
-```yaml
-platform: telegram
-
-provider:
-  type: claude-code
-
-engine:
-  work_dir: ~/projects/telegram-bot
-```
-
-### 钉钉
-
-```yaml
-platform: dingtalk
-
-security:
-  permission:
-    dm_policy: allow
 ```
 
 ---

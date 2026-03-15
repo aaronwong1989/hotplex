@@ -1,0 +1,142 @@
+# ==============================================================================
+# HotPlex Go Development Stack (2026) - Optimized
+# ==============================================================================
+# Optimization Strategy:
+# 1. Binary direct download instead of go install (saves ~3GB build cache)
+# 2. BuildKit cache mounts (keeps cache out of image)
+# 3. Install as hotplex user (avoids chown CoW)
+# 4. Cleanup after installation
+# ==============================================================================
+
+# syntax=docker/dockerfile:1.7-labs
+
+# 1. Source the binary provider
+FROM hotplex:artifacts AS binary-provider
+
+# 2. SDK Layer
+FROM golang:1.26-bookworm AS sdk-source
+
+# 3. Target Foundation
+FROM hotplex:base
+
+# Inject Go SDK (Cached)
+COPY --from=sdk-source /usr/local/go /usr/local/go
+ENV GOPATH=/home/hotplex/go
+ENV PATH="/usr/local/go/bin:${GOPATH}/bin:${PATH}"
+
+ARG GOPROXY
+ARG TARGETARCH
+ARG TARGETOS
+ENV GOPROXY=${GOPROXY:-https://proxy.golang.org,direct}
+
+# Detect architecture
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then echo "amd64" > /tmp/arch; \
+    elif [ "$ARCH" = "aarch64" ]; then echo "arm64" > /tmp/arch; fi
+
+# ==============================================================================
+# Phase 1: Go Tools via Binary (No Build Cache)
+# These tools are large and have pre-built binaries available
+# ==============================================================================
+USER root
+
+# golangci-lint (Binary: ~50MB vs go install: ~2GB)
+RUN ARCH=$(cat /tmp/arch) && \
+    GOLANGCI_VERSION="1.64.5" && \
+    curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_VERSION}/golangci-lint-${GOLANGCI_VERSION}-linux-${ARCH}.tar.gz" | \
+    tar xz -C /tmp && \
+    mv /tmp/golangci-lint-${GOLANGCI_VERSION}-linux-${ARCH}/golangci-lint /usr/local/bin/ && \
+    rm -rf /tmp/golangci-lint-*
+
+# goreleaser (Binary: ~20MB vs go install: ~200MB)
+# Note: goreleaser uses "Linux" (capitalized) and "x86_64" instead of "amd64"
+RUN ARCH=$(cat /tmp/arch) && \
+    GOARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "$ARCH") && \
+    GORELEASER_VERSION="2.14.3" && \
+    curl -sSfL "https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}/goreleaser_Linux_${GOARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin goreleaser
+
+# buf (Binary: ~25MB vs go install: ~100MB)
+# Note: buf uses "x86_64" and "aarch64" (not amd64/arm64)
+RUN ARCH=$(cat /tmp/arch) && \
+    BUFARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || ([ "$ARCH" = "arm64" ] && echo "aarch64" || echo "$ARCH")) && \
+    BUF_VERSION="1.50.0" && \
+    curl -sSfL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-linux-${BUFARCH}" -o /usr/local/bin/buf && \
+    chmod +x /usr/local/bin/buf
+
+# mockery (Binary: ~15MB vs go install: ~50MB)
+# Note: mockery uses "x86_64" for amd64 (arm64 is correct)
+RUN ARCH=$(cat /tmp/arch) && \
+    MOCKERY_ARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "$ARCH") && \
+    MOCKERY_VERSION="2.53.2" && \
+    curl -sSfL "https://github.com/vektra/mockery/releases/download/v${MOCKERY_VERSION}/mockery_${MOCKERY_VERSION}_linux_${MOCKERY_ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin mockery
+
+# air - Go live reload (Binary: ~10MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    AIR_VERSION="1.64.5" && \
+    curl -sSfL "https://github.com/air-verse/air/releases/download/v${AIR_VERSION}/air_${AIR_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin air
+
+# gotestsum - Go test runner (Binary: ~5MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    GOTESTSUM_VERSION="1.12.1" && \
+    curl -sSfL "https://github.com/gotestyourself/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin gotestsum
+
+# swag - Swagger generator (Binary: ~10MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    SWAG_ARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "$ARCH") && \
+    SWAG_VERSION="1.16.4" && \
+    curl -sSfL "https://github.com/swaggo/swag/releases/download/v${SWAG_VERSION}/swag_${SWAG_VERSION}_linux_${SWAG_ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin swag
+
+# gofumpt - Go formatter (Binary: ~5MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    GOFUMPT_VERSION="0.8.0" && \
+    curl -sSfL "https://github.com/mvdan/gofumpt/releases/download/v${GOFUMPT_VERSION}/gofumpt_v${GOFUMPT_VERSION}_linux_${ARCH}" -o /usr/local/bin/gofumpt && \
+    chmod +x /usr/local/bin/gofumpt
+
+# sqlc - SQL to Go code generator (Binary: ~15MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    SQLC_VERSION="1.30.0" && \
+    curl -sSfL "https://github.com/sqlc-dev/sqlc/releases/download/v${SQLC_VERSION}/sqlc_${SQLC_VERSION}_linux_${ARCH}.tar.gz" | \
+    tar xz -C /usr/local/bin sqlc
+
+# staticcheck - Go static analysis (Binary: ~15MB)
+RUN ARCH=$(cat /tmp/arch) && \
+    STATICCHECK_VERSION="2025.1.1" && \
+    curl -sSfL "https://github.com/dominikh/go-tools/releases/download/${STATICCHECK_VERSION}/staticcheck_linux_${ARCH}.tar.gz" | \
+    tar xz -C /tmp && \
+    mv /tmp/staticcheck/staticcheck /usr/local/bin/ && \
+    rm -rf /tmp/staticcheck
+
+# ==============================================================================
+# Phase 2: Protocol Buffers (requires apt)
+# ==============================================================================
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/*
+
+USER hotplex
+WORKDIR /home/hotplex
+
+# protoc-gen-go and protoc-gen-go-grpc (small, use go install)
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# delve - Go debugger (no pre-built binaries, use go install)
+# govulncheck - Go vulnerability checker (no pre-built binaries, use go install)
+RUN go install github.com/go-delve/delve/cmd/dlv@latest && \
+    go install golang.org/x/vuln/cmd/govulncheck@latest
+
+# ==============================================================================
+# 🔥 Late Injection: The Binary (Changes frequently)
+# ==============================================================================
+COPY --from=binary-provider /hotplexd /usr/local/bin/hotplexd
+# ==============================================================================
+
+USER hotplex
+CMD ["/usr/local/bin/hotplexd"]
+LABEL org.opencontainers.image.title="HotPlex Go (Optimized)"

@@ -1,0 +1,89 @@
+# ==============================================================================
+# HotPlex Static Foundation (2026 Core Environment)
+# ==============================================================================
+# This image contains the 99% stable OS baseline and shared tools.
+# It does NOT contain hotplexd, enabling massive caching for SDK stacks.
+# ==============================================================================
+
+# --- Stage 1: Shared Tools Collector ---
+FROM debian:bookworm-slim AS tools-collector
+ARG GITHUB_PROXY
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl wget ca-certificates xz-utils libatomic1 unzip && \
+    rm -rf /var/lib/apt/lists/*
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then BIN="websocat.x86_64-unknown-linux-musl"; \
+    elif [ "$ARCH" = "aarch64" ]; then BIN="websocat.aarch64-unknown-linux-musl"; fi && \
+    curl -sSfL -o /usr/local/bin/websocat \
+    "https://github.com/vi/websocat/releases/download/v1.14.1/$BIN" && \
+    chmod +x /usr/local/bin/websocat
+
+# --- Stage 2: NPM Tools Collector ---
+FROM node:24-bookworm-slim AS npm-tools-collector
+ARG NPM_MIRROR
+RUN if [ -n "$NPM_MIRROR" ]; then npm config set registry "$NPM_MIRROR"; fi && \
+    npm install -g @anthropic-ai/claude-code@latest opencode-ai @mariozechner/pi-coding-agent && \
+    npm cache clean --force
+
+# --- Final Stage: Shared Foundation ---
+FROM debian:bookworm-slim
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG DEBIAN_MIRROR
+ARG HOST_UID=1000
+
+# 1. Global OS Baseline & Mirrors
+RUN if [ "$DEBIAN_MIRROR" != "deb.debian.org" ] && [ -n "$DEBIAN_MIRROR" ]; then \
+        sed -i "s/deb.debian.org/$DEBIAN_MIRROR/g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    curl wget ca-certificates git make bash jq gettext-base \
+    procps netcat-openbsd openssl libatomic1 unzip gnupg \
+    python3 python3-pip python3-venv \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install GitHub CLI (gh)
+RUN gh_install_version="2.63.0" && \
+    gh_arch=$(uname -m) && \
+    case "$gh_arch" in \
+        x86_64) gh_arch="amd64" ;; \
+        aarch64) gh_arch="arm64" ;; \
+    esac && \
+    curl -sSL "https://github.com/cli/cli/releases/download/v${gh_install_version}/gh_${gh_install_version}_linux_${gh_arch}.tar.gz" | tar xz -C /tmp && \
+    mv /tmp/gh_${gh_install_version}_linux_${gh_arch}/bin/gh /usr/local/bin/ && \
+    rm -rf /tmp/gh_${gh_install_version}_linux_${gh_arch}
+    
+# Install uv (Python), bun & pnpm (Node)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN npm install -g pnpm@latest bun@latest && \
+    npm cache clean --force
+
+# 2. HotPlex User & Workspace Setup
+RUN useradd -m -u ${HOST_UID} -s /bin/bash hotplex && \
+    mkdir -p /app /home/hotplex/.cache && \
+    chown -R hotplex:hotplex /home/hotplex /app
+
+# 3. Static Tool Injection
+COPY --from=tools-collector /usr/local/bin/websocat /usr/local/bin/websocat
+# Injection from npm-tools-collector (Claude Code, etc.)
+COPY --from=npm-tools-collector /usr/local/lib/node_modules/ /usr/local/lib/node_modules/
+# Create symlinks manually (npm package structure may change between versions)
+RUN ln -sf /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js /usr/local/bin/claude && \
+    ln -sf /usr/local/lib/node_modules/opencode-ai/bin/opencode /usr/local/bin/opencode && \
+    ln -sf /usr/local/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js /usr/local/bin/pi
+
+# 4. Standard Metadata & Entrypoint
+WORKDIR /app
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+ENV PATH="/usr/local/bin:${PATH}"
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# default CMD (can be overridden by stacks)
+CMD ["bash"]
+
+LABEL org.opencontainers.image.vendor="HotPlex"
+LABEL org.opencontainers.image.title="HotPlex Foundation (Static)"
