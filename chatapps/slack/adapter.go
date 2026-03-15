@@ -549,6 +549,9 @@ func (a *Adapter) GetThreadHistoryByUserAsString(ctx context.Context, channelID,
 
 // convertToThreadMessage converts storage.ChatAppMessage to base.ThreadMessage
 func convertToThreadMessage(msg *storage.ChatAppMessage) base.ThreadMessage {
+	if msg == nil {
+		return base.ThreadMessage{}
+	}
 	return base.ThreadMessage{
 		ID:         msg.ID,
 		SessionID:  msg.ChatSessionID,
