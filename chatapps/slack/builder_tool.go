@@ -159,9 +159,13 @@ func (b *ToolMessageBuilder) buildSingleToolResultBlock(msg *base.ChatMessage) [
 		}
 	}
 
-	// Check if this is a skill tool call (only detect by "skill:" prefix)
-	// Claude Code uses "skill:" prefix for skill tool invocations
-	isSkillTool := strings.HasPrefix(toolName, "skill:")
+	// Check if this is a skill tool call (simplify output for skill tools)
+	isSkillTool := strings.HasPrefix(toolName, "skill:") ||
+		strings.Contains(strings.ToLower(toolName), "skill") ||
+		strings.HasPrefix(toolName, "simplify") ||
+		strings.HasPrefix(toolName, "loop") ||
+		strings.HasPrefix(toolName, "commit") ||
+		strings.HasPrefix(toolName, "avatar")
 
 	// For skill tools, show simplified output: just tool name and status
 	if isSkillTool {
