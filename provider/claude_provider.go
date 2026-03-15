@@ -244,7 +244,7 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 		event.Content = msg.Error
 		events = append(events, event)
 
-	case "thinking", "status":
+	case "thinking", "think", "think_delta", "status":
 		blocks := msg.GetContentBlocks()
 		if len(blocks) > 0 {
 			for _, block := range blocks {
@@ -330,6 +330,13 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 		event.Content = msg.Output
 		event.ToolID = msg.MessageID // Some use MessageID for result
 		event.ToolName = msg.Name
+
+		// Debug log: track tool name for skill detection
+		if msg.Name != "" {
+			p.logger.Debug("Tool result",
+				"tool_name", msg.Name,
+				"subtype", msg.Subtype)
+		}
 
 		for _, block := range msg.GetContentBlocks() {
 			if block.Type == "tool_result" {

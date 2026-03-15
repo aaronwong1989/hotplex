@@ -159,6 +159,30 @@ func (b *ToolMessageBuilder) buildSingleToolResultBlock(msg *base.ChatMessage) [
 		}
 	}
 
+	// Check if this is a skill tool call (only detect by "skill:" prefix)
+	// Claude Code uses "skill:" prefix for skill tool invocations
+	isSkillTool := strings.HasPrefix(toolName, "skill:")
+
+	// For skill tools, show simplified output: just tool name and status
+	if isSkillTool {
+		icon := ":white_check_mark:"
+		if !success {
+			icon = ":warning:"
+		}
+
+		// Extract skill name from tool name (e.g., "skill:simplify" -> "simplify")
+		displayName := toolName
+		if strings.HasPrefix(toolName, "skill:") {
+			displayName = strings.TrimPrefix(toolName, "skill:")
+		}
+
+		statusText := fmt.Sprintf("%s *Skill:* `%s`", icon, displayName)
+		statusObj := slack.NewTextBlockObject("mrkdwn", statusText, false, false)
+		blocks = append(blocks, slack.NewSectionBlock(statusObj, nil, nil))
+		return blocks
+	}
+
+	// Original logic for non-skill tools
 	var dataLenStr string
 	if dataLen > 1024*1024 {
 		dataLenStr = fmt.Sprintf("%.1fMB", float64(dataLen)/(1024*1024))
