@@ -110,4 +110,13 @@ type Config struct {
 	TaskInstructions string // Per-task instructions or objective prepended to the user prompt
 	BaseSystemPrompt string // Session-level system prompt override. Takes precedence over Engine-level BaseSystemPrompt.
 	WAFApproved      bool   // When true, Engine skips WAF check (already approved by chatapps layer)
+
+	// SessionContext for observability
+	Platform      string // slack/feishu/discord/telegram
+	UserID        string // User identifier
+	ChannelID     string // Source channel/group
+	TeamID        string // Team/workspace identifier
+	TaskType      string // code/chat/analysis/debug/git
+	TraceID       string // OpenTelemetry TraceID
+	PromptSummary string // First prompt summary
 }
