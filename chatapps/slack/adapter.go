@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -47,9 +48,9 @@ type Adapter struct {
 	storePlugin *base.MessageStorePlugin
 
 	// App Home capability center (optional)
-	appHomeHandler   *apphome.Handler
-	appHomeRegistry  *apphome.Registry
-	appHomeExecutor  *apphome.Executor
+	appHomeHandler  *apphome.Handler
+	appHomeRegistry *apphome.Registry
+	appHomeExecutor *apphome.Executor
 
 	// Session manager for consistent session ID generation
 	sessionMgr session.SessionManager
@@ -290,8 +291,8 @@ func (a *Adapter) initAppHome() {
 	var brainInst brain.Brain
 
 	appHomeConfig := apphome.Config{
-		Enabled:           BoolValue(a.config.AppHome.Enabled, false),
-		CapabilitiesPath:  a.config.AppHome.CapabilitiesPath,
+		Enabled:          BoolValue(a.config.AppHome.Enabled, false),
+		CapabilitiesPath: os.ExpandEnv(a.config.AppHome.CapabilitiesPath),
 	}
 
 	handler, registry, executor := apphome.Setup(a.client, brainInst, appHomeConfig, a.Logger())
@@ -553,19 +554,19 @@ func convertToThreadMessage(msg *storage.ChatAppMessage) base.ThreadMessage {
 		return base.ThreadMessage{}
 	}
 	return base.ThreadMessage{
-		ID:         msg.ID,
-		SessionID:  msg.ChatSessionID,
-		Platform:   msg.ChatPlatform,
-		UserID:     msg.ChatUserID,
-		BotUserID:  msg.ChatBotUserID,
-		ChannelID:  msg.ChatChannelID,
-		ThreadID:   msg.ChatThreadID,
-		Type:       string(msg.MessageType),
-		Content:    msg.Content,
-		FromUser:   msg.FromUserName,
-		ToUser:     msg.ToUserID,
-		CreatedAt:  msg.CreatedAt,
-		Metadata:   msg.Metadata,
+		ID:        msg.ID,
+		SessionID: msg.ChatSessionID,
+		Platform:  msg.ChatPlatform,
+		UserID:    msg.ChatUserID,
+		BotUserID: msg.ChatBotUserID,
+		ChannelID: msg.ChatChannelID,
+		ThreadID:  msg.ChatThreadID,
+		Type:      string(msg.MessageType),
+		Content:   msg.Content,
+		FromUser:  msg.FromUserName,
+		ToUser:    msg.ToUserID,
+		CreatedAt: msg.CreatedAt,
+		Metadata:  msg.Metadata,
 	}
 }
 
