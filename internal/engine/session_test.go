@@ -466,12 +466,11 @@ func TestSession_ReadStderr_LogFileWriteError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open log file: %v", err)
 	}
-	defer func() {
-		if se.logFile != nil {
-			se.logFile.Close()
-		}
-	}()
-	defer os.Remove(tmpPath)
+	// Clean up after test
+	if se.logFile != nil {
+		defer func() { _ = se.logFile.Close() }()
+	}
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	// Write to pipe and close it to trigger scanner
 	go func() {
