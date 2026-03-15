@@ -145,8 +145,9 @@ apphome:
   # Set to true to enable
   enabled: true
   # Path to custom capabilities YAML file (optional)
-  # If not set, uses embedded default capabilities
-  # For local dev: use relative path from project root
-  # For Docker: use ${HOTPLEX_CHATAPPS_CONFIG_DIR}/slack/capabilities.yaml
-  capabilities_path: "chatapps/slack/apphome/capabilities.yaml"
+  # If not set, auto-detects from config directory:
+  # - ${HOTPLEX_CHATAPPS_CONFIG_DIR}/slack/capabilities.yaml
+  # - ~/.hotplex/configs/chatapps/slack/capabilities.yaml
+  # - Falls back to embedded defaults
+  capabilities_path: ""
   

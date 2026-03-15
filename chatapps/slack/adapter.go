@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -290,9 +291,26 @@ func (a *Adapter) initAppHome() {
 	// Brain will be set later via SetBrain on executor if available
 	var brainInst brain.Brain
 
+	// Resolve capabilities path with smart defaults:
+	// 1. If explicitly set, expand env vars and use as-is
+	// 2. If empty, auto-detect from config directory
+	capabilitiesPath := os.ExpandEnv(a.config.AppHome.CapabilitiesPath)
+	if capabilitiesPath == "" {
+		// Auto-detect: try HOTPLEX_CHATAPPS_CONFIG_DIR first, then ~/.hotplex/configs
+		configDir := os.Getenv("HOTPLEX_CHATAPPS_CONFIG_DIR")
+		if configDir == "" {
+			if homeDir, err := os.UserHomeDir(); err == nil {
+				configDir = filepath.Join(homeDir, ".hotplex", "configs", "chatapps")
+			}
+		}
+		if configDir != "" {
+			capabilitiesPath = filepath.Join(configDir, "slack", "capabilities.yaml")
+		}
+	}
+
 	appHomeConfig := apphome.Config{
 		Enabled:          BoolValue(a.config.AppHome.Enabled, false),
-		CapabilitiesPath: os.ExpandEnv(a.config.AppHome.CapabilitiesPath),
+		CapabilitiesPath: capabilitiesPath,
 	}
 
 	handler, registry, executor := apphome.Setup(a.client, brainInst, appHomeConfig, a.Logger())
@@ -302,7 +320,8 @@ func (a *Adapter) initAppHome() {
 
 	if handler != nil {
 		a.Logger().Info("App Home capability center initialized",
-			"capabilities", registry.Count())
+			"capabilities", registry.Count(),
+			"capabilities_path", capabilitiesPath)
 	}
 }
 
