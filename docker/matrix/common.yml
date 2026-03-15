@@ -88,3 +88,5 @@ services:
       - ~/.claude:/home/hotplex/.claude_seed:ro
       - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
       - matrix-go-build:/home/hotplex/.cache/go-build:rw
+      # Entrypoint mount (enables hot-updates without image rebuild)
+      - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
