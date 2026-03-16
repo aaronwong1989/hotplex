@@ -1,5 +1,12 @@
 # CHANGELOG.md
 
+## [v0.30.3] - 2026-03-16
+
+### Fixed
+- **Workspace Key Conversion** - Fixed `toWorkspaceKey` function to correctly handle hidden directories (e.g., `.hotplex`) by replacing `/.` with `--` before flattening paths
+
+---
+
 ## [v0.30.2] - 2026-03-16
 
 ### Fixed
