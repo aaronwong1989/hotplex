@@ -466,10 +466,17 @@ docker-build-stack: docker-build-foundation docker-build-artifacts ## @docker Bu
 		exit 1; \
 	fi
 	@printf "${CYAN}🔨 Building hotplex:$(S)...${NC}\n"
-	@docker build -f docker/Dockerfile.$(S) \
-		$(DOCKER_BUILD_COMMON_ARGS) \
-		$(DOCKER_BUILD_PROXY_ARGS) \
-		-t hotplex:$(S) .
+	@if [ "$(S)" = "go" ]; then \
+		docker build -f docker/Dockerfile.golang \
+			$(DOCKER_BUILD_COMMON_ARGS) \
+			$(DOCKER_BUILD_PROXY_ARGS) \
+			-t hotplex:$(S) .; \
+	else \
+		docker build -f docker/Dockerfile.$(S) \
+			$(DOCKER_BUILD_COMMON_ARGS) \
+			$(DOCKER_BUILD_PROXY_ARGS) \
+			-t hotplex:$(S) .; \
+	fi
 	@printf "${GREEN}✅ Built hotplex:$(S)${NC}\n"
 
 docker-build-all: docker-build-artifacts ## @docker Build all tech-stack images sequentially
