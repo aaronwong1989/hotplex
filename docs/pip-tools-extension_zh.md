@@ -211,4 +211,4 @@ RUN pip3 install --break-system-packages "large-package"
 ## 历史
 
 - **v0.26.x**: PIP_TOOLS 初始实现
-- **v0.27.0**: 预安装 `notebooklm-py[browser]` 用于 NotebookLM skill
+- **v0.27.0**: 预安装 `notebooklm-py` CLI 用于 NotebookLM skill
