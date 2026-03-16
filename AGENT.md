@@ -1,6 +1,6 @@
 # 🤖 HotPlex: AI Agent Engineering Protocol
 
-**Project Status**: v0.30.0 | **Core Role**: High-performance AI Agent Control Plane (Cli-as-a-Service).
+**Project Status**: v0.30.1 | **Core Role**: High-performance AI Agent Control Plane (Cli-as-a-Service).
 This document defines the operational boundaries and technical DNA for AI agents working on **hotplex**.
 
 ---
@@ -140,6 +140,26 @@ The edit tool tracks file state. Sequential edits without re-reading cause dupli
   ai:
     system_prompt: "Production prompt"  # Override parent
   ```
+
+---
+
+## 9. Release Checklist
+
+发布新版本时，必须更新以下 **5 个位置**：
+
+| # | 文件 | 字段 | 说明 |
+|---|------|------|------|
+| 1 | `hotplex.go:13` | `Version` | **Source of Truth** - 主版本号定义 |
+| 2 | `Makefile:64` | `VERSION` | 构建系统版本号 |
+| 3 | `CHANGELOG.md` | 顶部 | 添加新版本条目 |
+| 4 | `CLAUDE.md:3` | `vX.Y.Z` | 项目状态版本号 |
+| 5 | `AGENT.md:3` | `vX.Y.Z` | 代理文档版本号 |
+
+**验证命令**:
+```bash
+# 检查所有版本号是否一致
+grep -rn "0\.30\.[0-9]" hotplex.go Makefile CHANGELOG.md CLAUDE.md AGENT.md
+```
 
 ---
 
