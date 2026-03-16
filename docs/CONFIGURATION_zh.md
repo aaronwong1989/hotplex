@@ -22,7 +22,7 @@ HotPlex 使用分层配置系统，优先级从高到低：
 ```
 1. 命令行参数     (--config, --port 等)
 2. 环境变量       (HOTPLEX_*)
-3. YAML 配置文件  (configs/chatapps/*.yaml)
+3. YAML 配置文件  (configs/base/*.yaml)
 4. 默认值         (内置默认值)
 ```
 
@@ -32,6 +32,118 @@ HotPlex 使用分层配置系统，优先级从高到低：
 | ------------- | --------------------------------------- |
 | **`.env`**    | 全局参数、bot 凭证、密钥、持久化配置    |
 | **YAML 文件** | 平台行为、权限策略、功能开关、AI 提示词 |
+
+---
+
+## 配置继承 (v0.30.0+)
+
+HotPlex v0.30.0+ 引入了统一配置系统，支持配置继承。
+
+### 继承字段
+
+```yaml
+# configs/instances/bot-01/slack.yaml
+inherits: ../../base/slack.yaml
+
+# 仅覆盖需要自定义的字段
+engine:
+  work_dir: ~/projects/bot-01
+```
+
+### 相对路径解析
+
+- 继承路径相对于当前配置文件位置
+- 支持多级继承链
+- 自动检测循环继承并报错
+
+### 深度合并
+
+嵌套配置对象进行深度合并，而非完全覆盖：
+
+```yaml
+# base.yaml
+provider:
+  type: claude-code
+  default_model: sonnet
+  allowed_tools:
+    - Read
+    - Edit
+
+# instance.yaml (inherits base.yaml)
+provider:
+  default_model: opus
+  allowed_tools:
+    - Grep
+
+# 结果：model=opus, tools=[Grep] (合并 allowed_tools)
+```
+
+### 实例隔离
+
+多机器人部署时，每个实例可拥有独立配置目录：
+
+```
+configs/
+├── base/           # 基础配置 (SSOT)
+│   ├── slack.yaml
+│   └── feishu.yaml
+├── admin/          # Admin 机器人覆盖配置
+│   └── slack.yaml
+├── templates/      # 角色模板
+│   └── roles/
+│       ├── go.yaml
+│       ├── frontend.yaml
+│       └── devops.yaml
+└── instances/      # 各实例独立配置
+    ├── bot-01/
+    │   └── slack.yaml
+    └── bot-02/
+        └── slack.yaml
+```
+
+> **注意**：`configs/chatapps/` 目录已废弃。请使用 `configs/base/` 作为所有基础配置。
+
+---
+
+## 角色模板 (v0.30.0+)
+
+预定义的角色配置模板，位于 `configs/templates/roles/`：
+
+| 模板 | 用途 |
+| ---- | ---- |
+| `go.yaml` | Go 开发 |
+| `frontend.yaml` | 前端开发 |
+| `devops.yaml` | DevOps 任务 |
+| `custom.yaml` | 自定义角色 |
+
+### 使用方式
+
+1. **复制使用**：复制模板到目标位置后修改
+2. **内联引用**：在配置中直接引用模板
+
+```yaml
+# 使用模板
+inherits: ../templates/roles/go.yaml
+```
+
+---
+
+## Admin 机器人配置 (v0.30.0+)
+
+Admin 机器人配置位于 `configs/admin/`，继承自 `configs/base/`：
+
+```yaml
+# configs/admin/slack.yaml
+inherits: ../base/slack.yaml
+
+# Admin 机器人特定配置
+assistant:
+  bot_user_id: ${HOTPLEX_ADMIN_BOT_USER_ID}
+  skills:
+    - admin
+    - code-review
+    - security-audit
+```
 
 ---
 
@@ -132,7 +244,7 @@ HotPlex 使用分层配置系统，优先级从高到低：
 ### 结构
 
 ```yaml
-# configs/chatapps/slack.yaml
+# configs/base/slack.yaml
 
 # [必填] 平台标识
 platform: slack
@@ -142,7 +254,7 @@ provider:
   type: claude-code
   enabled: true
   default_model: sonnet
-  default_permission_mode: bypass-permissions
+  default_permission_mode: bypassPermissions
 
 # 引擎设置
 engine:
@@ -187,7 +299,7 @@ security:
 | `type`                         | Provider 类型：`claude-code`, `opencode`                                    |
 | `enabled`                      | 启用/禁用 provider                                                          |
 | `default_model`                | 默认模型 ID                                                                 |
-| `default_permission_mode`      | 权限模式：`bypass-permissions`, `acceptEdits`, `default`, `dontAsk`, `plan` |
+| `default_permission_mode`      | 权限模式：`bypassPermissions`, `acceptEdits`, `default`, `dontAsk`, `plan` |
 | `dangerously_skip_permissions` | 跳过所有权限检查（Docker/CI）                                               |
 | `binary_path`                  | 自定义二进制路径                                                            |
 | `allowed_tools`                | 工具白名单                                                                  |

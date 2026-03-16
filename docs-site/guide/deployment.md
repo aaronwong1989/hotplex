@@ -89,6 +89,60 @@ export HOTPLEX_CONFIG_DIR=/mnt/hotplex/config
 
 ---
 
+### SSOT Configuration System (v0.30.0+)
+
+HotPlex v0.30.0 introduces a **Single Source of Truth (SSOT)** configuration architecture with inheritance support.
+
+#### Configuration Directory Structure
+
+```
+configs/
+├── base/                    # SSOT: Base configuration templates
+│   ├── server.yaml          # Core server configuration
+│   ├── slack.yaml           # Slack adapter configuration
+│   └── feishu.yaml          # Feishu adapter configuration
+├── admin/                   # Admin bot configuration (inherits base/)
+│   ├── slack.yaml           # inherits: ../base/slack.yaml
+│   └── server.yaml          # inherits: ../base/server.yaml
+└── templates/               # Role templates for new instances
+    └── roles/              # Role-specific system prompts
+        ├── go.yaml         # Go Backend Engineer
+        ├── frontend.yaml   # React/Next.js Frontend Engineer
+        └── devops.yaml     # Docker/K8s DevOps Engineer
+```
+
+#### Configuration Inheritance
+
+Use the `inherits` field to extend base configurations:
+
+```yaml
+# configs/admin/slack.yaml
+inherits: ../base/slack.yaml
+
+# Override specific values
+assistant:
+  bot_user_id: "${HOTPLEX_ADMIN_BOT_USER_ID}"
+  dm_policy: allow
+```
+
+#### Environment Variable Expansion
+
+Use `${VAR}` syntax in YAML configurations:
+
+```yaml
+# configs/base/slack.yaml
+provider:
+  type: ${HOTPLEX_PROVIDER_TYPE}
+  api_key: ${HOTPLEX_API_KEY}
+
+engine:
+  work_dir: ~/hotplex/projects
+```
+
+> **Note**: Shell-style defaults (`${VAR:-default}`) are NOT supported. Use `${VAR}` only.
+
+---
+
 ### Deployment Strategies
 
 #### 1. 🐳 Containerization (Recommended)
@@ -135,7 +189,7 @@ Always configure a liveness probe directed at our health endpoint:
 GET /health
 ```
 
-[View the Docker Deployment Guide on GitHub](https://github.com/hrygo/hotplex/blob/main/docs/docker-deployment.md)
+[View the Docker Deployment Guide](https://github.com/hrygo/hotplex/blob/main/docs/production-guide.md)
 
 ## Alternative: Local Docker Build
 
@@ -149,3 +203,63 @@ docker run -p 8080:8080 \
   -e HOTPLEX_STATE_DB="sqlite:///data/hotplex.db" \
   hotplex:local
 ```
+
+---
+
+### Docker 1+n Architecture
+
+HotPlex uses a **1+n architecture** (1 Base + n Stacks) for optimal build caching and environment specialization.
+
+#### Available Images
+
+| Image | Description | Includes |
+| :---- | :---------- | :------- |
+| `hotplex:base` | Shared base image | Go 1.25, Python 3.14, Node.js 24 |
+| `hotplex:node` | Node.js stack | Node.js 24, bun, npm tools |
+| `hotplex:python` | Python stack | Python 3.14, uv, pydantic-ai |
+| `hotplex:java` | Java stack | Java 21, Maven/Gradle |
+| `hotplex:rust` | Rust stack | Rust 1.94, cargo tools |
+| `hotplex:full` | All-in-one | All stacks combined |
+
+#### Build Commands
+
+```bash
+# Build base image only
+make docker-build-base
+
+# Build specific stack
+make docker-build-stack STACK=python
+
+# Build all stacks
+make stack-all
+```
+
+---
+
+### PIP_TOOLS Support (v0.28.0+)
+
+HotPlex Docker images support automatic Python package installation via the `PIP_TOOLS` environment variable.
+
+#### Usage
+
+```yaml
+# docker-compose.yml
+services:
+  hotplex:
+    image: hrygo/hotplex:python
+    environment:
+      - PIP_TOOLS=notebooklm-py:notebooklm,pandas,numpy
+```
+
+#### Format
+
+- Package names only: `pkg1,pkg2,pkg3`
+- With binary alias: `pkg:bin,pkg2` (installs `pkg` but creates `bin` command)
+
+#### Examples
+
+| PIP_TOOLS | Effect |
+| :-------- | :------ |
+| `pandas` | Install pandas package |
+| `notebooklm-py:notebooklm` | Install notebooklm-py, create `notebooklm` command |
+| `pandas,numpy,requests` | Install multiple packages |

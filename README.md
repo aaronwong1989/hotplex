@@ -67,7 +67,7 @@ make build
 export HOTPLEX_SLACK_BOT_USER_ID=B12345
 export HOTPLEX_SLACK_BOT_TOKEN=xoxb-...
 export HOTPLEX_SLACK_APP_TOKEN=xapp-...
-./hotplexd --config configs/server.yaml --config-dir configs/chatapps
+./hotplexd --config configs/server.yaml --config-dir configs/base
 
 # Or start with WebSocket gateway only
 ./hotplexd --config configs/server.yaml
@@ -353,7 +353,7 @@ func main() {
 ### Slack Bot Configuration
 
 ```yaml
-# configs/chatapps/slack.yaml
+# configs/base/slack.yaml
 platform: slack
 mode: socket
 
@@ -477,7 +477,7 @@ func init() {
 }
 ```
 
-3. **Add configuration** in `configs/chatapps/`:
+3. **Add configuration** in `configs/base/`:
 
 ```yaml
 platform: platform-name

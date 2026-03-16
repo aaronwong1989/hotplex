@@ -59,9 +59,11 @@ func main() {
 			_ = os.Setenv("ENV_FILE", envPath)
 		}
 	} else {
-		// Default discovery
+		// Default discovery: prefer ~/.hotplex/.env for admin bot
+		homeDir, _ := os.UserHomeDir()
 		candidates := []string{
-			".env",                                 // Current directory
+			filepath.Join(homeDir, ".hotplex", ".env"), // Admin bot (preferred)
+			".env",                                 // Current directory (fallback)
 			filepath.Join(sys.ConfigDir(), ".env"), // XDG fallback
 		}
 		for _, c := range candidates {

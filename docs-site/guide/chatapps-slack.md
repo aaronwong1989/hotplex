@@ -129,4 +129,56 @@ Fine-tune the behavior of your receptor in `chatapps/configs/slack.yaml`:
 
 ---
 
+### 🏠 App Home Capability Center (v0.25.0+)
+
+HotPlex supports **Slack App Home** - an interactive form-based interface for predefined AI tasks. Users can trigger specialized workflows directly from the Slack home tab.
+
+#### Features
+
+| Feature | Description |
+| :------ | :---------- |
+| **Code Review** | Submit PR URLs for AI-powered code review |
+| **Debugging** | Paste error messages for analysis and fixes |
+| **Documentation** | Generate docs from code or specs |
+| **Testing** | Create test cases from implementation |
+| **Refactoring** | Get AI suggestions for code improvements |
+
+#### Configuration
+
+Enable in your Slack config:
+
+```yaml
+# configs/base/slack.yaml
+assistant:
+  app_home:
+    enabled: true
+    capabilities_path: ./capabilities.yaml
+```
+
+#### Capabilities YAML
+
+Define available capabilities in `capabilities.yaml`:
+
+```yaml
+capabilities:
+  - id: code_review
+    name: Code Review
+    description: Submit a PR URL for AI-powered code review
+    form:
+      - name: pr_url
+        type: text
+        label: Pull Request URL
+        required: true
+      - name: focus
+        type: select
+        label: Review Focus
+        options:
+          - Security
+          - Performance
+          - Best Practices
+          - General
+```
+
+---
+
 > "Integrate not just for function, but for the experience of collaboration." — The HotPlex Team

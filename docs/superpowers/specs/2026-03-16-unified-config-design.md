@@ -101,6 +101,26 @@
 
 ## 3. 同步命令
 
+### 3.0 强制规则：重启前必须同步
+
+> **宪法级规则**：所有重启操作前必须先执行同步。
+
+| 重启命令 | 必须先执行 |
+|----------|-----------|
+| `make restart` | `make sync` |
+| `make service-restart` | `make sync` |
+| `make docker-restart` | 自动包含 `docker-sync`（无需手动） |
+
+**设计理由**：
+1. **SSOT 保证**：确保运行时配置始终与代码仓库一致
+2. **避免配置漂移**：防止本地配置与源码不同步导致难以调试的问题
+3. **显式操作**：用户明确知道配置会被更新
+
+**违反后果**：
+- 运行时可能使用过期配置
+- 继承链断裂导致启动失败
+- 行为与预期不符
+
 ### 3.1 make sync
 
 同步 admin bot 配置：
@@ -114,6 +134,9 @@ cp -r ./configs/admin/* ~/.hotplex/configs/
 
 # 3. 复制 base 到 admin configs (用于继承)
 cp -r ./configs/base ~/.hotplex/configs/base/
+
+# 4. 同步 .env 凭证 (admin bot 专用)
+cp .env ~/.hotplex/.env
 ```
 
 ### 3.2 make docker-sync
@@ -217,21 +240,57 @@ security:
 
 ---
 
-## 6. 隔离 vs 共享矩阵
+## 6. 环境变量文件 (.env) 规范
+
+### 6.1 文件定位
+
+| 文件 | 用途 | 路径约定 |
+|------|------|----------|
+| `~/.hotplex/.env` | admin bot 专属凭证 | `~/.hotplex/` (root) |
+| `./.env.example` | Docker 实例模板 | `instances/${HOTPLEX_BOT_ID}/` |
+| `./.env` | 本地开发临时 | 不提交 (gitignored) |
+| `docker/matrix/.env-NN` | Docker 实例凭证 | `instances/${HOTPLEX_BOT_ID}/` |
+
+### 6.2 路径差异
+
+**admin bot** (`~/.hotplex/.env`):
+```bash
+# admin bot 使用 root 目录
+HOTPLEX_MESSAGE_STORE_SQLITE_PATH=~/.hotplex/chatapp_messages.db
+HOTPLEX_PROJECTS_DIR=~/.hotplex/projects
+```
+
+**Docker 实例** (`docker/matrix/.env-NN`):
+```bash
+# Docker 实例使用 instances/$ID/ 目录
+HOTPLEX_MESSAGE_STORE_SQLITE_PATH=~/.hotplex/instances/${HOTPLEX_BOT_ID}/storage/chatapp_messages.db
+HOTPLEX_PROJECTS_DIR=~/.hotplex/instances/${HOTPLEX_BOT_ID}/projects
+```
+
+### 6.3 加载优先级
+
+hotplexd 按以下顺序加载 `.env`:
+1. `~/.hotplex/.env` (admin bot 首选)
+2. `./.env` (当前目录，fallback)
+3. `$XDG_CONFIG_HOME/hotplex/.env` (XDG fallback)
+
+---
+
+## 7. 隔离 vs 共享矩阵
 
 | 资源 | admin bot | Docker bot | 说明 |
 |------|-----------|------------|------|
 | `configs/base/` | 共享 (seed) | 内嵌副本 | 模板，SSOT |
 | `configs/slack.yaml` | 独立 | 独立 | 包含 `bot_user_id` |
-| `.env` | `~/.hotplex/` | `instances/$ID/` | 凭证，必须隔离 |
-| `chatapp_messages.db` | 独立 | 独立 | 消息存储，隔离 |
+| `.env` | `~/.hotplex/.env` | `instances/$ID/.env` | 凭证，必须隔离 |
+| `chatapp_messages.db` | `~/.hotplex/` | `instances/$ID/` | 消息存储，隔离 |
 | `claude/` | 宿主机 `~/.claude/` | 实例独立 | MCP 配置 |
 | `projects/` | 独立 | 独立 | 代码库副本，隔离 |
 | `sessions/` | 独立 | 独立 | 会话数据，隔离 |
 
 ---
 
-## 7. 安全注意事项
+## 8. 安全注意事项
 
 ### 7.1 敏感信息分离
 
@@ -264,7 +323,7 @@ docker/matrix/configs/bot-*/
 
 ---
 
-## 8. 实例创建工具 (add-bot.sh)
+## 9. 实例创建工具 (add-bot.sh)
 
 ### 8.1 概述
 
@@ -371,7 +430,7 @@ docker/matrix/configs/bot-04/
 
 ---
 
-## 9. 实施清单
+## 10. 实施清单
 
 ### 9.1 配置目录
 - [x] 创建 `./configs/admin/` 目录结构
@@ -406,7 +465,7 @@ docker/matrix/configs/bot-04/
 
 ---
 
-## 10. 风险评估
+## 11. 风险评估
 
 | 风险 | 影响 | 缓解措施 |
 |------|------|----------|
@@ -416,7 +475,7 @@ docker/matrix/configs/bot-04/
 
 ---
 
-## 10. 参考资料
+## 12. 参考资料
 
 - [HotPlex CLAUDE.md](../../CLAUDE.md)
 - [Configuration Layering](../../memory/MEMORY.md)

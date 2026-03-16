@@ -46,39 +46,150 @@
 
 ## Configuration
 
-### ChatApps Platform Configuration
+### Unified Configuration System (v0.30.0+)
 
-Create configuration files in `configs/chatapps/` directory:
+HotPlex v0.30.0 introduces a unified configuration system with:
+- **Instance Isolation**: Per-bot config directories for multi-bot deployments
+- **Configuration Inheritance**: Base templates with `inherits` for multi-environment setups
+- **Admin Bot Support**: Separate admin configurations in `configs/admin/`
+
+#### Configuration Directory Structure
+
+```
+configs/
+├── base/                    # SSOT base configuration templates
+│   ├── server.yaml         # Core server config
+│   ├── slack.yaml          # Slack adapter config
+│   ├── feishu.yaml        # Feishu adapter config
+│   └── slack_capabilities.yaml
+├── admin/                   # Admin bot configurations
+│   ├── server.yaml         # Inherits from base/server.yaml
+│   └── slack.yaml
+└── instances/              # Instance-specific overrides
+    └── my-bot/
+        ├── server.yaml     # Inherits from ../../base/server.yaml
+        └── slack.yaml      # Inherits from ../../base/slack.yaml
+```
+
+#### Base Configuration Templates
 
 ```yaml
-# configs/chatapps/slack.yaml
-platform: slack
-system_prompt: |
-  You are an AI coding assistant.
-task_instructions: |
-  Help users with coding tasks.
+# configs/base/server.yaml
+server:
+  port: 8080
+  log_level: info
 engine:
-  timeout: 5m
-  idle_timeout: 30m
-  work_dir: /tmp/hotplex
-  allowed_tools:
-    - Bash
-    - Edit
-    - Glob
-    - Read
+  timeout: 30m
+  idle_timeout: 1h
+  work_dir: /tmp/hotplex_sandbox
+security:
+  api_key: "${HOTPLEX_API_KEY}"
+```
+
+```yaml
+# configs/base/slack.yaml
+platform: slack
+mode: socket
 provider:
   type: claude-code
-  model: claude-sonnet-4-20250514
+  default_model: sonnet
+engine:
+  work_dir: ${HOTPLEX_PROJECTS_DIR}/hotplex
+  timeout: 30m
 security:
-  verify_signature: true
   permission:
-    dm_policy: allow
-    group_policy: allow
-    bot_user_id: U1234567890
+    bot_user_id: ${HOTPLEX_SLACK_BOT_USER_ID}
 ```
+
+#### Configuration Inheritance
+
+Use `inherits` to extend base configurations:
+
+```yaml
+# configs/admin/server.yaml
+inherits: ./base/server.yaml
+
+server:
+  log_level: debug
+```
+
+```yaml
+# configs/instances/my-bot/slack.yaml
+inherits: ../../base/slack.yaml
+
+# Override only what you need
+system_prompt: |
+  Your custom system prompt here...
+```
+
+### Multi-Instance Deployment (Docker Matrix)
+
+For production deployments running multiple bot instances, use the Docker Matrix pattern:
+
+#### Instance Isolation Structure
+
+Each bot runs in its own container with isolated configuration:
+
+| Instance | Port | Bot ID | Config Path |
+|:---------|:-----|:-------|:------------|
+| hotplex-01 | 18080 | U0AHRCL1KCM | ~/.hotplex/instances/U0AHRCL1KCM/ |
+| hotplex-02 | 18081 | U0AJVRH4YF6 | ~/.hotplex/instances/U0AJVRH4YF6/ |
+| hotplex-03 | 18082 | U0AL7H8UU75 | ~/.hotplex/instances/U0AL7H8UU75/ |
+
+#### Docker Compose Configuration
+
+```yaml
+# docker-compose.yml (Matrix)
+services:
+  hotplex-01:
+    image: hotplex:latest
+    ports: ["127.0.0.1:18080:8080"]
+    env_file: [.env-01]
+    volumes:
+      - ~/.hotplex/instances/U0AHRCL1KCM:/home/hotplex/.hotplex:rw
+    environment:
+      HOTPLEX_BOT_ID: U0AHRCL1KCM
+      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
+      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
+```
+
+#### Best Practices for Production Config Management
+
+1. **Use Environment Variables for Secrets**
+   ```bash
+   # .env file
+   HOTPLEX_SLACK_BOT_USER_ID=UXXXXXXXXXX
+   HOTPLEX_SLACK_BOT_TOKEN=xoxb-...
+   HOTPLEX_API_KEY=your-api-key
+   ```
+
+2. **Unique bot_user_id per Instance**
+   - Each bot MUST have a unique `bot_user_id` to prevent session ID collisions
+   - Configure via environment variable: `${HOTPLEX_SLACK_BOT_USER_ID}`
+
+3. **Configuration Inheritance Strategy**
+   - Keep base templates in `configs/base/` (SSOT)
+   - Create instance-specific overrides in `configs/instances/<bot-id>/`
+   - Use `inherits` to avoid duplication
+
+4. **Shared vs Isolated Resources**
+   - Shared: Claude configuration (`~/.claude`), Go module cache
+   - Isolated: Session storage, project directories, bot-specific configs
+
+### Legacy Configuration (Deprecated)
+
+The old `configs/chatapps/` directory has been deprecated. Migration:
+
+| Old Path | New Path |
+|----------|----------|
+| `configs/chatapps/slack.yaml` | `configs/base/slack.yaml` |
+| `configs/chatapps/feishu.yaml` | `configs/base/feishu.yaml` |
+| `configs/server.yaml` | `configs/base/server.yaml` |
 
 ### Environment Variables
 
+| Variable | Description | Default |
+| :------- | :---------- | :------ |
 | `HOTPLEX_PORT` | HTTP server port | `8080` |
 | `HOTPLEX_API_KEY` | Primary API Key for control plane authentication | - |
 | `HOTPLEX_API_KEYS` | Multiple API Keys (comma-separated, takes precedence) | - |
@@ -86,6 +197,19 @@ security:
 | `HOTPLEX_ALLOWED_ORIGINS` | Comma-separated allowed origins for CORS | `localhost` |
 | `HOTPLEX_CONFIG_DIR` | Configuration directory | `./configs` |
 | `HOTPLEX_METRICS_PATH` | Metrics endpoint path | `/metrics` |
+| `HOTPLEX_SERVER_CONFIG` | Server config file path | - |
+| `HOTPLEX_CHATAPPS_CONFIG_DIR` | ChatApps config directory | - |
+| `HOTPLEX_BOT_ID` | Bot instance identifier (multi-instance) | - |
+| `HOTPLEX_PROJECTS_DIR` | Working directory for projects | `/tmp/hotplex` |
+
+#### Bot-Specific Variables (Multi-Instance)
+
+| Variable | Description |
+| :------- | :---------- |
+| `HOTPLEX_SLACK_BOT_USER_ID` | Slack Bot User ID (must be unique per instance) |
+| `HOTPLEX_SLACK_BOT_TOKEN` | Slack Bot Token |
+| `HOTPLEX_SLACK_APP_TOKEN` | Slack App Token (Socket Mode) |
+| `HOTPLEX_SLACK_PRIMARY_OWNER` | Primary owner's Slack User ID |
 
 ## Monitoring
 
@@ -192,7 +316,7 @@ Response:
 ```json
 {
   "status": "healthy",
-  "version": "v0.17.0",
+  "version": "v0.30.0",
   "uptime": "24h30m",
   "active_sessions": 42
 }
@@ -255,6 +379,8 @@ ps aux | grep -E "(claude-code|opencode)" | grep defunct
 
 ## Docker Deployment
 
+### Single Instance
+
 ```yaml
 # docker-compose.yaml
 version: '3.8'
@@ -274,6 +400,61 @@ services:
       limits:
         cpu: "2"
         memory: 2Gi
+```
+
+### Multi-Instance (Matrix Pattern)
+
+For production deployments with multiple bot instances, use the Docker Matrix pattern:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  # Primary Bot
+  hotplex-01:
+    image: hotplex:latest
+    container_name: hotplex-01
+    ports:
+      - "127.0.0.1:18080:8080"
+    env_file: [.env-01]
+    volumes:
+      - ~/.hotplex/instances/U0AHRCL1KCM:/home/hotplex/.hotplex:rw
+      - ~/.claude:/home/hotplex/.claude_seed:ro
+    environment:
+      HOTPLEX_BOT_ID: U0AHRCL1KCM
+      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
+      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
+
+  # Secondary Bot
+  hotplex-02:
+    image: hotplex:latest
+    container_name: hotplex-02
+    ports:
+      - "127.0.0.1:18081:8080"
+    env_file: [.env-02]
+    volumes:
+      - ~/.hotplex/instances/U0AJVRH4YF6:/home/hotplex/.hotplex:rw
+      - ~/.claude:/home/hotplex/.claude_seed:ro
+    environment:
+      HOTPLEX_BOT_ID: U0AJVRH4YF6
+      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
+      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
+```
+
+#### Matrix Deployment Commands
+
+```bash
+# Start all instances
+cd ~/hotplex/docker/matrix && docker compose up -d
+
+# Restart specific instance
+cd ~/hotplex/docker/matrix && docker compose restart hotplex-01
+
+# View logs
+cd ~/hotplex/docker/matrix && docker compose logs -f hotplex-01
+
+# Check status
+cd ~/hotplex/docker/matrix && docker compose ps
 ```
 
 ## Kubernetes Deployment

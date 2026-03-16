@@ -17,19 +17,19 @@ import (
 )
 
 type PlatformConfig struct {
-	Inherits        string                  `yaml:"inherits"`  // Path to parent config file (relative or absolute)
-	Platform        string                  `yaml:"platform"`
-	Mode            string                  `yaml:"mode"`
-	SystemPrompt    string                  `yaml:"system_prompt"`
-	TaskInstructions string                 `yaml:"task_instructions"`
-	Engine          EngineConfig            `yaml:"engine"`
-	Provider        provider.ProviderConfig `yaml:"provider"`
-	Security        SecurityConfig          `yaml:"security"`
-	Features        FeaturesConfig          `yaml:"features"`
-	Session         SessionConfig           `yaml:"session"`
-	MessageStore    MessageStoreConfig      `yaml:"message_store,omitempty"`
-	Options         map[string]any          `yaml:"options,omitempty"`
-	SourceFile      string                  `yaml:"-"` // Tracks which file this config was loaded from
+	Inherits         string                  `yaml:"inherits"` // Path to parent config file (relative or absolute)
+	Platform         string                  `yaml:"platform"`
+	Mode             string                  `yaml:"mode"`
+	SystemPrompt     string                  `yaml:"system_prompt"`
+	TaskInstructions string                  `yaml:"task_instructions"`
+	Engine           EngineConfig            `yaml:"engine"`
+	Provider         provider.ProviderConfig `yaml:"provider"`
+	Security         SecurityConfig          `yaml:"security"`
+	Features         FeaturesConfig          `yaml:"features"`
+	Session          SessionConfig           `yaml:"session"`
+	MessageStore     MessageStoreConfig      `yaml:"message_store,omitempty"`
+	Options          map[string]any          `yaml:"options,omitempty"`
+	SourceFile       string                  `yaml:"-"` // Tracks which file this config was loaded from
 }
 
 type SecurityConfig struct {

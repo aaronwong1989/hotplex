@@ -10,6 +10,9 @@
 - [Configuration Layers](#configuration-layers)
 - [Environment Variables](#environment-variables)
 - [YAML Configuration](#yaml-configuration)
+- [Configuration Inheritance](#configuration-inheritance)
+- [Role Templates](#role-templates)
+- [Admin Bot Configuration](#admin-bot-configuration)
 - [Platform-Specific Configs](#platform-specific-configs)
 - [Examples](#examples)
 
@@ -22,16 +25,38 @@ HotPlex uses a layered configuration system with the following priority (highest
 ```
 1. Command-line flags     (--config, --port, etc.)
 2. Environment variables  (HOTPLEX_*)
-3. YAML config files      (configs/chatapps/*.yaml)
+3. YAML config files      (configs/base/*.yaml, configs/admin/*.yaml)
 4. Default values         (built-in defaults)
 ```
 
 ### Layer Purposes
 
 | Layer          | Contents                                                        |
-| -------------- | --------------------------------------------------------------- |
+| -------------- | ---------------------------------------------------------------|
 | **`.env`**     | Global parameters, bot credentials, secrets, persistence config |
 | **YAML files** | Platform behavior, permissions, features, AI prompts            |
+
+### Configuration Directory Structure (v0.30.0+)
+
+```
+configs/
+├── base/                    # SSOT: Base configuration templates
+│   ├── server.yaml          # Core server configuration
+│   ├── slack.yaml           # Slack adapter configuration
+│   ├── feishu.yaml          # Feishu adapter configuration
+│   └── README.md            # Base config documentation
+├── admin/                   # Admin bot configuration
+│   ├── slack.yaml           # inherits: ../base/slack.yaml
+│   └── server.yaml          # inherits: ../base/server.yaml
+└── templates/               # Role templates for new instances
+    └── roles/              # Role-specific system prompts
+        ├── go.yaml         # Go Backend Engineer template
+        ├── frontend.yaml   # React/Next.js Frontend Engineer
+        ├── devops.yaml     # Docker/K8s DevOps Engineer
+        └── custom.yaml     # User-defined template
+```
+
+> **Note**: The `configs/chatapps/` directory has been deprecated. Use `configs/base/` for all base configurations.
 
 ---
 
@@ -132,7 +157,10 @@ HotPlex uses a layered configuration system with the following priority (highest
 ### Structure
 
 ```yaml
-# configs/chatapps/slack.yaml
+# configs/base/slack.yaml
+
+# [Required] Inherit from base configuration (v0.30.0+)
+inherits: null  # or path to parent config
 
 # [Required] Platform identifier
 platform: slack
@@ -142,7 +170,7 @@ provider:
   type: claude-code
   enabled: true
   default_model: sonnet
-  default_permission_mode: bypass-permissions
+  default_permission_mode: bypassPermissions
 
 # Engine settings
 engine:
@@ -180,6 +208,22 @@ security:
     bot_user_id: ${HOTPLEX_SLACK_BOT_USER_ID}
 ```
 
+### Environment Variable Expansion
+
+**IMPORTANT**: Go's `os.ExpandEnv` only supports basic variable substitution:
+
+```yaml
+# Supported - simple variable expansion
+bot_user_id: ${HOTPLEX_SLACK_BOT_USER_ID}
+api_key: ${HOTPLEX_API_KEY}
+
+# NOT supported (shell-style defaults)
+bot_user_id: ${HOTPLEX_SLACK_BOT_USER_ID:-}  # Will NOT work!
+api_key: ${HOTPLEX_API_KEY:-default}        # Will NOT work!
+```
+
+If an environment variable is not set, it will be replaced with an empty string. Ensure all required variables are defined in your `.env` file.
+
 ### Provider Section
 
 | Field                          | Description                                                                        |
@@ -187,7 +231,7 @@ security:
 | `type`                         | Provider type: `claude-code`, `opencode`                                           |
 | `enabled`                      | Enable/disable provider                                                            |
 | `default_model`                | Default model ID                                                                   |
-| `default_permission_mode`      | Permission mode: `bypass-permissions`, `acceptEdits`, `default`, `dontAsk`, `plan` |
+| `default_permission_mode`      | Permission mode: `bypassPermissions`, `acceptEdits`, `default`, `dontAsk`, `plan` |
 | `dangerously_skip_permissions` | Skip all permission checks (Docker/CI)                                             |
 | `binary_path`                  | Custom binary path                                                                 |
 | `allowed_tools`                | Tool whitelist                                                                     |
@@ -230,6 +274,211 @@ security:
 
 ---
 
+## Configuration Inheritance
+
+HotPlex v0.30.0+ introduces a unified configuration system with inheritance support. This allows you to extend base configurations while customizing only what you need.
+
+### The `inherits` Field
+
+Use the `inherits` field to specify a parent configuration file:
+
+```yaml
+# configs/instances/my-bot/slack.yaml
+inherits: ../../base/slack.yaml
+
+# Only override what you need
+ai:
+  system_prompt: |
+    Your custom system prompt here...
+```
+
+### Relative Path Resolution
+
+The `inherits` field supports relative path resolution from the config file's location:
+
+| Current File | Inherits Value | Resolved Path |
+|--------------|----------------|---------------|
+| `configs/admin/slack.yaml` | `./base/slack.yaml` | `configs/admin/base/slack.yaml` |
+| `configs/admin/slack.yaml` | `../base/slack.yaml` | `configs/base/slack.yaml` |
+| `configs/instances/bot-01/slack.yaml` | `../../base/slack.yaml` | `configs/base/slack.yaml` |
+
+### Deep Merge
+
+Configuration inheritance performs a **deep merge** for nested objects. Child values override parent values:
+
+```yaml
+# configs/base/slack.yaml (parent)
+provider:
+  type: claude-code
+  default_model: sonnet
+  enabled: true
+
+security:
+  permission:
+    dm_policy: allow
+    group_policy: mention
+
+# configs/instances/my-bot/slack.yaml (child)
+inherits: ../../base/slack.yaml
+
+# Override only specific fields
+provider:
+  default_model: opus  # Override nested value
+
+security:
+  permission:
+    group_policy: multibot  # Override nested value
+    bot_user_id: U12345    # Add new field
+```
+
+Result after merge:
+```yaml
+provider:
+  type: claude-code      # from parent
+  default_model: opus    # overridden
+  enabled: true          # from parent
+
+security:
+  permission:
+    dm_policy: allow     # from parent
+    group_policy: multibot  # overridden
+    bot_user_id: U12345 # from child
+```
+
+### Circular Inheritance Detection
+
+HotPlex automatically detects circular inheritance and provides informative errors:
+
+```
+Error: circular inheritance detected: a.yaml -> b.yaml -> c.yaml -> a.yaml
+```
+
+### Instance Isolation
+
+For multi-bot deployments, each bot should have its own configuration directory:
+
+```
+configs/
+├── base/                    # SSOT - do not modify for instances
+│   ├── slack.yaml
+│   └── server.yaml
+├── admin/                   # Admin bot
+│   ├── slack.yaml           # inherits: ../base/slack.yaml
+│   └── server.yaml
+└── instances/               # Bot instances
+    ├── bot-01/
+    │   ├── slack.yaml       # inherits: ../../base/slack.yaml
+    │   └── server.yaml      # inherits: ../../base/server.yaml
+    └── bot-02/
+        ├── slack.yaml       # inherits: ../../base/slack.yaml
+        └── server.yaml
+```
+
+---
+
+## Role Templates
+
+HotPlex provides role-based system prompt templates in `configs/templates/roles/`. These templates define AI behavior for different development specializations.
+
+### Available Roles
+
+| Role | Description |
+|------|-------------|
+| `go` | Go Backend Engineer - REST APIs, database, concurrency |
+| `frontend` | React/Next.js Frontend Engineer - UI components, state |
+| `devops` | Docker/K8s DevOps Engineer - containers, CI/CD |
+| `custom` | User-defined template for custom roles |
+
+### Using Role Templates
+
+#### Method 1: Copy to Bot Config
+
+```bash
+# Copy role template to your bot config
+cp configs/templates/roles/go.yaml configs/instances/my-bot/system-prompt.yaml
+
+# Reference in your slack.yaml
+inherits: ../../base/slack.yaml
+
+ai:
+  system_prompt_file: ./system-prompt.yaml
+```
+
+#### Method 2: Inline Reference
+
+```yaml
+# configs/instances/my-bot/slack.yaml
+inherits: ../../base/slack.yaml
+
+# Use role template directly
+system_prompt: |
+  {{ include "configs/templates/roles/go.yaml" | toJson }}
+
+# Or copy the content and customize
+system_prompt: |
+  You are HotPlex, a senior Go backend engineer in a Slack conversation.
+
+  ## Environment
+  - Running under HotPlex engine (stdin/stdout)
+  - Headless mode - cannot prompt for user input
+  ...
+```
+
+### Customizing Role Templates
+
+For custom roles:
+
+1. Copy `configs/templates/roles/custom.yaml` to a new file
+2. Edit the `system_prompt` content
+3. Reference it in your bot configuration
+
+---
+
+## Admin Bot Configuration
+
+The admin bot in `configs/admin/` provides operational capabilities for the HotPlex multi-bot system.
+
+### Configuration Structure
+
+```yaml
+# configs/admin/slack.yaml
+inherits: ../base/slack.yaml
+
+system_prompt: |
+  You are HotPlex Admin Bot, a DevOps specialist...
+```
+
+### Admin Bot Capabilities
+
+The admin bot has specialized skills for operational tasks:
+
+| Skill | Trigger Phrases | Purpose |
+|-------|-----------------|---------|
+| `docker-container-ops` | restart bot, start container, check status | Container lifecycle management |
+| `hotplex-diagnostics` | diagnose, check health, view logs, debug | Health monitoring & debugging |
+| `hotplex-data-mgmt` | clean sessions, markers, export data | Session & data management |
+| `hotplex-release` | release, create tag, bump version | Version releases |
+
+### Key Constraints
+
+The admin bot is designed for **operations only**:
+- **NEVER modifies code directly** - no editing source files
+- **ALL problems become Issues** - creates issues for code problems
+- **OBSERVE, ANALYZE, REPORT** - other bots implement fixes
+
+### Deployment
+
+```bash
+# Sync admin config to home directory
+make sync
+
+# Or manually
+cp -r configs/admin/* ~/.hotplex/configs/
+cp -r configs/base ~/.hotplex/configs/base/
+```
+
+---
+
 ## Platform-Specific Configs
 
 ### Slack (socket mode)
@@ -268,6 +517,69 @@ security:
 ---
 
 ## Examples
+
+### Configuration Inheritance Chain
+
+#### Base Configuration (configs/base/slack.yaml)
+
+```yaml
+# SSOT base configuration - DO NOT modify directly for instances
+platform: slack
+mode: socket
+
+provider:
+  type: claude-code
+  default_model: sonnet
+
+engine:
+  work_dir: ~/projects
+  timeout: 30m
+  idle_timeout: 1h
+
+security:
+  permission:
+    dm_policy: allow
+    group_policy: mention
+```
+
+#### Instance Configuration (configs/instances/bot-01/slack.yaml)
+
+```yaml
+# Inherit from base, override specific values
+inherits: ../../base/slack.yaml
+
+# Custom settings for this bot
+security:
+  permission:
+    bot_user_id: ${HOTPLEX_SLACK_BOT_USER_ID}
+    group_policy: multibot
+
+# Custom system prompt
+system_prompt: |
+  You are Bot-01, a senior Go backend engineer...
+
+features:
+  chunking:
+    enabled: true
+    max_chars: 4000
+  threading:
+    enabled: true
+```
+
+#### Admin Configuration (configs/admin/slack.yaml)
+
+```yaml
+# Admin bot inherits from base
+inherits: ../base/slack.yaml
+
+# Admin-specific overrides
+system_prompt: |
+  You are HotPlex Admin Bot, a DevOps specialist...
+
+security:
+  permission:
+    bot_user_id: ${HOTPLEX_SLACK_BOT_USER_ID}
+```
 
 ### Minimal Slack Config
 
@@ -330,3 +642,5 @@ features:
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Architecture overview
 - [docker-deployment.md](docker-deployment.md) - Docker deployment
 - [chatapps/slack-setup-beginner.md](chatapps/slack-setup-beginner.md) - Slack setup guide
+- [configs/README.md](../configs/README.md) - Configuration directory overview
+- [configs/base/README.md](../configs/base/README.md) - Base configuration details

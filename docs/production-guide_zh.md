@@ -46,39 +46,150 @@
 
 ## 配置说明
 
-### ChatApps 平台配置
+### 统一配置系统 (v0.30.0+)
 
-在 `configs/chatapps/` 目录下创建配置文件：
+HotPlex v0.30.0 引入了统一配置系统，具备：
+- **实例隔离**: 每个机器人独立的配置目录
+- **配置继承**: 基础模板配合 `inherits` 实现多环境配置
+- **管理机器人支持**: 独立的管理机器人配置位于 `configs/admin/`
+
+#### 配置目录结构
+
+```
+configs/
+├── base/                    # SSOT 基础配置模板
+│   ├── server.yaml         # 核心服务器配置
+│   ├── slack.yaml          # Slack 适配器配置
+│   ├── feishu.yaml        # 飞书适配器配置
+│   └── slack_capabilities.yaml
+├── admin/                   # 管理机器人配置
+│   ├── server.yaml         # 继承自 base/server.yaml
+│   └── slack.yaml
+└── instances/              # 实例特定覆盖配置
+    └── my-bot/
+        ├── server.yaml     # 继承自 ../../base/server.yaml
+        └── slack.yaml      # 继承自 ../../base/slack.yaml
+```
+
+#### 基础配置模板
 
 ```yaml
-# configs/chatapps/slack.yaml
-platform: slack
-system_prompt: |
-  You are an AI coding assistant.
-task_instructions: |
-  Help users with coding tasks.
+# configs/base/server.yaml
+server:
+  port: 8080
+  log_level: info
 engine:
-  timeout: 5m
-  idle_timeout: 30m
-  work_dir: /tmp/hotplex
-  allowed_tools:
-    - Bash
-    - Edit
-    - Glob
-    - Read
+  timeout: 30m
+  idle_timeout: 1h
+  work_dir: /tmp/hotplex_sandbox
+security:
+  api_key: "${HOTPLEX_API_KEY}"
+```
+
+```yaml
+# configs/base/slack.yaml
+platform: slack
+mode: socket
 provider:
   type: claude-code
-  model: claude-sonnet-4-20250514
+  default_model: sonnet
+engine:
+  work_dir: ${HOTPLEX_PROJECTS_DIR}/hotplex
+  timeout: 30m
 security:
-  verify_signature: true
   permission:
-    dm_policy: allow
-    group_policy: allow
-    bot_user_id: U1234567890
+    bot_user_id: ${HOTPLEX_SLACK_BOT_USER_ID}
 ```
+
+#### 配置继承
+
+使用 `inherits` 扩展基础配置：
+
+```yaml
+# configs/admin/server.yaml
+inherits: ./base/server.yaml
+
+server:
+  log_level: debug
+```
+
+```yaml
+# configs/instances/my-bot/slack.yaml
+inherits: ../../base/slack.yaml
+
+# 仅覆盖需要的内容
+system_prompt: |
+  你的自定义系统提示词...
+```
+
+### 多实例部署 (Docker Matrix)
+
+对于运行多个机器人实例的生产部署，使用 Docker Matrix 模式：
+
+#### 实例隔离结构
+
+每个机器人在独立容器中运行，拥有隔离的配置：
+
+| 实例 | 端口 | Bot ID | 配置路径 |
+|:-----|:-----|:-------|:---------|
+| hotplex-01 | 18080 | U0AHRCL1KCM | ~/.hotplex/instances/U0AHRCL1KCM/ |
+| hotplex-02 | 18081 | U0AJVRH4YF6 | ~/.hotplex/instances/U0AJVRH4YF6/ |
+| hotplex-03 | 18082 | U0AL7H8UU75 | ~/.hotplex/instances/U0AL7H8UU75/ |
+
+#### Docker Compose 配置
+
+```yaml
+# docker-compose.yml (Matrix)
+services:
+  hotplex-01:
+    image: hotplex:latest
+    ports: ["127.0.0.1:18080:8080"]
+    env_file: [.env-01]
+    volumes:
+      - ~/.hotplex/instances/U0AHRCL1KCM:/home/hotplex/.hotplex:rw
+    environment:
+      HOTPLEX_BOT_ID: U0AHRCL1KCM
+      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
+      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
+```
+
+#### 生产配置管理最佳实践
+
+1. **使用环境变量管理敏感信息**
+   ```bash
+   # .env 文件
+   HOTPLEX_SLACK_BOT_USER_ID=UXXXXXXXXXX
+   HOTPLEX_SLACK_BOT_TOKEN=xoxb-...
+   HOTPLEX_API_KEY=your-api-key
+   ```
+
+2. **每个实例使用唯一的 bot_user_id**
+   - 每个机器人必须有唯一的 `bot_user_id` 以防止会话 ID 冲突
+   - 通过环境变量配置：`${HOTPLEX_SLACK_BOT_USER_ID}`
+
+3. **配置继承策略**
+   - 将基础模板保存在 `configs/base/` (SSOT)
+   - 在 `configs/instances/<bot-id>/` 创建实例特定覆盖
+   - 使用 `inherits` 避免重复
+
+4. **共享与隔离资源**
+   - 共享: Claude 配置 (`~/.claude`)、Go 模块缓存
+   - 隔离: 会话存储、项目目录、机器人特定配置
+
+### 旧配置 (已废弃)
+
+旧的 `configs/chatapps/` 目录已被废弃。迁移：
+
+| 旧路径 | 新路径 |
+|--------|--------|
+| `configs/chatapps/slack.yaml` | `configs/base/slack.yaml` |
+| `configs/chatapps/feishu.yaml` | `configs/base/feishu.yaml` |
+| `configs/server.yaml` | `configs/base/server.yaml` |
 
 ### 环境变量
 
+| 变量 | 描述 | 默认值 |
+| :--- | :--- | :----- |
 | `HOTPLEX_PORT` | HTTP 服务端口 | `8080` |
 | `HOTPLEX_API_KEY` | 用于控制平面身份验证的主 API Key | - |
 | `HOTPLEX_API_KEYS` | 多个 API Key（逗号分隔，优先于 HOTPLEX_API_KEY） | - |
@@ -86,6 +197,19 @@ security:
 | `HOTPLEX_ALLOWED_ORIGINS` | 允许的跨域来源（逗号分隔） | `localhost` |
 | `HOTPLEX_CONFIG_DIR` | 配置目录 | `./configs` |
 | `HOTPLEX_METRICS_PATH` | 指标端点路径 | `/metrics` |
+| `HOTPLEX_SERVER_CONFIG` | 服务器配置文件路径 | - |
+| `HOTPLEX_CHATAPPS_CONFIG_DIR` | ChatApps 配置目录 | - |
+| `HOTPLEX_BOT_ID` | 机器人实例标识符（多实例） | - |
+| `HOTPLEX_PROJECTS_DIR` | 项目工作目录 | `/tmp/hotplex` |
+
+#### 机器人特定变量（多实例）
+
+| 变量 | 描述 |
+| :--- | :--- |
+| `HOTPLEX_SLACK_BOT_USER_ID` | Slack 机器人用户 ID（每个实例必须唯一） |
+| `HOTPLEX_SLACK_BOT_TOKEN` | Slack Bot Token |
+| `HOTPLEX_SLACK_APP_TOKEN` | Slack App Token (Socket Mode) |
+| `HOTPLEX_SLACK_PRIMARY_OWNER` | 主所有者的 Slack User ID |
 
 ## 监控配置
 
@@ -192,7 +316,7 @@ GET /health
 ```json
 {
   "status": "healthy",
-  "version": "v0.17.0",
+  "version": "v0.30.0",
   "uptime": "24h30m",
   "active_sessions": 42
 }
@@ -255,6 +379,8 @@ ps aux | grep -E "(claude-code|opencode)" | grep defunct
 
 ## Docker 部署
 
+### 单实例
+
 ```yaml
 # docker-compose.yaml
 version: '3.8'
@@ -274,6 +400,61 @@ services:
       limits:
         cpu: "2"
         memory: 2Gi
+```
+
+### 多实例 (Matrix 模式)
+
+对于需要运行多个机器人实例的生产部署，使用 Docker Matrix 模式：
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  # 主机器人
+  hotplex-01:
+    image: hotplex:latest
+    container_name: hotplex-01
+    ports:
+      - "127.0.0.1:18080:8080"
+    env_file: [.env-01]
+    volumes:
+      - ~/.hotplex/instances/U0AHRCL1KCM:/home/hotplex/.hotplex:rw
+      - ~/.claude:/home/hotplex/.claude_seed:ro
+    environment:
+      HOTPLEX_BOT_ID: U0AHRCL1KCM
+      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
+      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
+
+  # 从机器人
+  hotplex-02:
+    image: hotplex:latest
+    container_name: hotplex-02
+    ports:
+      - "127.0.0.1:18081:8080"
+    env_file: [.env-02]
+    volumes:
+      - ~/.hotplex/instances/U0AJVRH4YF6:/home/hotplex/.hotplex:rw
+      - ~/.claude:/home/hotplex/.claude_seed:ro
+    environment:
+      HOTPLEX_BOT_ID: U0AJVRH4YF6
+      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
+      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
+```
+
+#### Matrix 部署命令
+
+```bash
+# 启动所有实例
+cd ~/hotplex/docker/matrix && docker compose up -d
+
+# 重启特定实例
+cd ~/hotplex/docker/matrix && docker compose restart hotplex-01
+
+# 查看日志
+cd ~/hotplex/docker/matrix && docker compose logs -f hotplex-01
+
+# 查看状态
+cd ~/hotplex/docker/matrix && docker compose ps
 ```
 
 ## Kubernetes 部署

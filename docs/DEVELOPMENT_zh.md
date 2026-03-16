@@ -227,8 +227,26 @@ go mod tidy
 
 1. **命令行参数**（最高优先级）
 2. **环境变量**（`.env` 文件）
-3. **YAML 配置文件**（`configs/chatapps/*.yaml`）
+3. **YAML 配置文件**（`configs/base/*.yaml`，支持继承）
 4. **默认值**（最低优先级）
+
+### 目录结构
+
+```
+configs/
+├── base/              # SSOT 基础配置模板
+│   ├── server.yaml    # 核心服务器配置
+│   ├── slack.yaml     # Slack 适配器配置
+│   ├── feishu.yaml   # 飞书适配器配置
+│   └── README.md     # 基础配置文档
+├── templates/
+│   └── roles/        # 角色模板
+│       ├── go.yaml         # Go 后端工程师
+│       ├── frontend.yaml   # 前端工程师
+│       ├── devops.yaml    # DevOps 工程师
+│       └── custom.yaml    # 自定义模板
+└── admin/            # 管理机器人配置（使用继承）
+```
 
 ### 环境变量
 
@@ -255,7 +273,7 @@ HOTPLEX_SLACK_APP_TOKEN=xapp-...
 ### YAML 配置结构
 
 ```yaml
-# chatapps/configs/slack.yaml
+# configs/base/slack.yaml
 platform: slack
 
 provider:
@@ -274,6 +292,57 @@ features:
   threading:
     enabled: true
 ```
+
+### 配置继承
+
+使用 `inherits` 字段扩展基础配置：
+
+```yaml
+# configs/instances/my-bot/slack.yaml
+inherits: ../../base/slack.yaml
+
+# 只覆盖需要的内容
+system_prompt: |
+  你的自定义系统提示词...
+
+engine:
+  work_dir: ${MY_CUSTOM_WORK_DIR}
+```
+
+**关键点：**
+- 子配置会覆盖父配置中相同名称的字段
+- 使用相对路径进行继承
+- 循环继承会导致错误
+
+### 角色模板
+
+HotPlex 在 `configs/templates/roles/` 目录下提供预定义的角色模板：
+
+| 角色 | 文件 | 说明 |
+|------|------|------|
+| Go 后端 | `go.yaml` | Go 后端开发，遵循 Uber Go 风格 |
+| 前端 | `frontend.yaml` | React/Next.js 前端开发 |
+| DevOps | `devops.yaml` | Docker/K8s 运维操作 |
+| 自定义 | `custom.yaml` | 用户自定义模板 |
+
+**使用角色模板：**
+
+1. 复制角色模板到你的配置目录：
+   ```bash
+   cp configs/templates/roles/go.yaml configs/instances/my-bot/role.yaml
+   ```
+
+2. 在机器人配置中引用：
+   ```yaml
+   # configs/instances/my-bot/slack.yaml
+   inherits: ../../base/slack.yaml
+
+   # 合并角色模板
+   system_prompt: |
+     {{ .Eval (printf "%s" (include "role.yaml" | indent 4)) }}
+   ```
+
+或者直接从角色模板复制 `system_prompt` 内容到你的配置中并自定义。
 
 ### 热重载
 
@@ -319,11 +388,14 @@ tail -f .logs/daemon.log
 
 ```bash
 # 使用 --config 参数（最高优先级）
-hotplexd --config /path/to/configs
+hotplexd --config /path/to/configs/base
 
 # 或通过环境变量
 export HOTPLEX_CHATAPPS_CONFIG_DIR=/path/to/configs
 hotplexd
+
+# 多配置（服务器 + 聊天应用）
+hotplexd --config configs/base/server.yaml --config-dir configs/base
 ```
 
 ### 服务管理

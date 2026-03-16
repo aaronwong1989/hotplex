@@ -36,7 +36,7 @@ cp .env.example .env
 
 #### 3. 启动引擎
 ```bash
-./dist/hotplexd --config configs/chatapps
+./dist/hotplexd --config configs/base
 ```
 
 ---

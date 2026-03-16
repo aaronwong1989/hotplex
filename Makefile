@@ -61,7 +61,7 @@ NC            := $(shell printf '\033[0m')
 BINARY_NAME   := hotplexd
 CMD_PATH      := ./cmd/hotplexd
 DIST_DIR      := dist
-VERSION       ?= 0.26.2
+VERSION       ?= 0.30.0
 COMMIT        ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -156,21 +156,27 @@ config-info: ## @util Display current configuration status
 		printf "         ${YELLOW}Not set${NC}\n"; \
 	fi
 	@printf "     ${CYAN}b) User config (~/.hotplex/configs):${NC}\n"
-	@if [ -d "$HOME/.hotplex/configs" ]; then \
+	@if [ -d "$$HOME/.hotplex/configs" ]; then \
 		printf "         ${GREEN}✓${NC} Active\n"; \
 		printf "         ${CYAN}Path:${NC} $$HOME/.hotplex/configs/\n"; \
 	else \
 		printf "         ${YELLOW}⚠${NC} Not found${NC}\n"; \
 	fi
-	@printf "     ${CYAN}c) Default (./configs/chatapps):${NC}\n"
-	@if [ -d "configs/chatapps" ]; then \
-		printf "         ${GREEN}✓${NC} Active\n"; \
-		printf "         ${CYAN}Path:${NC} $$(pwd)/configs/chatapps/\n"; \
-		for f in configs/chatapps/*.yaml; do \
+	@printf "     ${CYAN}c) Default (./configs/admin):${NC}\n"
+	@if [ -d "configs/admin" ]; then \
+		printf "         ${GREEN}✓${NC} Active (Admin Bot)\n"; \
+		printf "         ${CYAN}Path:${NC} $$(pwd)/configs/admin/\n"; \
+		for f in configs/admin/*.yaml; do \
 			if [ -f "$$f" ]; then \
 				printf "            - $$(basename $$f)\n"; \
 			fi; \
 		done; \
+	else \
+		printf "         ${YELLOW}⚠${NC} Not found${NC}\n"; \
+	fi
+	@printf "     ${DIM}d) Base templates (./configs/base):${NC}\n"
+	@if [ -d "configs/base" ]; then \
+		printf "         ${DIM}✓ SSOT (inherited by admin)${NC}\n"; \
 	else \
 		printf "         ${YELLOW}⚠${NC} Not found${NC}\n"; \
 	fi
@@ -553,6 +559,15 @@ sync: ## @config Sync configs to ~/.hotplex/ (admin bot)
 	@cp -r configs/admin/* $(HOME_DIR)/.hotplex/configs/
 	@printf "  ${CYAN}→${NC} Syncing base templates to admin config...\n"
 	@cp -r configs/base/* $(HOME_DIR)/.hotplex/configs/base/
+	@if [ -f .env ]; then \
+		printf "  ${CYAN}→${NC} Syncing .env to ~/.hotplex/.env...\n"; \
+		cp .env $(HOME_DIR)/.hotplex/.env; \
+	else \
+		printf "\n${YELLOW}⚠️  WARNING: .env not found in project root!${NC}\n"; \
+		printf "  Admin bot requires its own Slack App credentials.\n"; \
+		printf "  Create: ${CYAN}cp .env.example .env${NC} then edit with your tokens.\n"; \
+		printf "  Slack App: ${CYAN}https://api.slack.com/apps${NC}\n\n"; \
+	fi
 	@printf "${GREEN}✓${NC} Synced to ${BOLD}$(HOME_DIR)/.hotplex/${NC}\n"
 
 add-bot: ## @docker Interactive bot instance creation

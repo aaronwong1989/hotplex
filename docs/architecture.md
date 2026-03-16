@@ -4,7 +4,7 @@
 
 HotPlex is a high-performance **Agent Runtime** for AI CLI Agents, designed to transform one-off terminal-based AI tools (like Claude Code or OpenCode) into production-ready, long-lived interactive services. Its core philosophy is "Leverage vs Build"—by maintaining a persistent process pool with hardened security boundaries and a normalized full-duplex protocol layer, HotPlex eliminates the spin-up overhead of headless CLI environments and enables millisecond-level responsiveness.
 
-**Version**: v0.17.0 | **Core Role**: AI Agent Engineering Protocol (Cli-as-a-Service)
+**Version**: v0.30.0 | **Core Role**: AI Agent Engineering Protocol (Cli-as-a-Service)
 
 ---
 
@@ -34,6 +34,7 @@ HotPlex follows a layered architecture with strict visibility rules, separating 
 - **`internal/server/`**: Protocol adapters. Contains `hotplex_ws.go` (WebSocket) and `opencode_http.go` (REST/SSE).
 - **`internal/config/`**: Configuration hot-reloading with file watchers.
 - **`internal/strutil/`**: High-performance string manipulation and path cleaning.
+- **`configs/`**: SSOT configuration templates with inheritance support.
 
 ### 1.2 Design Principles
 
@@ -42,6 +43,62 @@ HotPlex follows a layered architecture with strict visibility rules, separating 
 3.  **PGID-First Security**: Security is not an afterthought; every execution is wrapped in a dedicated process group to prevent orphan leaks.
 4.  **IO-Driven State Machine**: `internal/engine` manages process states (Starting, Ready, Busy, Dead) using IO markers rather than fixed sleeps.
 5.  **SDK-First**: All platform integrations use official SDKs (slack-go, etc.), no manual protocol implementation.
+
+---
+
+### 1.3 Unified Configuration System (SSOT)
+
+HotPlex v0.30.0 introduces a **Single Source of Truth (SSOT)** configuration architecture with centralized base templates and inheritance support.
+
+#### Configuration Directory Structure
+
+```
+configs/
+├── base/              # SSOT base configuration templates
+│   ├── server.yaml    # Core server config
+│   ├── slack.yaml    # Slack adapter config
+│   ├── feishu.yaml   # Feishu adapter config
+│   └── README.md     # Base config documentation
+├── admin/             # Admin service configurations
+│   ├── server.yaml
+│   └── slack.yaml
+└── templates/         # Reusable configuration templates
+    └── roles/        # Role-based AI configurations
+        ├── go.yaml
+        ├── frontend.yaml
+        ├── devops.yaml
+        └── custom.yaml
+```
+
+#### Key Principles
+
+1.  **SSOT Base Templates**: All configurations inherit from templates in `configs/base/`
+2.  **Environment-Based Secrets**: Sensitive credentials stored in `.env` files, referenced via `${VAR}` syntax
+3.  **Configuration Inheritance**: Use `inherits: ./path/to/parent.yaml` to extend base configs
+4.  **Instance Isolation**: Each bot deployment should have its own config directory
+
+#### Configuration Loading
+
+```bash
+# Single config
+./hotplexd --config configs/server.yaml
+
+# Multi-config with directory (loads all .yaml files)
+./hotplexd --config-dir configs/base
+
+# Override specific values
+./hotplexd --config configs/base/server.yaml --config configs/admin/server.yaml
+```
+
+#### Migration from Legacy Paths
+
+| Old Path | New Path |
+|----------|----------|
+| `configs/chatapps/slack.yaml` | `configs/base/slack.yaml` |
+| `configs/chatapps/feishu.yaml` | `configs/base/feishu.yaml` |
+| `configs/server.yaml` | `configs/base/server.yaml` |
+
+> **Note**: The `configs/chatapps/` directory is deprecated. Use `configs/base/` for all base templates.
 
 ---
 
@@ -167,6 +224,7 @@ sequenceDiagram
 - [x] **Event Hooks**: Plugin system for Webhooks and custom audit sinks
 - [x] **Observability**: OpenTelemetry native tracing and Prometheus metrics (`/metrics`)
 - [x] **Configuration Hot-Reload**: YAML-based config with file watchers
+- [x] **Unified Configuration System**: SSOT architecture with base templates and inheritance
 
 ### Platform-Specific Features
 

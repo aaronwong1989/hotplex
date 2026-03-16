@@ -227,8 +227,26 @@ go mod tidy
 
 1. **Command flags** (highest priority)
 2. **Environment variables** (`.env` file)
-3. **YAML config files** (`configs/chatapps/*.yaml`)
+3. **YAML config files** (`configs/base/*.yaml` with inheritance)
 4. **Defaults** (lowest priority)
+
+### Directory Structure
+
+```
+configs/
+├── base/              # SSOT base configuration templates
+│   ├── server.yaml    # Core server config
+│   ├── slack.yaml     # Slack adapter config
+│   ├── feishu.yaml    # Feishu adapter config
+│   └── README.md      # Base config documentation
+├── templates/
+│   └── roles/         # Role-specific system prompts
+│       ├── go.yaml         # Go Backend Engineer
+│       ├── frontend.yaml   # Frontend Engineer
+│       ├── devops.yaml     # DevOps Engineer
+│       └── custom.yaml    # Custom role template
+└── admin/             # Admin service configurations (use inheritance)
+```
 
 ### Environment Variables
 
@@ -255,7 +273,7 @@ HOTPLEX_SLACK_APP_TOKEN=xapp-...
 ### YAML Config Structure
 
 ```yaml
-# configs/chatapps/slack.yaml
+# configs/base/slack.yaml
 platform: slack
 
 provider:
@@ -274,6 +292,57 @@ features:
   threading:
     enabled: true
 ```
+
+### Configuration Inheritance
+
+Use the `inherits` field to extend base configurations:
+
+```yaml
+# configs/instances/my-bot/slack.yaml
+inherits: ../../base/slack.yaml
+
+# Only override what you need
+system_prompt: |
+  Your custom system prompt here...
+
+engine:
+  work_dir: ${MY_CUSTOM_WORK_DIR}
+```
+
+**Key Points:**
+- Child config overrides parent fields with the same name
+- Use relative paths for inheritance
+- Circular inheritance will cause an error
+
+### Role Templates
+
+HotPlex provides pre-defined role templates in `configs/templates/roles/`:
+
+| Role | File | Description |
+|------|------|-------------|
+| Go Backend | `go.yaml` | Go backend development with Uber Go Style |
+| Frontend | `frontend.yaml` | React/Next.js frontend development |
+| DevOps | `devops.yaml` | Docker/K8s operations |
+| Custom | `custom.yaml` | User-defined template |
+
+**Using a Role Template:**
+
+1. Copy the role template to your config:
+   ```bash
+   cp configs/templates/roles/go.yaml configs/instances/my-bot/role.yaml
+   ```
+
+2. Reference it in your bot config:
+   ```yaml
+   # configs/instances/my-bot/slack.yaml
+   inherits: ../../base/slack.yaml
+
+   # Merge role template
+   system_prompt: |
+     {{ .Eval (printf "%s" (include "role.yaml" | indent 4)) }}
+   ```
+
+Or simply copy the `system_prompt` content directly from the role template and customize it in your config.
 
 ### Hot Reload
 
@@ -319,11 +388,14 @@ tail -f .logs/daemon.log
 
 ```bash
 # Use --config flag (highest priority)
-hotplexd --config /path/to/configs
+hotplexd --config /path/to/configs/base
 
 # Or via environment
 export HOTPLEX_CHATAPPS_CONFIG_DIR=/path/to/configs
 hotplexd
+
+# For multiple configs (server + chatapp)
+hotplexd --config configs/base/server.yaml --config-dir configs/base
 ```
 
 ### Service Management

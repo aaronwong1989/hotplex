@@ -38,7 +38,7 @@ cp .env.example .env
 
 #### 3. Start Engine
 ```bash
-./dist/hotplexd --config configs/chatapps
+./dist/hotplexd --config configs/base
 ```
 
 ---

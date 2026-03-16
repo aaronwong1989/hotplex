@@ -68,7 +68,7 @@ make build
 export HOTPLEX_SLACK_BOT_USER_ID=B12345
 export HOTPLEX_SLACK_BOT_TOKEN=xoxb-...
 export HOTPLEX_SLACK_APP_TOKEN=xapp-...
-./hotplexd --config configs/server.yaml --config-dir configs/chatapps
+./hotplexd --config configs/server.yaml --config-dir configs/base
 
 # 或仅启动 WebSocket 网关
 ./hotplexd --config configs/server.yaml
@@ -354,7 +354,7 @@ func main() {
 ### Slack 机器人配置
 
 ```yaml
-# configs/chatapps/slack.yaml
+# configs/base/slack.yaml
 platform: slack
 mode: socket
 
@@ -478,7 +478,7 @@ func init() {
 }
 ```
 
-3. 在 `configs/chatapps/` 添加配置：
+3. 在 `configs/base/` 添加配置：
 
 ```yaml
 platform: platform-name
