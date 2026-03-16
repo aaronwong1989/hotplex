@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## [v0.30.1] - 2026-03-16
+
+### Fixed
+- **Permission Mode Format** - Corrected `--permission-mode` value from `bypass-permissions` to `bypassPermissions` (camelCase) to match Claude Code CLI requirements
+- **Slack Config Validation** - Applied `WithoutServer` option when config validation fails to prevent startup errors
+- **Docker Build Stack** - Fixed Go stack handling in `docker-build-stack` command
+- **Docker Image Tag** - Corrected remote image tag format to `latest-*` pattern
+
+### Changed
+- **Docker Matrix Docs** - Added remote image column to matrix .env table
+
+---
+
 ## [v0.30.0] - 2026-03-16
 
 ### Added
