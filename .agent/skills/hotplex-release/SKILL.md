@@ -72,9 +72,20 @@ version: 0.1.0
 
 ### 4. 版本号管理
 
-**版本号位置**：`hotplex.go:13`
-```go
-Version      = "0.27.0"
+**⚠️ 必须更新所有 5 个位置，缺一不可！**
+
+| # | 文件 | 行号 | 字段 | 说明 |
+|---|------|------|------|------|
+| 1 | `hotplex.go` | 13 | `Version` | **Source of Truth** - 主版本号定义 |
+| 2 | `Makefile` | 64 | `VERSION` | 构建系统版本号 |
+| 3 | `CHANGELOG.md` | 顶部 | 版本标题 | 添加新版本条目 |
+| 4 | `CLAUDE.md` | 3 | `vX.Y.Z` | 项目状态版本号 |
+| 5 | `AGENT.md` | 3 | `vX.Y.Z` | 代理文档版本号 |
+
+**验证命令**（发布前必执行）：
+```bash
+# 检查所有版本号是否一致
+grep -rn "0\.30\.[0-9]" hotplex.go Makefile CHANGELOG.md CLAUDE.md AGENT.md
 ```
 
 根据发布类型计算新版本号：
