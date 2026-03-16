@@ -87,8 +87,10 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 	if err := config.Validate(); err != nil {
 		logger.Error("Invalid Slack config", "error", err)
 		// Return minimal but valid adapter to prevent nil pointer panics
+		// Apply WithoutServer option to prevent port conflict with main server
+		opts = append(opts, base.WithoutServer())
 		return &Adapter{
-			Adapter:     base.NewAdapter("slack", base.Config{}, logger),
+			Adapter:     base.NewAdapter("slack", base.Config{}, logger, opts...),
 			config:      config,
 			webhook:     base.NewWebhookRunner(logger),
 			sender:      base.NewSenderWithMutex(),
