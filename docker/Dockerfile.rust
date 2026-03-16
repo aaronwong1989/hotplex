@@ -33,9 +33,7 @@ RUN mkdir -p ${CARGO_HOME} && \
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
 
 USER hotplex
-RUN --mount=type=cache,target=/home/hotplex/.cargo/registry,uid=1000 \
-    --mount=type=cache,target=/home/hotplex/.cargo/git,uid=1000 \
-    rustup component add clippy rustfmt rust-analyzer rust-src && \
+RUN rustup component add clippy rustfmt rust-analyzer rust-src && \
     cargo install cargo-watch --locked
 
 # ==============================================================================
