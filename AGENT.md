@@ -26,6 +26,17 @@ make docker-build # 构建镜像
 make docker-up    # 启动服务
 make docker-logs  # 查看日志
 make docker-down  # 停止服务
+
+# 系统服务管理 (systemd/launchd)
+make service-install   # 安装为系统服务
+make service-start     # 启动服务
+make service-stop      # 停止服务
+make service-status    # 检查服务状态
+make service-uninstall # 卸载服务
+
+# 测试覆盖率
+make coverage      # 生成覆盖率报告
+make coverage-html # 生成 HTML 覆盖率报告
 ```
 
 环境配置：复制 `.env.example` 到 `.env` 并填写凭证。
