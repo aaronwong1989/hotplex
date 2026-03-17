@@ -1,6 +1,8 @@
 package chatapps
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -275,5 +277,171 @@ func TestExpandPath_SensitivePaths(t *testing.T) {
 				t.Errorf("ExpandPath(%q) should not be blocked, got empty string", tt.input)
 			}
 		})
+	}
+}
+
+func TestResolveWorkDir(t *testing.T) {
+	// Get home directory for test expectations
+	homeDir, _ := os.UserHomeDir()
+
+	tests := []struct {
+		name            string
+		configuredPath  string
+		platform        string
+		setupEnv        map[string]string
+		wantResolved    string
+		wantReason      string
+		wantLogContains string
+	}{
+		{
+			name:           "empty path returns default",
+			configuredPath: "",
+			platform:       "slack",
+			wantResolved:   "",
+			wantReason:     "no work_dir configured",
+		},
+		{
+			name:            "absolute path resolves correctly",
+			configuredPath:  "/tmp/test-workdir",
+			platform:        "slack",
+			wantResolved:    "/tmp/test-workdir",
+			wantReason:      "",
+			wantLogContains: "Work directory initialized",
+		},
+		{
+			name:            "tilde path expands correctly",
+			configuredPath:  "~/test-workdir",
+			platform:        "feishu",
+			wantResolved:    filepath.Join(homeDir, "test-workdir"),
+			wantReason:      "",
+			wantLogContains: "Work directory initialized",
+		},
+		{
+			name:           "path with unset env var - partial expansion",
+			configuredPath: "${UNSET_VAR_XYZ123}/workdir",
+			platform:       "slack",
+			// sys.ExpandPath replaces unset vars with empty string
+			wantResolved: "/workdir",
+			wantReason:   "",
+		},
+		{
+			name:           "relative path kept as-is",
+			configuredPath: "./relative-workdir",
+			platform:       "dingtalk",
+			// sys.ExpandPath keeps relative paths
+			wantResolved: "./relative-workdir",
+			wantReason:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup environment variables if needed
+			if tt.setupEnv != nil {
+				for k, v := range tt.setupEnv {
+					os.Setenv(k, v)
+					defer os.Unsetenv(k)
+				}
+			}
+
+			// Capture log output
+			var logBuf bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			}))
+
+			// Execute
+			result := resolveWorkDir(tt.configuredPath, tt.platform, logger)
+
+			// Verify
+			if result.ResolvedPath != tt.wantResolved {
+				t.Errorf("ResolvedPath = %q, want %q", result.ResolvedPath, tt.wantResolved)
+			}
+
+			if result.PlatformName != tt.platform {
+				t.Errorf("PlatformName = %q, want %q", result.PlatformName, tt.platform)
+			}
+
+			if result.DefaultReason != tt.wantReason {
+				t.Errorf("DefaultReason = %q, want %q", result.DefaultReason, tt.wantReason)
+			}
+
+			logOutput := logBuf.String()
+			if tt.wantLogContains != "" && !bytes.Contains([]byte(logOutput), []byte(tt.wantLogContains)) {
+				t.Errorf("Log output does not contain %q\nGot: %s", tt.wantLogContains, logOutput)
+			}
+		})
+	}
+}
+
+func TestResolveWorkDir_Logging(t *testing.T) {
+	t.Run("logs info when path configured and resolves", func(t *testing.T) {
+		var logBuf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		}))
+
+		resolveWorkDir("/tmp/test", "slack", logger)
+
+		logOutput := logBuf.String()
+		if !bytes.Contains([]byte(logOutput), []byte("Work directory initialized")) {
+			t.Errorf("Expected info log for successful resolution, got: %s", logOutput)
+		}
+	})
+
+	t.Run("logs warning when expansion fails", func(t *testing.T) {
+		var logBuf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+			Level: slog.LevelWarn,
+		}))
+
+		resolveWorkDir("${UNSET_VAR_XYZ}", "slack", logger)
+
+		logOutput := logBuf.String()
+		if !bytes.Contains([]byte(logOutput), []byte("path expansion failed")) {
+			t.Errorf("Expected warning log for failed expansion, got: %s", logOutput)
+		}
+	})
+
+	t.Run("no log when path not configured", func(t *testing.T) {
+		var logBuf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+
+		resolveWorkDir("", "slack", logger)
+
+		logOutput := logBuf.String()
+		if logOutput != "" {
+			t.Errorf("Expected no log for empty path, got: %s", logOutput)
+		}
+	})
+}
+
+func TestResolveWorkDir_RaceConditionSafety(t *testing.T) {
+	// Test that resolveWorkDir returns values that can be safely used in closures
+	// without causing race conditions (Code Review Finding #2)
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
+
+	// Simulate multiple goroutines using the result
+	result := resolveWorkDir("/tmp/test", "slack", logger)
+
+	done := make(chan bool)
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			// Access result fields - should not cause race
+			_ = result.ResolvedPath
+			_ = result.PlatformName
+			_ = result.DefaultReason
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
 	}
 }
