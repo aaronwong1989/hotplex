@@ -2,6 +2,7 @@ package feishu
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -21,6 +22,10 @@ type Adapter struct {
 
 	// Feishu API client (interface for testability - SOLID: Dependency Inversion)
 	client FeishuAPIClient
+
+	// WebSocket client (for long connection mode)
+	wsClient    *WebSocketClient
+	useWebSocket bool // 是否使用 WebSocket 模式
 
 	// Token cache
 	appToken    string
@@ -49,19 +54,32 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 	}
 
 	a := &Adapter{
-		config:      config,
-		webhookPath: "/feishu/events",
-		sender:      base.NewSenderWithMutex(),
-		webhook:     base.NewWebhookRunner(logger),
+		config:       config,
+		webhookPath:  "/feishu/events",
+		sender:       base.NewSenderWithMutex(),
+		webhook:      base.NewWebhookRunner(logger),
+		useWebSocket: config.UseWebSocket,
 	}
 
 	// Initialize API client (concrete implementation of FeishuAPIClient)
 	a.client = NewClient(config.AppID, config.AppSecret, logger)
 
+	// Initialize WebSocket client if enabled
+	if a.useWebSocket {
+		a.wsClient = NewWebSocketClient(config.AppID, config.AppSecret, logger)
+		a.wsClient.SetEventHandler(a.handleWebSocketEvent)
+		a.wsClient.SetOnConnect(func() {
+			a.Logger().Info("WebSocket connected successfully")
+		})
+		a.wsClient.SetOnDisconnect(func(err error) {
+			a.Logger().Warn("WebSocket disconnected", "error", err)
+		})
+	}
+
 	// Initialize command registry
 	a.commandRegistry = command.NewRegistry()
 
-	// Prepare HTTP handlers
+	// Prepare HTTP handlers (only if not using WebSocket or as fallback)
 	httpOpts := []base.AdapterOption{
 		base.WithHTTPHandler(a.webhookPath, a.handleEvent),
 	}
@@ -95,6 +113,21 @@ func (a *Adapter) SendMessage(ctx context.Context, sessionID string, msg *base.C
 // SetSender sets the message sender function
 func (a *Adapter) SetSender(fn func(ctx context.Context, sessionID string, msg *base.ChatMessage) error) {
 	a.sender.SetSender(fn)
+}
+
+// NewStreamWriter creates a new streaming writer for Feishu messages
+// This enables native streaming support via card entity updates
+func (a *Adapter) NewStreamWriter(ctx context.Context, userID, chatID, _ string) base.StreamWriter {
+	// Note: Feishu doesn't use threadTS like Slack, but we keep the interface consistent
+	w := NewStreamingWriter(ctx, a, chatID, func(messageID string) {
+		// Callback when stream completes - can be used for logging or metrics
+		a.Logger().Debug("Streaming message completed", "message_id", messageID, "chat_id", chatID)
+	})
+
+	// TODO: Set up storage callback when storage plugin is integrated
+	// This will persist the final response when the stream closes
+
+	return w
 }
 
 // defaultSender sends message via Feishu API
@@ -273,4 +306,78 @@ func (a *Adapter) GetAppTokenWithContext(ctx context.Context) (string, error) {
 	a.Logger().Info("Feishu app token refreshed", "expire_in", expireIn)
 
 	return token, nil
+}
+
+// handleWebSocketEvent 处理 WebSocket 接收到的事件
+func (a *Adapter) handleWebSocketEvent(event *Event) {
+	// Ignore non-message events
+	if event.Header == nil || event.Header.EventType != "im.message.receive_v1" {
+		a.Logger().Debug("Ignoring non-message event from WebSocket", "type", event.Header.EventType)
+		return
+	}
+
+	// Extract message content
+	if event.Event == nil || event.Event.Message == nil {
+		return
+	}
+
+	msgContent := event.Event.Message.Content
+	if msgContent == nil || msgContent.Text == "" {
+		return
+	}
+
+	// Create or get session
+	sessionID := a.GetOrCreateSession(
+		event.Event.Message.SenderID,
+		"", // botUserID (not needed for Feishu)
+		event.Event.Message.ChatID,
+		"", // threadID (not needed for Feishu)
+	)
+
+	// Build ChatMessage
+	chatMsg := &base.ChatMessage{
+		Platform:  "feishu",
+		SessionID: sessionID,
+		UserID:    event.Event.Message.SenderID,
+		Content:   msgContent.Text,
+		MessageID: event.Event.Message.MessageID,
+		Timestamp: time.Unix(event.Event.Message.CreateTime/1000, 0),
+		Metadata: map[string]any{
+			"chat_id":    event.Event.Message.ChatID,
+			"tenant_key": event.Event.Message.TenantKey,
+			"msg_type":   msgContent.Type,
+		},
+	}
+
+	// Process message through handler
+	if a.Handler() != nil {
+		// Use context from adapter
+		ctx := context.Background()
+		a.webhook.Run(ctx, a.Handler(), chatMsg)
+	}
+}
+
+// startWebSocket 启动 WebSocket 客户端
+func (a *Adapter) startWebSocket(ctx context.Context) error {
+	if a.wsClient == nil {
+		return fmt.Errorf("websocket client not initialized")
+	}
+
+	a.Logger().Info("Starting Feishu WebSocket client")
+
+	if err := a.wsClient.Connect(ctx); err != nil {
+		return fmt.Errorf("connect websocket: %w", err)
+	}
+
+	return nil
+}
+
+// stopWebSocket 停止 WebSocket 客户端
+func (a *Adapter) stopWebSocket() error {
+	if a.wsClient == nil {
+		return nil
+	}
+
+	a.Logger().Info("Stopping Feishu WebSocket client")
+	return a.wsClient.Close()
 }
