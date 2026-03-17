@@ -158,14 +158,16 @@ func main() {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
-	// Print System Info
-	logger.Info("🔥 HotPlex Daemon initialized",
+	// Print System Info (grouped for clarity)
+	logger.Info("🔥 HotPlex Daemon starting...",
 		"version", version,
 		"commit", commit,
-		"built_by", builtBy,
+		"built_by", builtBy)
+	logger.Info("📂 Configuration loaded",
 		"home_dir", homeDir,
 		"env_file", os.Getenv("ENV_FILE"),
-		"server_config", serverConfigPath,
+		"server_config", serverConfigPath)
+	logger.Info("🌐 Server listening",
 		"port", os.Getenv("HOTPLEX_PORT"),
 		"log_level", logLevel)
 

@@ -402,7 +402,12 @@ func (a *Adapter) SetAssistantStatus(ctx context.Context, channelID, threadTS, s
 		Status:    status,
 	}
 
-	return a.client.SetAssistantThreadsStatusContext(ctx, params)
+	a.Logger().Debug("Calling SetAssistantThreadsStatus", "channel", channelID, "thread_ts", threadTS, "status", status)
+	err := a.client.SetAssistantThreadsStatusContext(ctx, params)
+	if err != nil {
+		a.Logger().Warn("SetAssistantThreadsStatus API call failed", "error", err, "channel", channelID, "thread_ts", threadTS)
+	}
+	return err
 }
 
 // SetStatus implements base.StatusProvider

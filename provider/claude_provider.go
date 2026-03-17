@@ -446,7 +446,13 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 		events = append(events, event)
 
 	default:
-		// Fallback for unknown types - try to extract ANY text
+		// Skip "user" type messages - these are tool results or system inputs meant for the AI,
+		// not content to be displayed to end users in chat apps.
+		if msg.Type == "user" {
+			p.logger.Debug("[PROVIDER] skipping user message (likely tool result)", "content_len", len(msg.Content))
+			return events, nil
+		}
+		// Fallback for other unknown types - try to extract ANY text
 		for _, block := range msg.GetContentBlocks() {
 			if block.Type == "text" && block.Text != "" {
 				ev := newBaseEvent(EventTypeAnswer)

@@ -95,6 +95,11 @@ printf "  ${CYAN}Docker Image [${DEFAULT_IMAGE:-hotplex:go}]:${NC} "
 read -r INPUT_IMG
 HOTPLEX_IMAGE=${INPUT_IMG:-${DEFAULT_IMAGE:-hotplex:go}}
 
+# Log Level selection
+printf "\n  ${CYAN}Log Level [debug/info/warn/error, default: debug]:${NC} "
+read -r INPUT_LOG_LEVEL
+HOTPLEX_LOG_LEVEL=${INPUT_LOG_LEVEL:-debug}
+
 # CORS Origins (Optional)
 DEFAULT_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
 printf "  ${CYAN}CORS Origins (comma-separated) [${DEFAULT_ORIGINS}]:${NC} "
@@ -148,6 +153,7 @@ HOTPLEX_BOT_ID=$HOTPLEX_BOT_ID
 # --- Core Server ---
 HOTPLEX_PORT=8080
 HOTPLEX_API_KEY=$NEW_API_KEY
+HOTPLEX_LOG_LEVEL=$HOTPLEX_LOG_LEVEL
 
 # --- CORS (Optional - for Web UI access) ---
 HOTPLEX_ALLOWED_ORIGINS=$HOTPLEX_ALLOWED_ORIGINS
