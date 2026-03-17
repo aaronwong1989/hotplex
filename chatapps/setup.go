@@ -314,14 +314,29 @@ func setupPlatform(
 
 	// Resolve work directory once at setup time to avoid repeated path expansion
 	// and log noise on every message (Issue #294)
+	// Capture immutable value for closure to avoid race condition (Code Review)
+	configuredWorkDir := pc.Engine.WorkDir
 	resolvedWorkDir := ""
-	if pc.Engine.WorkDir != "" {
-		resolvedWorkDir = sys.ExpandPath(pc.Engine.WorkDir)
-		logger.Info("Work directory initialized",
-			"platform", platform,
-			"config", pc.Engine.WorkDir,
-			"path", resolvedWorkDir)
+	if configuredWorkDir != "" {
+		resolvedWorkDir = sys.ExpandPath(configuredWorkDir)
+
+		// CRITICAL: Validate path expansion succeeded (Code Review Finding #1)
+		if resolvedWorkDir == "" {
+			logger.Warn("Work directory path expansion failed - using default temp directory",
+				"platform", platform,
+				"configured_path", configuredWorkDir,
+				"reason", "path expansion returned empty string (possible unset environment variable)")
+		} else {
+			logger.Info("Work directory initialized",
+				"platform", platform,
+				"config", configuredWorkDir,
+				"path", resolvedWorkDir)
+		}
 	}
+
+	// Capture immutable values for closure
+	platformName := platform
+	loggerRef := logger
 
 	msgHandler := NewEngineMessageHandler(wrappedEng, manager,
 		WithConfigLoader(loader),
@@ -332,10 +347,18 @@ func setupPlatform(
 				return resolvedWorkDir
 			}
 			// Default: use temp directory with platform/session isolation
-			defaultDir := filepath.Join("/tmp/hotplex-chatapps", platform, sessionID)
-			logger.Debug("Using default temp work_dir",
-				"platform", platform,
-				"default_path", defaultDir)
+			defaultDir := filepath.Join("/tmp/hotplex-chatapps", platformName, sessionID)
+
+			// HIGH: Add context to explain why default is used (Code Review Finding #4)
+			reason := "no work_dir configured"
+			if configuredWorkDir != "" {
+				reason = "work_dir configured but path expansion failed"
+			}
+			loggerRef.Debug("Using default temp work_dir",
+				"platform", platformName,
+				"session_id", sessionID,
+				"default_path", defaultDir,
+				"reason", reason)
 			return defaultDir
 		}),
 	)
