@@ -251,6 +251,49 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 	return manager.Handler(), manager, nil
 }
 
+// WorkDirResult holds the resolved work directory information
+type WorkDirResult struct {
+	ResolvedPath string // Expanded absolute path (empty if not configured or expansion failed)
+	PlatformName string // Platform name for default path construction
+	DefaultReason string // Reason for using default directory (for logging)
+}
+
+// resolveWorkDir processes the work directory configuration once at setup time.
+// This avoids repeated path expansion and log noise on every message (Issue #294).
+func resolveWorkDir(configuredPath, platform string, logger *slog.Logger) WorkDirResult {
+	result := WorkDirResult{
+		PlatformName:  platform,
+		DefaultReason: "no work_dir configured",
+	}
+
+	if configuredPath == "" {
+		return result
+	}
+
+	// Attempt path expansion
+	resolved := sys.ExpandPath(configuredPath)
+
+	// CRITICAL: Validate path expansion succeeded (Code Review Finding #1)
+	if resolved == "" {
+		logger.Warn("Work directory path expansion failed - using default temp directory",
+			"platform", platform,
+			"configured_path", configuredPath,
+			"reason", "path expansion returned empty string (possible unset environment variable)")
+		result.DefaultReason = "work_dir configured but path expansion failed"
+		return result
+	}
+
+	// Success - log and return resolved path
+	logger.Info("Work directory initialized",
+		"platform", platform,
+		"config", configuredPath,
+		"path", resolved)
+
+	result.ResolvedPath = resolved
+	result.DefaultReason = "" // Not using default
+	return result
+}
+
 func setupPlatform(
 	_ context.Context,
 	platform string,
@@ -311,25 +354,26 @@ func setupPlatform(
 	// 3. Create EngineMessageHandler
 	// Wrap engine.Engine to implement chatapps.Engine interface
 	wrappedEng := &engineWrapper{eng: eng}
+
+	// Resolve work directory once at setup time to avoid repeated path expansion
+	// and log noise on every message (Issue #294)
+	workDirResult := resolveWorkDir(pc.Engine.WorkDir, platform, logger)
+
 	msgHandler := NewEngineMessageHandler(wrappedEng, manager,
 		WithConfigLoader(loader),
 		WithLogger(logger),
 		WithWorkDirFn(func(sessionID string) string {
-			// Use work_dir from config if specified
-			if pc.Engine.WorkDir != "" {
-				// Expand environment variables, ~ to home, and resolve .
-				workDir := sys.ExpandPath(pc.Engine.WorkDir)
-				logger.Info("Work directory resolved",
-					"platform", platform,
-					"config", pc.Engine.WorkDir,
-					"path", workDir)
-				return workDir
+			// Return cached resolved path if configured
+			if workDirResult.ResolvedPath != "" {
+				return workDirResult.ResolvedPath
 			}
 			// Default: use temp directory with platform/session isolation
-			defaultDir := filepath.Join("/tmp/hotplex-chatapps", platform, sessionID)
+			defaultDir := filepath.Join("/tmp/hotplex-chatapps", workDirResult.PlatformName, sessionID)
 			logger.Debug("Using default temp work_dir",
-				"platform", platform,
-				"default_path", defaultDir)
+				"platform", workDirResult.PlatformName,
+				"session_id", sessionID,
+				"default_path", defaultDir,
+				"reason", workDirResult.DefaultReason)
 			return defaultDir
 		}),
 	)
