@@ -1,6 +1,7 @@
 package chatapps
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -563,5 +564,326 @@ security:
 	}
 	if cfg.Provider.DefaultModel != "sonnet" {
 		t.Errorf("Expected Provider.DefaultModel 'sonnet', got '%s'", cfg.Provider.DefaultModel)
+	}
+}
+
+// TestInheritanceFileNotFound tests that inherits pointing to non-existent file fails gracefully
+func TestInheritanceFileNotFound(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Config referencing non-existent parent
+	config := `
+inherits: ./nonexistent.yaml
+platform: slack
+mode: socket
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "slack.yaml"), []byte(config), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Unexpected error creating loader: %v", err)
+	}
+
+	// Config should fail to load due to missing inherits file
+	cfg := loader.GetConfig("slack")
+	if cfg != nil {
+		t.Error("Expected config to not be loaded due to missing inherits file")
+	}
+}
+
+// TestInheritanceInvalidYAML tests that invalid YAML is handled gracefully
+func TestInheritanceInvalidYAML(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Create parent with invalid YAML syntax
+	parentConfig := `
+platform: slack
+mode: [socket
+  invalid yaml
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "parent.yaml"), []byte(parentConfig), 0644); err != nil {
+		t.Fatalf("Failed to write parent config: %v", err)
+	}
+
+	// Child trying to inherit from invalid parent
+	childConfig := `
+inherits: ./parent.yaml
+platform: slack
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "slack.yaml"), []byte(childConfig), 0644); err != nil {
+		t.Fatalf("Failed to write child config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Unexpected error creating loader: %v", err)
+	}
+
+	// Config should fail to load due to invalid YAML
+	cfg := loader.GetConfig("slack")
+	if cfg != nil {
+		t.Error("Expected config to not be loaded due to invalid YAML")
+	}
+}
+
+// TestInheritancePermissionDenied tests that permission errors are handled gracefully
+func TestInheritancePermissionDenied(t *testing.T) {
+	// Skip on Windows where permission bits work differently
+	if os.Getuid() == 0 {
+		t.Skip("Skipping test when running as root")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Create parent config with no read permissions
+	parentConfig := `
+platform: slack
+mode: socket
+`
+	parentPath := filepath.Join(tmpDir, "parent.yaml")
+	if err := os.WriteFile(parentPath, []byte(parentConfig), 0644); err != nil {
+		t.Fatalf("Failed to write parent config: %v", err)
+	}
+
+	// Remove read permissions
+	if err := os.Chmod(parentPath, 0000); err != nil {
+		t.Fatalf("Failed to chmod parent config: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(parentPath, 0644) })
+
+	// Child trying to inherit from inaccessible parent
+	childConfig := `
+inherits: ./parent.yaml
+platform: slack
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "slack.yaml"), []byte(childConfig), 0644); err != nil {
+		t.Fatalf("Failed to write child config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Unexpected error creating loader: %v", err)
+	}
+
+	// Config should fail to load due to permission denied
+	cfg := loader.GetConfig("slack")
+	if cfg != nil {
+		t.Error("Expected config to not be loaded due to permission denied")
+	}
+}
+
+// TestConfigLoaderConcurrentAccess tests thread safety of config loader
+func TestConfigLoaderConcurrentAccess(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	config := `
+platform: slack
+mode: socket
+system_prompt: "Concurrent test"
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "slack.yaml"), []byte(config), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Failed to create config loader: %v", err)
+	}
+
+	// Concurrent reads
+	const goroutines = 100
+	errors := make(chan error, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			cfg := loader.GetConfig("slack")
+			if cfg == nil {
+				errors <- fmt.Errorf("config was nil")
+				return
+			}
+			if cfg.Platform != "slack" {
+				errors <- fmt.Errorf("unexpected platform: %s", cfg.Platform)
+				return
+			}
+			errors <- nil
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < goroutines; i++ {
+		if err := <-errors; err != nil {
+			t.Errorf("Concurrent access error: %v", err)
+		}
+	}
+}
+
+// TestInheritanceEmptyChild tests that empty child config inherits all parent values
+func TestInheritanceEmptyChild(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Parent config
+	parentConfig := `
+platform: slack
+mode: socket
+system_prompt: "Parent prompt"
+engine:
+  timeout: 30m
+security:
+  permission:
+    bot_user_id: PARENT_BOT
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "parent.yaml"), []byte(parentConfig), 0644); err != nil {
+		t.Fatalf("Failed to write parent config: %v", err)
+	}
+
+	// Empty child (only inherits)
+	childConfig := `
+inherits: ./parent.yaml
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "slack.yaml"), []byte(childConfig), 0644); err != nil {
+		t.Fatalf("Failed to write child config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Failed to create config loader: %v", err)
+	}
+
+	cfg := loader.GetConfig("slack")
+	if cfg == nil {
+		t.Fatal("Expected slack config to be loaded")
+	}
+
+	// All values should come from parent
+	if cfg.Platform != "slack" {
+		t.Errorf("Expected Platform 'slack', got '%s'", cfg.Platform)
+	}
+	if cfg.Mode != "socket" {
+		t.Errorf("Expected Mode 'socket', got '%s'", cfg.Mode)
+	}
+	if cfg.SystemPrompt != "Parent prompt" {
+		t.Errorf("Expected SystemPrompt 'Parent prompt', got '%s'", cfg.SystemPrompt)
+	}
+	if cfg.Engine.Timeout != 30*time.Minute {
+		t.Errorf("Expected Timeout 30m, got %v", cfg.Engine.Timeout)
+	}
+	if cfg.Security.Permission.BotUserID != "PARENT_BOT" {
+		t.Errorf("Expected BotUserID 'PARENT_BOT', got '%s'", cfg.Security.Permission.BotUserID)
+	}
+}
+
+// TestInheritanceAbsolutePath tests that absolute paths in inherits work correctly
+func TestInheritanceAbsolutePath(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Create parent in subdirectory
+	subDir := filepath.Join(tmpDir, "base")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdirectory: %v", err)
+	}
+
+	parentConfig := `
+platform: slack
+mode: socket
+system_prompt: "Absolute path test"
+`
+	parentPath := filepath.Join(subDir, "parent.yaml")
+	if err := os.WriteFile(parentPath, []byte(parentConfig), 0644); err != nil {
+		t.Fatalf("Failed to write parent config: %v", err)
+	}
+
+	// Child using absolute path
+	childConfig := fmt.Sprintf(`
+inherits: %s
+platform: slack
+`, parentPath)
+	if err := os.WriteFile(filepath.Join(tmpDir, "slack.yaml"), []byte(childConfig), 0644); err != nil {
+		t.Fatalf("Failed to write child config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Failed to create config loader: %v", err)
+	}
+
+	cfg := loader.GetConfig("slack")
+	if cfg == nil {
+		t.Fatal("Expected slack config to be loaded")
+	}
+
+	// Verify parent values inherited
+	if cfg.SystemPrompt != "Absolute path test" {
+		t.Errorf("Expected SystemPrompt 'Absolute path test', got '%s'", cfg.SystemPrompt)
+	}
+}
+
+// TestEnvVarUndefined tests that undefined env vars expand to empty string
+func TestEnvVarUndefined(t *testing.T) {
+	// Ensure env var is not set
+	_ = os.Unsetenv("HOTPLEX_UNDEFINED_VAR")
+
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Config with undefined env var
+	config := `
+platform: slack
+security:
+  permission:
+    bot_user_id: "${HOTPLEX_UNDEFINED_VAR}"
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "slack.yaml"), []byte(config), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Failed to create config loader: %v", err)
+	}
+
+	cfg := loader.GetConfig("slack")
+	if cfg == nil {
+		t.Fatal("Expected slack config to be loaded")
+	}
+
+	// Undefined env var should expand to empty string
+	if cfg.Security.Permission.BotUserID != "" {
+		t.Errorf("Expected BotUserID to be empty for undefined env var, got '%s'", cfg.Security.Permission.BotUserID)
 	}
 }
