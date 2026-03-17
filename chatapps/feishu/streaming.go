@@ -3,7 +3,6 @@ package feishu
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"sync"
@@ -181,28 +180,11 @@ func (w *StreamingWriter) flushBuffer() {
 	var bytesSent int
 
 	for chunkIdx, chunk := range chunks {
-		// 为每个块构建新的卡片内容
-		card, err := w.cardBuilder.BuildAnswerCard(chunk)
-		if err != nil {
-			lastErr = err
-			w.adapter.Logger().Error("Failed to build streaming card",
-				"chunk_index", chunkIdx,
-				"error", err)
-			continue
-		}
-
-		// 解析 JSON 为 CardTemplate
-		var cardTemplate CardTemplate
-		if err := parseJSONCard(card, &cardTemplate); err != nil {
-			lastErr = err
-			w.adapter.Logger().Error("Failed to parse card template",
-				"chunk_index", chunkIdx,
-				"error", err)
-			continue
-		}
+		// 为每个块构建新的卡片内容（直接获取 CardTemplate，避免双重 JSON 序列化）
+		cardTemplate := w.cardBuilder.BuildAnswerCardTemplate(chunk)
 
 		// 调用 UpdateCard API
-		if err := w.adapter.client.UpdateCard(w.ctx, w.token, cardID, &cardTemplate, sequence+chunkIdx+1); err != nil {
+		if err := w.adapter.client.UpdateCard(w.ctx, w.token, cardID, cardTemplate, sequence+chunkIdx+1); err != nil {
 			lastErr = err
 			w.adapter.Logger().Error("UpdateCard failed",
 				"card_id", cardID,
@@ -222,11 +204,6 @@ func (w *StreamingWriter) flushBuffer() {
 		w.bytesFlushed += int64(bytesSent)
 		w.mu.Unlock()
 	}
-}
-
-// parseJSONCard parses JSON card string to CardTemplate
-func parseJSONCard(cardJSON string, card *CardTemplate) error {
-	return json.Unmarshal([]byte(cardJSON), card)
 }
 
 // Write 实现 io.Writer 接口
@@ -252,18 +229,10 @@ func (w *StreamingWriter) Write(p []byte) (n int, err error) {
 		}
 		w.token = token
 
-		// 创建初始卡片实体（空内容或占位符）
-		initialCard, err := w.cardBuilder.BuildAnswerCard("⏳ 正在生成回复...")
-		if err != nil {
-			return 0, fmt.Errorf("build initial card: %w", err)
-		}
+		// 创建初始卡片实体（空内容或占位符，直接获取 CardTemplate）
+		cardTemplate := w.cardBuilder.BuildAnswerCardTemplate("⏳ 正在生成回复...")
 
-		var cardTemplate CardTemplate
-		if err := parseJSONCard(initialCard, &cardTemplate); err != nil {
-			return 0, fmt.Errorf("parse initial card: %w", err)
-		}
-
-		cardID, err := w.adapter.client.CreateCard(w.ctx, token, &cardTemplate)
+		cardID, err := w.adapter.client.CreateCard(w.ctx, token, cardTemplate)
 		if err != nil {
 			return 0, fmt.Errorf("create card: %w", err)
 		}
@@ -342,28 +311,20 @@ func (w *StreamingWriter) Close() error {
 
 	// 如果流未过期，发送最终完整内容
 	if !streamExpired && len(accumulated) > 0 {
-		// 构建最终卡片（完整内容）
-		finalCard, err := w.cardBuilder.BuildAnswerCard(accumulated)
-		if err != nil {
-			w.adapter.Logger().Error("Failed to build final card", "error", err)
+		// 构建最终卡片（完整内容，直接获取 CardTemplate）
+		finalCardTemplate := w.cardBuilder.BuildAnswerCardTemplate(accumulated)
+
+		// 最终更新，sequence 严格递增
+		if err := w.adapter.client.UpdateCard(w.ctx, token, cardID, finalCardTemplate, sequence+1); err != nil {
+			w.adapter.Logger().Error("Final UpdateCard failed",
+				"card_id", cardID,
+				"sequence", sequence+1,
+				"error", err)
 		} else {
-			var cardTemplate CardTemplate
-			if err := parseJSONCard(finalCard, &cardTemplate); err != nil {
-				w.adapter.Logger().Error("Failed to parse final card template", "error", err)
-			} else {
-				// 最终更新，sequence 严格递增
-				if err := w.adapter.client.UpdateCard(w.ctx, token, cardID, &cardTemplate, sequence+1); err != nil {
-					w.adapter.Logger().Error("Final UpdateCard failed",
-						"card_id", cardID,
-						"sequence", sequence+1,
-						"error", err)
-				} else {
-					w.mu.Lock()
-					w.sequence++
-					w.bytesFlushed = w.bytesWritten
-					w.mu.Unlock()
-				}
-			}
+			w.mu.Lock()
+			w.sequence++
+			w.bytesFlushed = w.bytesWritten
+			w.mu.Unlock()
 		}
 	}
 

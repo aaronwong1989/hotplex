@@ -187,7 +187,14 @@ func (b *CardBuilder) BuildPermissionCard(title, description, riskLevel string) 
 // BuildAnswerCard builds an answer card with Markdown support
 // Event: answer - Final answer with Markdown
 func (b *CardBuilder) BuildAnswerCard(content string) (string, error) {
-	card := &CardTemplate{
+	card := b.BuildAnswerCardTemplate(content)
+	return b.marshalCard(card)
+}
+
+// BuildAnswerCardTemplate builds an answer card template without JSON marshaling
+// This is more efficient when the card needs to be sent to APIs that accept CardTemplate structs
+func (b *CardBuilder) BuildAnswerCardTemplate(content string) *CardTemplate {
+	return &CardTemplate{
 		Config: &CardConfig{
 			WideScreenMode: false,
 			EnableForward:  true,
@@ -209,8 +216,6 @@ func (b *CardBuilder) BuildAnswerCard(content string) (string, error) {
 			},
 		},
 	}
-
-	return b.marshalCard(card)
 }
 
 // BuildErrorCard builds an error/warning card

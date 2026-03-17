@@ -33,6 +33,7 @@ type WebSocketClient struct {
 	appID     string
 	appSecret string
 	logger    *slog.Logger
+	apiClient FeishuAPIClient // 复用 API 客户端，避免重复创建
 	httpClient *http.Client
 
 	// WebSocket 连接
@@ -72,7 +73,7 @@ type WebSocketMessage struct {
 }
 
 // NewWebSocketClient 创建新的 WebSocket 客户端
-func NewWebSocketClient(appID, appSecret string, logger *slog.Logger) *WebSocketClient {
+func NewWebSocketClient(appID, appSecret string, apiClient FeishuAPIClient, logger *slog.Logger) *WebSocketClient {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -80,6 +81,7 @@ func NewWebSocketClient(appID, appSecret string, logger *slog.Logger) *WebSocket
 	return &WebSocketClient{
 		appID:     appID,
 		appSecret: appSecret,
+		apiClient: apiClient,
 		logger:    logger,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
@@ -132,7 +134,7 @@ func (c *WebSocketClient) Connect(ctx context.Context) error {
 // getWebSocketURL 获取 WebSocket 连接地址
 func (c *WebSocketClient) getWebSocketURL(ctx context.Context) (string, error) {
 	// 获取 app access token
-	token, _, err := c.GetAppTokenWithContext(ctx)
+	token, _, err := c.apiClient.GetAppTokenWithContext(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -368,12 +370,11 @@ func (c *WebSocketClient) reconnect() bool {
 		select {
 		case <-c.ctx.Done():
 			return false
-		default:
+		case <-time.After(wsReconnectDelay * time.Duration(i)):
+			// Delay completed, continue with reconnection
 		}
 
 		c.logger.Info("Attempting to reconnect", "attempt", i, "max_tries", wsMaxReconnectTries)
-
-		time.Sleep(wsReconnectDelay * time.Duration(i))
 
 		// 获取新的 WebSocket URL
 		wsURL, err := c.getWebSocketURL(c.ctx)
@@ -426,12 +427,4 @@ func (c *WebSocketClient) IsConnected() bool {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
 	return c.connected
-}
-
-// GetAppTokenWithContext 获取 app access token（实现 FeishuAPIClient 接口）
-func (c *WebSocketClient) GetAppTokenWithContext(ctx context.Context) (string, int, error) {
-	// 委托给实际的 API 客户端
-	// 这里需要创建一个临时的 Client 实例
-	client := NewClient(c.appID, c.appSecret, c.logger)
-	return client.GetAppTokenWithContext(ctx)
 }

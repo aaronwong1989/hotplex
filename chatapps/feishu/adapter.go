@@ -66,7 +66,7 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 
 	// Initialize WebSocket client if enabled
 	if a.useWebSocket {
-		a.wsClient = NewWebSocketClient(config.AppID, config.AppSecret, logger)
+		a.wsClient = NewWebSocketClient(config.AppID, config.AppSecret, a.client, logger)
 		a.wsClient.SetEventHandler(a.handleWebSocketEvent)
 		a.wsClient.SetOnConnect(func() {
 			a.Logger().Info("WebSocket connected successfully")

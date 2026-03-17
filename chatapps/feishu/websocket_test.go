@@ -16,7 +16,8 @@ import (
 // TestWebSocketClient_NewClient tests creating a new WebSocket client
 func TestWebSocketClient_NewClient(t *testing.T) {
 	logger := slog.Default()
-	client := NewWebSocketClient("test_app_id", "test_app_secret", logger)
+	mockClient := &MockFeishuClient{}
+	client := NewWebSocketClient("test_app_id", "test_app_secret", mockClient, logger)
 
 	assert.NotNil(t, client)
 	assert.Equal(t, "test_app_id", client.appID)
@@ -29,7 +30,8 @@ func TestWebSocketClient_NewClient(t *testing.T) {
 // TestWebSocketClient_SetHandlers tests setting event handlers
 func TestWebSocketClient_SetHandlers(t *testing.T) {
 	logger := slog.Default()
-	client := NewWebSocketClient("test_app_id", "test_app_secret", logger)
+	mockClient := &MockFeishuClient{}
+	client := NewWebSocketClient("test_app_id", "test_app_secret", mockClient, logger)
 
 	// Set event handler
 	client.SetEventHandler(func(event *Event) {
@@ -53,7 +55,8 @@ func TestWebSocketClient_SetHandlers(t *testing.T) {
 // TestWebSocketClient_Close tests closing the client without connecting
 func TestWebSocketClient_Close(t *testing.T) {
 	logger := slog.Default()
-	client := NewWebSocketClient("test_app_id", "test_app_secret", logger)
+	mockClient := &MockFeishuClient{}
+	client := NewWebSocketClient("test_app_id", "test_app_secret", mockClient, logger)
 
 	// Close should not error even if not connected
 	err := client.Close()
@@ -63,7 +66,8 @@ func TestWebSocketClient_Close(t *testing.T) {
 // TestWebSocketClient_IsConnected tests connection state
 func TestWebSocketClient_IsConnected(t *testing.T) {
 	logger := slog.Default()
-	client := NewWebSocketClient("test_app_id", "test_app_secret", logger)
+	mockClient := &MockFeishuClient{}
+	client := NewWebSocketClient("test_app_id", "test_app_secret", mockClient, logger)
 
 	// Initially not connected
 	assert.False(t, client.IsConnected())
@@ -76,7 +80,8 @@ func TestWebSocketClient_IsConnected(t *testing.T) {
 // TestWebSocketMessage tests WebSocket message parsing
 func TestWebSocketMessage_PingPong(t *testing.T) {
 	logger := slog.Default()
-	client := NewWebSocketClient("test_app_id", "test_app_secret", logger)
+	mockClient := &MockFeishuClient{}
+	client := NewWebSocketClient("test_app_id", "test_app_secret", mockClient, logger)
 
 	// Test ping handler
 	pingData := []byte(`{"timestamp":1234567890}`)
@@ -87,7 +92,8 @@ func TestWebSocketMessage_PingPong(t *testing.T) {
 // TestWebSocketClient_ContextCancellation tests context cancellation
 func TestWebSocketClient_ContextCancellation(t *testing.T) {
 	logger := slog.Default()
-	client := NewWebSocketClient("test_app_id", "test_app_secret", logger)
+	mockClient := &MockFeishuClient{}
+	client := NewWebSocketClient("test_app_id", "test_app_secret", mockClient, logger)
 
 	// Create and cancel context
 	_, cancel := context.WithCancel(context.Background())
