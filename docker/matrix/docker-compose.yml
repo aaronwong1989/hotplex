@@ -6,107 +6,56 @@ volumes:
   matrix-go-build: { name: matrix-go-build }
 
 # ------------------------------------------------------------------------------
-# 🚀 Active Services - Unified Config Structure
+# 🚀 Multi-Bot Matrix
+# ------------------------------------------------------------------------------
+# Instance-specific configurations only. Shared configs are in common.yml.
 #
-# 统一配置路径 (二进制/服务/容器 内部完全一致):
-#   ~/.hotplex/
-#   ├── configs/
-#   │   ├── base/                        # 共享基础配置 (所有实例继承)
-#   │   │   ├── server.yaml
-#   │   │   ├── slack.yaml
-#   │   │   └── slack_capabilities.yaml
-#   │   ├── server.yaml                  # 实例配置 (继承 base)
-#   │   ├── slack.yaml                   # 实例配置 (继承 base)
-#   │   └── slack_capabilities.yaml      # 实例配置
-#   └── .env                             # 凭证
-#
-# Docker 多实例实现：每个容器挂载不同的实例目录到同一容器内路径
-#   Bot-01: ~/.hotplex/instances/U0AHRCL1KCM/ → /home/hotplex/.hotplex/
-#   Bot-02: ~/.hotplex/instances/U0AJVRH4YF6/ → /home/hotplex/.hotplex/
-#   Bot-03: ~/.hotplex/instances/U0AL7H8UU75/ → /home/hotplex/.hotplex/
+# Instance directory structure:
+#   ~/.hotplex/instances/<BOT_ID>/
+#   ├── .env                    # Credentials (loaded via env_file)
+#   ├── configs/                # Bot-specific configs
+#   ├── projects/               # Project workspaces
+#   └── ...
 # ------------------------------------------------------------------------------
 services:
-  # ============================================================================
-  # Bot 01: Primary Bot (Multi-Bot Matrix)
-  # ============================================================================
   hotplex-01:
-    extends:
-      file: common.yml
-      service: hotplex-base
+    extends: { file: common.yml, service: hotplex-base }
     container_name: hotplex-01
     ports: [ "127.0.0.1:18080:8080" ]
     env_file: [ .env-01 ]
     volumes:
-      # 实例完整隔离 - 挂载到统一的容器内路径
       - ~/.hotplex/instances/U0AHRCL1KCM:/home/hotplex/.hotplex:rw
-      # 共享 Claude 配置 (只读)
-      - ~/.claude:/home/hotplex/.claude_seed:ro
-      # Go 模块缓存
-      - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
-      - matrix-go-build:/home/hotplex/.cache/go-build:rw
-      # Entrypoint mount
-      - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
+      - ~/.hotplex/instances/U0AHRCL1KCM/projects:/home/hotplex/projects:rw
     environment:
       HOTPLEX_BOT_ID: U0AHRCL1KCM
-      # 容器内路径 (与宿主机运行一致)
-      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
-      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
     labels:
       - "hotplex.bot.id=U0AHRCL1KCM"
       - "hotplex.bot.role=primary"
 
-  # ============================================================================
-  # Bot 02: Secondary Bot (Multi-Bot Matrix)
-  # ============================================================================
   hotplex-02:
-    extends:
-      file: common.yml
-      service: hotplex-base
+    extends: { file: common.yml, service: hotplex-base }
     container_name: hotplex-02
     ports: [ "127.0.0.1:18081:8080" ]
     env_file: [ .env-02 ]
     volumes:
-      # 实例完整隔离 - 挂载到统一的容器内路径
       - ~/.hotplex/instances/U0AJVRH4YF6:/home/hotplex/.hotplex:rw
-      # 共享 Claude 配置 (只读)
-      - ~/.claude:/home/hotplex/.claude_seed:ro
-      # Go 模块缓存
-      - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
-      - matrix-go-build:/home/hotplex/.cache/go-build:rw
-      # Entrypoint mount
-      - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
+      - ~/.hotplex/instances/U0AJVRH4YF6/projects:/home/hotplex/projects:rw
     environment:
       HOTPLEX_BOT_ID: U0AJVRH4YF6
-      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
-      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
     labels:
       - "hotplex.bot.id=U0AJVRH4YF6"
       - "hotplex.bot.role=secondary"
 
-  # ============================================================================
-  # Bot 03: Secondary Instance (DevOps Specialist)
-  # ============================================================================
   hotplex-03:
-    extends:
-      file: common.yml
-      service: hotplex-base
+    extends: { file: common.yml, service: hotplex-base }
     container_name: hotplex-03
     ports: [ "127.0.0.1:18082:8080" ]
     env_file: [ .env-03 ]
     volumes:
-      # 实例完整隔离 - 挂载到统一的容器内路径
       - ~/.hotplex/instances/U0AL7H8UU75:/home/hotplex/.hotplex:rw
-      # 共享 Claude 配置 (只读)
-      - ~/.claude:/home/hotplex/.claude_seed:ro
-      # Go 模块缓存
-      - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
-      - matrix-go-build:/home/hotplex/.cache/go-build:rw
-      # Entrypoint mount
-      - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
+      - ~/.hotplex/instances/U0AL7H8UU75/projects:/home/hotplex/projects:rw
     environment:
       HOTPLEX_BOT_ID: U0AL7H8UU75
-      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
-      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
     labels:
       - "hotplex.bot.id=U0AL7H8UU75"
       - "hotplex.bot.role=secondary"

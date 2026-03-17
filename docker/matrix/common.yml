@@ -83,10 +83,13 @@ services:
   hotplex-base:
     <<: *hotplex-common
     volumes:
-      # Shared Resources (Common to all instances)
-      - ${HOTPLEX_HOST_CONFIGS_DIR:-~/.hotplex/configs}:/home/hotplex/.hotplex/configs:rw
+      # Shared volumes (common to all instances)
       - ~/.claude:/home/hotplex/.claude_seed:ro
       - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
       - matrix-go-build:/home/hotplex/.cache/go-build:rw
       # Entrypoint mount (enables hot-updates without image rebuild)
       - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
+    environment:
+      # Container paths (consistent across all instances)
+      HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
+      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
