@@ -66,6 +66,11 @@ type FeishuAPIClient interface {
 	SendMessage(ctx context.Context, token, chatID, msgType string, content map[string]string) (string, error)
 	SendTextMessage(ctx context.Context, token, chatID, text string) (string, error)
 	SendInteractiveMessage(ctx context.Context, token, chatID, cardJSON string) (string, error)
+
+	// Card API methods for streaming support
+	CreateCard(ctx context.Context, token string, card *CardTemplate) (string, error)
+	UpdateCard(ctx context.Context, token, cardID string, card *CardTemplate, sequence int) error
+	SendCardMessage(ctx context.Context, token, chatID, cardID string) (string, error)
 }
 
 // Client wraps the Feishu Open API

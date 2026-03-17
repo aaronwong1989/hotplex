@@ -14,6 +14,9 @@ type Config struct {
 	ServerAddr    string `json:"server_addr" yaml:"server_addr"`
 	MaxMessageLen int    `json:"max_message_len" yaml:"max_message_len"`
 
+	// WebSocket configuration
+	UseWebSocket bool `json:"use_websocket" yaml:"use_websocket"` // 启用 WebSocket 长连接模式
+
 	// System prompt
 	SystemPrompt string `json:"system_prompt" yaml:"system_prompt"`
 }
