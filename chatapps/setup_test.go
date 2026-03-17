@@ -339,9 +339,16 @@ func TestResolveWorkDir(t *testing.T) {
 			// Setup environment variables if needed
 			if tt.setupEnv != nil {
 				for k, v := range tt.setupEnv {
-					os.Setenv(k, v)
-					defer os.Unsetenv(k)
+					if err := os.Setenv(k, v); err != nil {
+						t.Fatalf("Failed to set env var %s: %v", k, err)
+					}
 				}
+				// Cleanup in defer to ensure it runs even if test fails
+				t.Cleanup(func() {
+					for k := range tt.setupEnv {
+						os.Unsetenv(k) // nolint:errcheck // Cleanup, ignore errors
+					}
+				})
 			}
 
 			// Capture log output
