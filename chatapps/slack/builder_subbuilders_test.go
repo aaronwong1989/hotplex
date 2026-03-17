@@ -57,6 +57,7 @@ func TestToolMessageBuilder_BuildToolResultMessage_SkillTool(t *testing.T) {
 	builder := NewMessageBuilder(&Config{})
 
 	// Test skill tool with "skill:" prefix - success case
+	// Skill tools should return nil blocks (no message sent to channel)
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeToolResult,
 		Content: "Skill output content here",
@@ -68,16 +69,15 @@ func TestToolMessageBuilder_BuildToolResultMessage_SkillTool(t *testing.T) {
 
 	blocks := builder.Build(msg)
 
-	assert.NotNil(t, blocks)
-	assert.Equal(t, 1, len(blocks))
-	// Verify the simplified output format (single block for skill)
-	assert.IsType(t, &slack.SectionBlock{}, blocks[0])
+	// Skill tools should return nil or empty blocks (status shown via StatusManager only)
+	assert.Nil(t, blocks)
 }
 
 func TestToolMessageBuilder_BuildToolResultMessage_SkillToolError(t *testing.T) {
 	builder := NewMessageBuilder(&Config{})
 
-	// Test skill tool with error
+	// Test skill tool with error - error case
+	// Skill tools should return nil blocks even on error (status shown via StatusManager only)
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeToolResult,
 		Content: "Error: skill failed",
@@ -89,10 +89,9 @@ func TestToolMessageBuilder_BuildToolResultMessage_SkillToolError(t *testing.T) 
 
 	blocks := builder.Build(msg)
 
-	assert.NotNil(t, blocks)
-	assert.Equal(t, 1, len(blocks))
-	// Verify single block for skill error (no preview)
-	assert.IsType(t, &slack.SectionBlock{}, blocks[0])
+	// Skill tools should return nil or empty blocks even on error
+	// Error status is shown via StatusManager
+	assert.Nil(t, blocks)
 }
 
 func TestToolMessageBuilder_BuildToolResultMessage_LongRunning(t *testing.T) {
