@@ -121,7 +121,7 @@ HotPlex 定义了 21 种标准事件类型：
 | `engine_starting`       | Initialization Status Context                   |
 | `thinking`              | Context Block + Loading Animation               |
 | `plan_mode`             | Blockquotes / Collapsible                       |
-| `tool_use`              | Code Snippet + Icon (e.g. 🛠️)                    |
+| `tool_use`              | Code Snippet + Category Icon (see below)        |
 | `tool_result`           | Log Container (Auto-scroll)                     |
 | `permission_request`    | Header + Approve/Reject Buttons                 |
 | `danger_block`          | Interactive Modal / Buttons                     |
@@ -139,9 +139,37 @@ HotPlex 定义了 21 种标准事件类型：
 | `user`                  | [绝对黑洞] 冗余反射，直接忽略                   |
 | `raw`                   | [绝对黑洞] 未定义原始输出，直接忽略             |
 
+### 7.1 Tool Category Icons (工具分类图标)
+
+`tool_use` 事件根据工具名称自动分类，生成对应的 emoji 和状态标签：
+
+| 类别 | Emoji | 状态标签 | 关键词示例 |
+|:-----|:------|:---------|:-----------|
+| FileRead | 📄 | 正在读取文件 | read, view, cat, head, tail |
+| FileWrite | 📝 | 正在写入文件 | write, save, create |
+| FileEdit | ✂️ | 正在编辑文件 | edit, multiedit, replace, patch |
+| Bash | ⚡ | 正在执行命令 | bash, shell, exec, run, command |
+| Search | 🔍 | 正在搜索 | search, glob, grep, find |
+| WebFetch | 🔗 | 正在请求网络 | webfetch, websearch, curl, wget |
+| List | 📋 | 正在列出文件 | ls, list, dir, tree |
+| Agent | 🎯 | 正在委派任务 | agent, task, delegate, spawn |
+| Skill | 🧩 | 正在调用技能 | skill, plugin, mcp |
+| Notebook | 📊 | 正在操作笔记本 | notebook, ipynb, jupyter |
+| Git | 🌿 | 正在版本控制 | git, commit, push, pull, branch |
+| Test | ✅ | 正在运行测试 | test, spec, coverage, pytest |
+| Debug | 🔧 | 正在调试 | debug, breakpoint, trace |
+| Browser | 🌎 | 正在浏览网页 | browser, playwright, selenium |
+| API | 📡 | 正在调用API | api, webhook, graphql |
+| Database | 🗄 | 正在查询数据 | db, database, sql, postgres |
+| Think | 🧠 | 正在思考分析 | think, plan, reason, memory |
+| LSP | 💡 | 正在分析代码 | lsp, definition, reference |
+| Schedule | ⏰ | 正在调度任务 | cron, schedule, timer |
+| Unknown | ⚙️ | 正在执行 | (default fallback) |
+
 ---
 
-## 7. 相关文档 (Reference)
+## 8. 相关文档 (Reference)
 - [Slack 接口映射规范](./chatapps-slack-architecture.md)
 - [交互中心设计详情](./interaction-manager.md)
 - [事件聚合算法规格](../engine/event-aggregation.md)
+- [工具分类实现](../chatapps/base/tool_category.go) - `CategorizeTool()` 函数

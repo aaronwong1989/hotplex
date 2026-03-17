@@ -1,5 +1,19 @@
 # CHANGELOG.md
 
+## [Unreleased]
+
+### Added
+- **Tool Categorization System** - Expanded from 8 to 20 categories for better UX:
+  - New categories: Agent, Skill, Notebook, Git, Test, Debug, Browser, API, Database, Think, LSP, Schedule
+  - Redesigned emoji set for semantic accuracy (📄📝✂️🎯🧩📊🌿✅🔧🌎📡🗄🧠💡⏰)
+  - Optimized Chinese status labels for clarity
+  - Pattern priority system to handle keyword conflicts
+
+### Fixed
+- **Engine Handler** - Added nil-safe metadata access to prevent panics on events with missing metadata
+
+---
+
 ## [v0.30.3] - 2026-03-16
 
 ### Fixed

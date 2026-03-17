@@ -13,7 +13,9 @@ import (
 // ToolMessageBuilder Tests
 // =============================================================================
 
-func TestToolMessageBuilder_BuildToolUseMessage(t *testing.T) {
+// TestToolMessageBuilder_BuildToolUseMessage_NowNil verifies that tool_use messages
+// are now handled by Assistant Status API, not as channel blocks.
+func TestToolMessageBuilder_BuildToolUseMessage_NowNil(t *testing.T) {
 	builder := NewMessageBuilder(&Config{})
 
 	msg := &base.ChatMessage{
@@ -30,11 +32,13 @@ func TestToolMessageBuilder_BuildToolUseMessage(t *testing.T) {
 
 	blocks := builder.Build(msg)
 
-	assert.NotNil(t, blocks)
-	assert.GreaterOrEqual(t, len(blocks), 1)
+	// Tool messages are now status-only (handled by Assistant Status API)
+	assert.Nil(t, blocks)
 }
 
-func TestToolMessageBuilder_BuildToolResultMessage(t *testing.T) {
+// TestToolMessageBuilder_BuildToolResultMessage_NowNil verifies that tool_result messages
+// are now handled by Assistant Status API, not as channel blocks.
+func TestToolMessageBuilder_BuildToolResultMessage_NowNil(t *testing.T) {
 	builder := NewMessageBuilder(&Config{})
 
 	msg := &base.ChatMessage{
@@ -49,14 +53,15 @@ func TestToolMessageBuilder_BuildToolResultMessage(t *testing.T) {
 
 	blocks := builder.Build(msg)
 
-	assert.NotNil(t, blocks)
-	assert.GreaterOrEqual(t, len(blocks), 1)
+	// Tool messages are now status-only (handled by Assistant Status API)
+	assert.Nil(t, blocks)
 }
 
-func TestToolMessageBuilder_BuildToolResultMessage_SkillTool(t *testing.T) {
+// TestToolMessageBuilder_BuildToolResultMessage_SkillTool_NowNil verifies skill tools
+// are also handled by Assistant Status API.
+func TestToolMessageBuilder_BuildToolResultMessage_SkillTool_NowNil(t *testing.T) {
 	builder := NewMessageBuilder(&Config{})
 
-	// Test skill tool with "skill:" prefix - success case
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeToolResult,
 		Content: "Skill output content here",
@@ -68,16 +73,15 @@ func TestToolMessageBuilder_BuildToolResultMessage_SkillTool(t *testing.T) {
 
 	blocks := builder.Build(msg)
 
-	assert.NotNil(t, blocks)
-	assert.Equal(t, 1, len(blocks))
-	// Verify the simplified output format (single block for skill)
-	assert.IsType(t, &slack.SectionBlock{}, blocks[0])
+	// Tool messages are now status-only (handled by Assistant Status API)
+	assert.Nil(t, blocks)
 }
 
-func TestToolMessageBuilder_BuildToolResultMessage_SkillToolError(t *testing.T) {
+// TestToolMessageBuilder_BuildToolResultMessage_SkillToolError_NowNil verifies skill error tools
+// are also handled by Assistant Status API.
+func TestToolMessageBuilder_BuildToolResultMessage_SkillToolError_NowNil(t *testing.T) {
 	builder := NewMessageBuilder(&Config{})
 
-	// Test skill tool with error
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeToolResult,
 		Content: "Error: skill failed",
@@ -89,13 +93,13 @@ func TestToolMessageBuilder_BuildToolResultMessage_SkillToolError(t *testing.T) 
 
 	blocks := builder.Build(msg)
 
-	assert.NotNil(t, blocks)
-	assert.Equal(t, 1, len(blocks))
-	// Verify single block for skill error (no preview)
-	assert.IsType(t, &slack.SectionBlock{}, blocks[0])
+	// Tool messages are now status-only (handled by Assistant Status API)
+	assert.Nil(t, blocks)
 }
 
-func TestToolMessageBuilder_BuildToolResultMessage_LongRunning(t *testing.T) {
+// TestToolMessageBuilder_BuildToolResultMessage_LongRunning_NowNil verifies long-running
+// tool results are also handled by Assistant Status API.
+func TestToolMessageBuilder_BuildToolResultMessage_LongRunning_NowNil(t *testing.T) {
 	builder := NewMessageBuilder(&Config{})
 
 	// Test long-running tool with duration > 500ms
@@ -112,13 +116,13 @@ func TestToolMessageBuilder_BuildToolResultMessage_LongRunning(t *testing.T) {
 
 	blocks := builder.Build(msg)
 
-	assert.NotNil(t, blocks)
-	assert.GreaterOrEqual(t, len(blocks), 1)
-	// Verify duration is shown
-	assert.IsType(t, &slack.SectionBlock{}, blocks[0])
+	// Tool messages are now status-only (handled by Assistant Status API)
+	assert.Nil(t, blocks)
 }
 
-func TestToolMessageBuilder_BuildToolResultMessage_ErrorWithPreview(t *testing.T) {
+// TestToolMessageBuilder_BuildToolResultMessage_ErrorWithPreview_NowNil verifies error
+// results are also handled by Assistant Status API.
+func TestToolMessageBuilder_BuildToolResultMessage_ErrorWithPreview_NowNil(t *testing.T) {
 	builder := NewMessageBuilder(&Config{})
 
 	// Test error with preview content
@@ -134,10 +138,8 @@ func TestToolMessageBuilder_BuildToolResultMessage_ErrorWithPreview(t *testing.T
 
 	blocks := builder.Build(msg)
 
-	assert.NotNil(t, blocks)
-	assert.Equal(t, 2, len(blocks)) // summary + error preview
-	// Verify error preview block exists
-	assert.IsType(t, &slack.ContextBlock{}, blocks[1])
+	// Tool messages are now status-only (handled by Assistant Status API)
+	assert.Nil(t, blocks)
 }
 
 // =============================================================================
@@ -439,8 +441,9 @@ func TestBuild_RoutesToCorrectSubBuilder(t *testing.T) {
 		msgContent string
 		expectNil  bool // true if message type is handled by StatusManager (no blocks)
 	}{
-		{base.MessageTypeToolUse, "tool use", false},
-		{base.MessageTypeToolResult, "tool result", false},
+		// Tool messages are now status-only (handled by Assistant Status API)
+		{base.MessageTypeToolUse, "tool use", true},
+		{base.MessageTypeToolResult, "tool result", true},
 		{base.MessageTypeAnswer, "answer", false},
 		{base.MessageTypeError, "error", false},
 		{base.MessageTypePlanMode, "plan mode", false},

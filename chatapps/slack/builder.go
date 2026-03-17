@@ -96,9 +96,9 @@ func (b *MessageBuilder) Build(msg *base.ChatMessage) []slack.Block {
 	case base.MessageTypeThinking:
 		return nil // Handled by status
 	case base.MessageTypeToolUse:
-		return b.tool.BuildToolUseMessage(msg)
+		return nil // Handled by Assistant Status API
 	case base.MessageTypeToolResult:
-		return b.tool.BuildToolResultMessage(msg)
+		return nil // Handled by Assistant Status API
 	case base.MessageTypeAnswer:
 		return b.answer.BuildAnswerMessage(msg)
 	case base.MessageTypeError:

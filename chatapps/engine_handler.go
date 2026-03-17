@@ -26,7 +26,6 @@ const (
 // UI Status indicator labels for AI Native experience
 const (
 	StatusThinkingLabel       = "🧠 深度推演规划中..."
-	StatusToolExecutingLabel  = "🛠️ 正在执行工具 [%s]..."
 	StatusResultParsingLabel  = "🧠 正在解析执行结果..."
 	StatusErrorLabel          = "❌ 执行过程中发生错误"
 	StatusDangerBlockLabel    = "⚠️ 拦截到高危操作，等待确认..."
@@ -695,13 +694,14 @@ func (c *StreamCallback) handleToolUse(data any) error {
 		}
 	}
 
-	// UI Native: tool_use is now status-only
-	statusText := fmt.Sprintf(StatusToolExecutingLabel, toolName)
+	// UI Native: tool_use is now status-only with categorized emoji
+	category := base.CategorizeTool(toolName)
+	statusText := fmt.Sprintf(base.CategoryStatusLabel(category), toolName)
 	if err := c.updateStatusMessage(base.MessageTypeToolUse, statusText); err != nil {
 		c.logger.Warn("Failed to update status for tool_use", "error", err)
 	}
 
-	c.logger.Debug("Processed tool use (status-only)", "tool_name", toolName)
+	c.logger.Debug("Processed tool use (status-only)", "tool_name", toolName, "category", category)
 	return nil
 }
 
@@ -711,104 +711,58 @@ func (c *StreamCallback) handleToolResult(data any) error {
 	success := true
 	var durationMs int64
 	var toolName string
-	var filePath string
-	output := ""
-
 	var contentLength int64
+
 	if m, ok := data.(*event.EventWithMeta); ok {
-		c.logger.Debug("Tool result event data",
-			"event_data_len", len(m.EventData),
-			"meta_tool_name", m.Meta.ToolName,
-			"meta_duration_ms", m.Meta.DurationMs,
-			"meta_status", m.Meta.Status,
-			"meta_file_path", m.Meta.FilePath)
+		// Safe access to Meta fields - check nil first
 		if m.Meta != nil {
+			c.logger.Debug("Tool result event data",
+				"event_data_len", len(m.EventData),
+				"meta_tool_name", m.Meta.ToolName,
+				"meta_duration_ms", m.Meta.DurationMs,
+				"meta_status", m.Meta.Status)
 			if m.Meta.Status == "error" {
 				success = false
 			}
-			if m.Meta.ErrorMsg != "" {
-				output = m.Meta.ErrorMsg
-			}
 			durationMs = m.Meta.DurationMs
 			toolName = m.Meta.ToolName
-			filePath = m.Meta.FilePath
+		} else {
+			c.logger.Debug("Tool result event with nil metadata", "event_data_len", len(m.EventData))
 		}
-
-		// Calculate real content length even if we use a placeholder
 		contentLength = int64(len(m.EventData))
-
-		// =====================================================================
-		// Space Folding: Large outputs (>2KB) are diverted to thread replies
-		// The main channel gets a compact indicator instead of the raw output.
-		// =====================================================================
-		const spaceFoldingThreshold = 2048 // 2KB
-
-		if contentLength > spaceFoldingThreshold && m.EventData != "" && c.messageOps != nil {
-			// Send full output as a thread reply (folded into the conversation thread)
-			c.mu.Lock()
-			channelID, _ := c.metadata["channel_id"].(string)
-			threadTS, _ := c.metadata["thread_ts"].(string)
-			c.mu.Unlock()
-
-			if channelID != "" && threadTS != "" {
-				// Truncate extremely large outputs (>32KB) even in thread replies
-				threadContent := m.EventData
-				if len(threadContent) > 32768 {
-					threadContent = threadContent[:32768] + "\n\n... (output truncated at 32KB)"
-				}
-
-				// Send to thread as a code block for readability
-				threadMsg := fmt.Sprintf("📋 *%s* 完整输出 (%s):\n```\n%s\n```", toolName, formatDataLength(contentLength), threadContent)
-				go func() {
-					// Use a 30s timeout context for background thread reply
-					ctxBody, cancel := context.WithTimeout(c.ctx, 30*time.Second)
-					defer cancel()
-					if err := c.messageOps.SendThreadReply(ctxBody, channelID, threadTS, threadMsg); err != nil {
-						c.logger.Warn("Space Folding: failed to send thread reply", "error", err)
-					}
-				}()
-
-				output = "📋 输出过长，已收纳至回复"
-			} else {
-				output = "Output generated"
-			}
-		} else if output == "" && m.EventData != "" {
-			output = "Output generated"
-		}
 	}
 
 	// Skip empty tool_result events (no output, no error, no length)
-	if output == "" && toolName == "" && contentLength == 0 {
+	if toolName == "" && contentLength == 0 {
 		c.logger.Debug("Skipping tool result: empty output and tool name")
 		return nil
 	}
 
-	c.logger.Debug("Sending tool result message",
-		"tool_name", toolName,
-		"success", success,
-		"duration_ms", durationMs,
-		"output_len", len(output))
+	// Handle empty tool name gracefully
+	if toolName == "" {
+		c.logger.Warn("Tool result with empty tool name", "content_length", contentLength)
+		toolName = "未知工具"
+	}
 
-	// Update status indicator to show tool execution result with 🧠 emoji (AI processing state)
-	statusText := fmt.Sprintf(StatusToolResultThinkingLabel, durationMs)
+	// Update status indicator with categorized emoji and result info
+	category := base.CategorizeTool(toolName)
+	emoji := base.CategoryEmoji(category)
+	var statusText string
+	if success {
+		statusText = fmt.Sprintf("%s 完成执行 [%s] (%dms)", emoji, toolName, durationMs)
+	} else {
+		statusText = fmt.Sprintf("⚠️ 执行失败 [%s] (%dms)", toolName, durationMs)
+	}
 	if err := c.updateStatusMessage(base.MessageTypeToolResult, statusText); err != nil {
 		c.logger.Warn("Failed to update status for tool_result", "error", err)
 	}
 
-	// Silent Success: only send message to main channel if there's an error
-	if !success {
-		return c.buildChatMessage(base.MessageTypeToolResult, output, map[string]any{
-			"success":        success,
-			"duration_ms":    durationMs,
-			"tool_name":      toolName,
-			"file_path":      filePath,
-			"content_length": contentLength,
-			"event_type":     string(provider.EventTypeToolResult),
-			"stream":         true,
-		})
-	}
-
-	c.logger.Debug("Tool result processed silently (success)", "tool_name", toolName)
+	// Complete Silent: tool results are status-only, no channel messages
+	c.logger.Debug("Tool result processed silently",
+		"tool_name", toolName,
+		"success", success,
+		"duration_ms", durationMs,
+		"content_length", contentLength)
 	return nil
 }
 
@@ -975,8 +929,13 @@ func (c *StreamCallback) handleError(data any) error {
 			waitTime = engine.GetOptions().Timeout.String()
 		}
 
-		if c.lastToolName != "" {
-			errMsg = fmt.Sprintf("抱歉，由于任务过于复杂，处理超出了预设的时间（%s）。机器人卡在执行 `%s` 工具的过程中。建议您可以尝试拆解任务后再重试。", waitTime, c.lastToolName)
+		// Thread-safe read of lastToolName
+		c.mu.Lock()
+		lastTool := c.lastToolName
+		c.mu.Unlock()
+
+		if lastTool != "" {
+			errMsg = fmt.Sprintf("抱歉，由于任务过于复杂，处理超出了预设的时间（%s）。机器人卡在执行 `%s` 工具的过程中。建议您可以尝试拆解任务后再重试。", waitTime, lastTool)
 		} else {
 			errMsg = fmt.Sprintf("抱歉，任务执行时间过长（超过 %s），为了系统安全已自动终止。建议您可以尝试缩小任务范围后再试一次。", waitTime)
 		}
@@ -1759,16 +1718,6 @@ func (c *StreamCallback) handlePermissionRequest(data any) error {
 	}
 	msg.Metadata = c.mergeMetadata(msg.Metadata)
 	return c.sendMessageAndGetTS(c.convertToChatMessage(msg))
-}
-
-// formatDataLength formats byte count into human-readable size string
-func formatDataLength(bytes int64) string {
-	if bytes > 1024*1024 {
-		return fmt.Sprintf("%.1fMB", float64(bytes)/(1024*1024))
-	} else if bytes > 1024 {
-		return fmt.Sprintf("%.1fKB", float64(bytes)/1024)
-	}
-	return fmt.Sprintf("%d bytes", bytes)
 }
 
 // isLongTaskPrompt detects if a prompt is likely to trigger a long-running task
