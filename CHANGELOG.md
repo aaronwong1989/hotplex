@@ -1,5 +1,27 @@
 # CHANGELOG.md
 
+## [v0.31.0] - 2026-03-17
+
+### Added
+- **Enhanced Diagnostics Skill** - Expanded hotplex-diagnostics with multi-container support:
+  - 3-layer diagnostic architecture (health/resources/deep-dive)
+  - Universal container health checks (all Docker containers)
+  - HotPlex-specific deep diagnostics (Socket Mode, sessions, WAF)
+  - Automated diagnostic script (`diagnose-all.sh`)
+  - Container health reference documentation
+
+### Fixed
+- **Status Handling** - Skip fallback thinking status during tool execution to prevent UI flicker
+- **Docker Proxy** - Removed hardcoded proxy defaults to fix build failures
+- **Claude Provider** - Skip "user" type messages (internal tool results) in event parsing
+
+### Changed
+- **CLAUDE.md** - Added service management and coverage commands to Quick Start
+- **Logging** - Refactored daemon startup logs into grouped sections for clarity
+- **Admin Bot Prompt** - Optimized for Slack (no tables, concise output)
+
+---
+
 ## [v0.30.4] - 2026-03-17
 
 ### Added
