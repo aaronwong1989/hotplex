@@ -361,8 +361,9 @@ HOST_UID        ?= $(shell id -u)
 STACK_TAG       ?= latest
 
 # 代理与源配置 (Optimized for mainland China)
-HTTP_PROXY       ?= http://host.docker.internal:7897
-HTTPS_PROXY      ?= http://host.docker.internal:7897
+# HTTP_PROXY/HTTPS_PROXY: 留空表示不使用代理，需要时手动设置
+HTTP_PROXY       ?=
+HTTPS_PROXY      ?=
 ALPINE_MIRROR    ?= mirrors.aliyun.com
 NPM_MIRROR       ?= https://registry.npmmirror.com
 PYTHON_MIRROR    ?= https://pypi.tuna.tsinghua.edu.cn/simple

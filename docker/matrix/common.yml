@@ -15,10 +15,11 @@ x-hotplex-common: &hotplex-common
     HOST_UID: ${HOST_UID:-1000}
     # ─────────────────────────────────────────────────────────────────
     # Proxy Configuration (OPTIONAL)
+    # Set HTTP_PROXY/HTTPS_PROXY in .env-* files if needed
     # ─────────────────────────────────────────────────────────────────
     ANTHROPIC_BASE_URL: http://host.docker.internal:15721
-    HTTP_PROXY: http://host.docker.internal:7897
-    HTTPS_PROXY: http://host.docker.internal:7897
+    HTTP_PROXY: ${HTTP_PROXY:-}
+    HTTPS_PROXY: ${HTTPS_PROXY:-}
     NO_PROXY: localhost,127.0.0.1,host.docker.internal,.local,.internal
     HOTPLEX_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
     # ─────────────────────────────────────────────────────────────────
