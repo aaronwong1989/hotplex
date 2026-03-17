@@ -74,7 +74,7 @@ func TestStreamingWriter_MultipleWrites(t *testing.T) {
 
 	ctx := context.Background()
 	writer := NewStreamingWriter(ctx, adapter, "test_chat_id", nil)
-	defer writer.Close()
+	defer func() { _ = writer.Close() }()
 
 	// Write multiple small chunks
 	chunks := []string{"A", "B", "C", "D", "E"}
@@ -101,7 +101,7 @@ func TestStreamingWriter_EmptyWrite(t *testing.T) {
 
 	ctx := context.Background()
 	writer := NewStreamingWriter(ctx, adapter, "test_chat_id", nil)
-	defer writer.Close()
+	defer func() { _ = writer.Close() }()
 
 	// Write empty content
 	n, err := writer.Write([]byte{})
@@ -233,7 +233,7 @@ func TestStreamingWriter_FallbackUsed(t *testing.T) {
 
 	ctx := context.Background()
 	writer := NewStreamingWriter(ctx, adapter, "test_chat_id", nil)
-	defer writer.Close()
+	defer func() { _ = writer.Close() }()
 
 	// Feishu's streaming doesn't use fallback (card updates have no limit)
 	assert.False(t, writer.FallbackUsed())
