@@ -311,19 +311,25 @@ func setupPlatform(
 	// 3. Create EngineMessageHandler
 	// Wrap engine.Engine to implement chatapps.Engine interface
 	wrappedEng := &engineWrapper{eng: eng}
+
+	// Resolve work directory once at setup time to avoid repeated path expansion
+	// and log noise on every message (Issue #294)
+	resolvedWorkDir := ""
+	if pc.Engine.WorkDir != "" {
+		resolvedWorkDir = sys.ExpandPath(pc.Engine.WorkDir)
+		logger.Info("Work directory initialized",
+			"platform", platform,
+			"config", pc.Engine.WorkDir,
+			"path", resolvedWorkDir)
+	}
+
 	msgHandler := NewEngineMessageHandler(wrappedEng, manager,
 		WithConfigLoader(loader),
 		WithLogger(logger),
 		WithWorkDirFn(func(sessionID string) string {
-			// Use work_dir from config if specified
-			if pc.Engine.WorkDir != "" {
-				// Expand environment variables, ~ to home, and resolve .
-				workDir := sys.ExpandPath(pc.Engine.WorkDir)
-				logger.Info("Work directory resolved",
-					"platform", platform,
-					"config", pc.Engine.WorkDir,
-					"path", workDir)
-				return workDir
+			// Return cached resolved path if configured
+			if resolvedWorkDir != "" {
+				return resolvedWorkDir
 			}
 			// Default: use temp directory with platform/session isolation
 			defaultDir := filepath.Join("/tmp/hotplex-chatapps", platform, sessionID)
