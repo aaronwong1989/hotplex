@@ -1,6 +1,6 @@
 # CHANGELOG.md
 
-## [Unreleased]
+## [v0.30.4] - 2026-03-17
 
 ### Added
 - **Tool Categorization System** - Expanded from 8 to 20 categories for better UX:
