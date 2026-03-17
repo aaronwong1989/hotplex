@@ -253,8 +253,8 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 
 // WorkDirResult holds the resolved work directory information
 type WorkDirResult struct {
-	ResolvedPath string // Expanded absolute path (empty if not configured or expansion failed)
-	PlatformName string // Platform name for default path construction
+	ResolvedPath  string // Expanded absolute path (empty if not configured or expansion failed)
+	PlatformName  string // Platform name for default path construction
 	DefaultReason string // Reason for using default directory (for logging)
 }
 

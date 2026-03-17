@@ -24,7 +24,7 @@ type Adapter struct {
 	client FeishuAPIClient
 
 	// WebSocket client (for long connection mode)
-	wsClient    *WebSocketClient
+	wsClient     *WebSocketClient
 	useWebSocket bool // 是否使用 WebSocket 模式
 
 	// Token cache

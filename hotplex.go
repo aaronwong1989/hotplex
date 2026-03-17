@@ -10,7 +10,7 @@ import (
 
 var (
 	// Version can be overridden via ldflags: -X github.com/hrygo/hotplex.Version=1.2.3
-	Version      = "0.31.0"
+	Version      = "0.31.1"
 	VersionMajor = 0
 	VersionMinor = 31
 	VersionPatch = 0

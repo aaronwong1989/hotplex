@@ -131,15 +131,26 @@ done
 | hotplex-02 | 18081 | U0AJVRH4YF6 | Secondary | .env-02 |
 | hotplex-03 | 18082 | U0AL7H8UU75 | Secondary | .env-03 |
 
+**External Services:**
+
+| Service | Port | Role | Health Endpoint |
+|:--------|:-----|:-----|:----------------|
+| openclaw-gateway | 18789 | MCP Gateway | `curl http://localhost:18789/health` |
+
 **Working Directory**: `~/hotplex/docker/matrix`
 
 ### HTTP Health Check
 
 ```bash
+# HotPlex bots
 for port in 18080 18081 18082; do
   status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$port/health 2>/dev/null || echo "000")
   echo "Port $port: HTTP $status"
 done
+
+# OpenClaw Gateway (external service)
+echo "OpenClaw Gateway:"
+curl -s http://localhost:18789/health 2>/dev/null || echo "  FAILED or not running"
 ```
 
 ### Socket Mode Status
@@ -174,6 +185,31 @@ done
 ```bash
 docker exec hotplex-01 du -sh /home/hotplex/.hotplex 2>/dev/null
 docker exec hotplex-01 du -sh /home/hotplex/.claude 2>/dev/null
+```
+
+### OpenClaw Gateway Diagnostics
+
+**Note**: `openclaw-gateway` runs independently (not in docker-compose.yml).
+
+```bash
+# Health check
+curl -s http://localhost:18789/health | jq
+
+# Container status
+docker ps --filter "name=openclaw-gateway" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Recent logs
+docker logs openclaw-gateway --tail=100 2>&1
+
+# Error scan
+docker logs openclaw-gateway --since 1h 2>&1 | grep -iE "error|fatal|panic|exception"
+
+# Resource usage
+docker stats --no-stream openclaw-gateway --format "CPU: {{.CPUPerc}}, Memory: {{.MemUsage}}"
+
+# If container not found, check if it's supposed to be running
+echo "Note: openclaw-gateway is not managed by docker-compose."
+echo "It may be started by a separate compose file or manually."
 ```
 
 ---

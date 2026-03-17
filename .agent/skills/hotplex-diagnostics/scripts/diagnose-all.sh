@@ -104,6 +104,15 @@ hotplex_deep_dive() {
     else
         echo "  HotPlex not found at $COMPOSE_DIR"
     fi
+
+    # OpenClaw Gateway (external service, not in docker-compose)
+    echo -e "\n${YELLOW}OpenClaw Gateway:${NC}"
+    oc_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18789/health 2>/dev/null || echo "000")
+    case $oc_status in
+        200) echo -e "  ${GREEN}HTTP 200 - Healthy${NC}" ;;
+        000) echo -e "  ${RED}Not reachable (may not be running)${NC}" ;;
+        *) echo -e "  ${YELLOW}HTTP $oc_status${NC}" ;;
+    esac
 }
 
 single_container() {

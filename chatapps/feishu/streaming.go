@@ -28,20 +28,21 @@ const (
 
 // StreamingWriter 实现 io.WriteCloser 接口，封装飞书卡片流式消息的生命周期管理
 // 流程：首次 Write -> CreateCard -> SendCardMessage
-//       后续 Write -> 累积到缓冲区 -> 后台 flushLoop -> UpdateCard (with sequence++)
-//       Close -> 最终 UpdateCard
+//
+//	后续 Write -> 累积到缓冲区 -> 后台 flushLoop -> UpdateCard (with sequence++)
+//	Close -> 最终 UpdateCard
 type StreamingWriter struct {
 	ctx     context.Context
 	adapter *Adapter
 	chatID  string
 	token   string
 
-	mu         sync.Mutex
-	started    bool
-	closed     bool
-	cardID     string // 卡片实体 ID
-	messageID  string // 消息 ID
-	sequence   int    // 严格递增的序列号
+	mu        sync.Mutex
+	started   bool
+	closed    bool
+	cardID    string // 卡片实体 ID
+	messageID string // 消息 ID
+	sequence  int    // 严格递增的序列号
 
 	// 缓冲流控机制
 	buf          bytes.Buffer
@@ -382,11 +383,11 @@ func (w *StreamingWriter) IsClosed() bool {
 
 // StreamWriterStats 流式消息统计信息
 type StreamWriterStats struct {
-	BytesWritten int64 // 成功写入的总字节数
-	BytesFlushed int64 // 成功 flush 的总字节数
-	Sequence     int   // 当前序列号
-	IntegrityOK  bool  // 完整性检查是否通过
-	ContentLength int  // 累积内容长度
+	BytesWritten  int64 // 成功写入的总字节数
+	BytesFlushed  int64 // 成功 flush 的总字节数
+	Sequence      int   // 当前序列号
+	IntegrityOK   bool  // 完整性检查是否通过
+	ContentLength int   // 累积内容长度
 }
 
 // GetStats 返回流统计信息

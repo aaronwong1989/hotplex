@@ -1,5 +1,23 @@
 # CHANGELOG.md
 
+## [v0.31.1] - 2026-03-17
+
+### Added
+- **OpenClaw Gateway Diagnostics** - Expanded hotplex-diagnostics skill with OpenClaw Gateway support:
+  - Added OpenClaw Gateway (port 18789) to Container Reference table
+  - HTTP health check for OpenClaw Gateway status
+  - Dedicated diagnostics section with container status, log analysis, error scanning, and resource monitoring
+  - Updated diagnose-all.sh script to check OpenClaw health
+
+### Fixed
+- **Codecov PR Comments** - Enabled PR comment updates in CI workflow:
+  - Added `pull-requests: write` permission
+  - Added `comment: true` to codecov-action configuration
+  - This fixes the issue where coverage uploads succeeded but PR comments were not updated
+- **Dockerfile Base** - Corrected docker-entrypoint.sh path from `docker-entrypoint.sh` to `docker/docker-entrypoint.sh`
+
+---
+
 ## [v0.31.0] - 2026-03-17
 
 ### Added

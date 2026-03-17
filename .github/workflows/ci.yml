@@ -13,6 +13,7 @@ concurrency:
 # 最小权限原则
 permissions:
   contents: read
+  pull-requests: write  # Required for Codecov PR comments
 
 jobs:
   changes:
@@ -72,6 +73,7 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
+          comment: true  # Enable PR comment updates
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 

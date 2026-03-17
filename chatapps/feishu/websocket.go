@@ -17,23 +17,23 @@ const (
 	feishuWebSocketAPI = "/open-apis/v3/bot/websocket/"
 
 	// WebSocket 配置
-	wsPingInterval     = 30 * time.Second // 心跳间隔
-	wsPongWait         = 60 * time.Second // 等待 pong 响应的超时时间
-	wsReconnectDelay   = 5 * time.Second  // 重连延迟
-	wsMaxReconnectTries = 10              // 最大重连尝试次数
+	wsPingInterval      = 30 * time.Second // 心跳间隔
+	wsPongWait          = 60 * time.Second // 等待 pong 响应的超时时间
+	wsReconnectDelay    = 5 * time.Second  // 重连延迟
+	wsMaxReconnectTries = 10               // 最大重连尝试次数
 
 	// WebSocket 消息类型
-	wsMessageTypePing = "ping"
-	wsMessageTypePong = "pong"
+	wsMessageTypePing  = "ping"
+	wsMessageTypePong  = "pong"
 	wsMessageTypeError = "error"
 )
 
 // WebSocketClient 封装飞书 WebSocket 长连接客户端
 type WebSocketClient struct {
-	appID     string
-	appSecret string
-	logger    *slog.Logger
-	apiClient FeishuAPIClient // 复用 API 客户端，避免重复创建
+	appID      string
+	appSecret  string
+	logger     *slog.Logger
+	apiClient  FeishuAPIClient // 复用 API 客户端，避免重复创建
 	httpClient *http.Client
 
 	// WebSocket 连接
@@ -56,8 +56,8 @@ type WebSocketClient struct {
 
 // WebSocketResponse 获取 WebSocket 连接地址的响应
 type WebSocketResponse struct {
-	Code int `json:"code"`
-	Msg  string `json:"msg"`
+	Code int            `json:"code"`
+	Msg  string         `json:"msg"`
 	Data *WebSocketData `json:"data"`
 }
 
