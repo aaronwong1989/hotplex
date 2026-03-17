@@ -90,6 +90,7 @@ services:
       # Entrypoint mount (enables hot-updates without image rebuild)
       - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
     environment:
+      # Merge common-env anchor + service-specific overrides
+      <<: *common-env
       # Container paths (consistent across all instances)
       HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
-      HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
