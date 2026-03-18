@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## [v0.31.6] - 2026-03-19
+
+### Added
+- **Skill: openclaw-config-fix** - New skill for OpenClaw configuration debugging and fixing:
+  - SKILL.md: Main skill definition with troubleshooting workflow
+  - references/: Configuration paths and known issues documentation
+  - scripts/: Helper scripts for health check, JSON fixing, and enum field fixing
+
+---
+
 ## [v0.31.5] - 2026-03-19
 
 ### Fixed
