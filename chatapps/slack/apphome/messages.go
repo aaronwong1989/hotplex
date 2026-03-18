@@ -39,6 +39,9 @@ type MessagesConfig struct {
 	// Welcome message
 	WelcomeTemplate string // Welcome message template (e.g., "👋 欢迎回来, <@%s>!")
 
+	// Catalog
+	CatalogTitle string // Catalog section title (default: "🔭 能力目录")
+
 	// Category headers (optional per-category customization)
 	CategoryHeaders map[string]string // category ID -> header text
 }
@@ -71,6 +74,8 @@ func DefaultMessagesConfig() *MessagesConfig {
 		FooterPoweredBy: "Native Brain",
 
 		WelcomeTemplate: "👋 欢迎回来, <@%s>!",
+
+		CatalogTitle: "*🔭 能力目录*",
 
 		CategoryHeaders: make(map[string]string),
 	}
@@ -138,6 +143,14 @@ func (c *MessagesConfig) GetWelcomeMessage(userID string) string {
 		return sprintf(c.WelcomeTemplate, userID)
 	}
 	return sprintf(DefaultMessagesConfig().WelcomeTemplate, userID)
+}
+
+// GetCatalogTitle returns the catalog section title.
+func (c *MessagesConfig) GetCatalogTitle() string {
+	if c != nil && c.CatalogTitle != "" {
+		return c.CatalogTitle
+	}
+	return DefaultMessagesConfig().CatalogTitle
 }
 
 // GetFooterHelp returns the footer help text.

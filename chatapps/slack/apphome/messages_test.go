@@ -213,6 +213,18 @@ func TestMessagesConfig_GetModelPrefix(t *testing.T) {
 	})
 }
 
+func TestMessagesConfig_GetCatalogTitle(t *testing.T) {
+	t.Run("custom config", func(t *testing.T) {
+		cfg := &MessagesConfig{CatalogTitle: "*Custom Catalog*"}
+		assert.Equal(t, "*Custom Catalog*", cfg.GetCatalogTitle())
+	})
+
+	t.Run("nil config", func(t *testing.T) {
+		var cfg *MessagesConfig
+		assert.Equal(t, DefaultMessagesConfig().CatalogTitle, cfg.GetCatalogTitle())
+	})
+}
+
 func TestSprintf(t *testing.T) {
 	result := sprintf("Hello %s, you have %d items", "World", 42)
 	assert.Equal(t, "Hello World, you have 42 items", result)

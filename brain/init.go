@@ -297,10 +297,12 @@ func (w *enhancedBrainWrapper) recordMetrics(timer *llm.RequestTimer, model, pro
 		return
 	}
 
-	inputTokens := w.costCalculator.CountTokens(prompt)
-	outputTokens := w.costCalculator.CountTokens(result)
+	inputTokens := 0
+	outputTokens := 0
 	cost := 0.0
 	if w.costCalculator != nil {
+		inputTokens = w.costCalculator.CountTokens(prompt)
+		outputTokens = w.costCalculator.CountTokens(result)
 		cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
 		_, _, _ = w.costCalculator.TrackRequest("default", model, inputTokens, outputTokens)
 	}
@@ -313,14 +315,14 @@ func (w *enhancedBrainWrapper) recordMetricsForAnalyze(timer *llm.RequestTimer, 
 		return
 	}
 
-	inputTokens := w.costCalculator.CountTokens(prompt)
-	outputTokens := 100 // Estimate for structured output
+	inputTokens := 0
 	cost := 0.0
 	if w.costCalculator != nil {
-		cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
-		_, _, _ = w.costCalculator.TrackRequest("default", model, inputTokens, outputTokens)
+		inputTokens = w.costCalculator.CountTokens(prompt)
+		cost, _ = w.costCalculator.CalculateCost(model, inputTokens, 100)
+		_, _, _ = w.costCalculator.TrackRequest("default", model, inputTokens, 100)
 	}
-	timer.Record(int64(inputTokens), int64(outputTokens), cost, err)
+	timer.Record(int64(inputTokens), 100, cost, err)
 }
 
 func (w *enhancedBrainWrapper) ChatStream(ctx context.Context, prompt string) (<-chan string, error) {
@@ -339,7 +341,10 @@ func (w *enhancedBrainWrapper) ChatStream(ctx context.Context, prompt string) (<
 
 	// Start metrics timer
 	timer := w.startMetricsTimer(model, "chat_stream")
-	inputTokens := w.costCalculator.CountTokens(prompt)
+	inputTokens := 0
+	if w.costCalculator != nil {
+		inputTokens = w.costCalculator.CountTokens(prompt)
+	}
 
 	// Get the stream from client
 	stream, err := w.client.ChatStream(ctx, prompt)
@@ -356,19 +361,36 @@ func (w *enhancedBrainWrapper) ChatStream(ctx context.Context, prompt string) (<
 
 	go func() {
 		defer close(outputChan)
-		var outputTokens int
-		for token := range stream {
-			outputTokens += w.costCalculator.CountTokens(token)
-			outputChan <- token
+		if stream == nil {
+			return
 		}
-		// Record metrics when stream completes
-		if timer != nil {
-			cost := 0.0
-			if w.costCalculator != nil {
-				cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
-				_, _, _ = w.costCalculator.TrackRequest("stream", model, inputTokens, outputTokens)
+		var outputTokens int
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case token, ok := <-stream:
+				if !ok {
+					// Record metrics when stream completes
+					if timer != nil {
+						cost := 0.0
+						if w.costCalculator != nil {
+							cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
+							_, _, _ = w.costCalculator.TrackRequest("stream", model, inputTokens, outputTokens)
+						}
+						timer.Record(int64(inputTokens), int64(outputTokens), cost, nil)
+					}
+					return
+				}
+				if w.costCalculator != nil {
+					outputTokens += w.costCalculator.CountTokens(token)
+				}
+				select {
+				case outputChan <- token:
+				case <-ctx.Done():
+					return
+				}
 			}
-			timer.Record(int64(inputTokens), int64(outputTokens), cost, nil)
 		}
 	}()
 

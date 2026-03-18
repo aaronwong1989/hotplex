@@ -117,11 +117,8 @@ func (b *Builder) buildHeader() []slack.Block {
 }
 
 // buildWelcome creates a personalized welcome block.
-func (b *Builder) buildWelcome(userID, userName string) slack.Block {
+func (b *Builder) buildWelcome(userID string, _ string) slack.Block {
 	text := b.messages.GetWelcomeMessage(userID)
-	if userName != "" {
-		text = b.messages.GetWelcomeMessage(userID)
-	}
 	welcomeText := slack.NewTextBlockObject(slack.MarkdownType, text, false, false)
 	return slack.NewSectionBlock(welcomeText, nil, nil)
 }
@@ -247,7 +244,7 @@ func (b *Builder) BuildFullHomeView(state HomeState) *slack.HomeTabViewRequest {
 	blocks = append(blocks, slack.NewDividerBlock())
 
 	// 4. Capability Catalog Header
-	catalogTitle := slack.NewTextBlockObject(slack.MarkdownType, "*🔭 能力目录*", false, false)
+	catalogTitle := slack.NewTextBlockObject(slack.MarkdownType, b.messages.GetCatalogTitle(), false, false)
 	blocks = append(blocks, slack.NewSectionBlock(catalogTitle, nil, nil))
 
 	// 5. Capabilities by category
