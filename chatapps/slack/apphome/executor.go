@@ -18,10 +18,16 @@ type Executor struct {
 	brain            brain.Brain
 	brainIntegration *BrainIntegration
 	logger           *slog.Logger
+	messages         *MessagesConfig
 
 	// MessageHandler is called to trigger engine execution.
 	// This is a callback to avoid circular dependencies with the adapter.
 	MessageHandler func(ctx context.Context, userID, channelID, message string) error
+
+	// ErrorHandler is called when an error occurs during execution.
+	// It allows the caller to handle errors (e.g., notify user) without blocking execution.
+	// If not set, errors are only logged.
+	ErrorHandler func(ctx context.Context, userID, capabilityID string, err error)
 }
 
 // ExecutorOption configures an Executor.
@@ -56,10 +62,25 @@ func WithExecutorLogger(logger *slog.Logger) ExecutorOption {
 	}
 }
 
+// WithMessages sets the messages configuration.
+func WithMessages(cfg *MessagesConfig) ExecutorOption {
+	return func(e *Executor) {
+		e.messages = cfg
+	}
+}
+
+// WithErrorHandler sets the error handler callback.
+func WithErrorHandler(handler func(ctx context.Context, userID, capabilityID string, err error)) ExecutorOption {
+	return func(e *Executor) {
+		e.ErrorHandler = handler
+	}
+}
+
 // NewExecutor creates a new capability executor.
 func NewExecutor(opts ...ExecutorOption) *Executor {
 	e := &Executor{
-		logger: slog.Default(),
+		logger:   slog.Default(),
+		messages: DefaultMessagesConfig(),
 	}
 
 	for _, opt := range opts {
@@ -104,7 +125,7 @@ func (e *Executor) Execute(ctx context.Context, userID string, cap Capability, p
 	}
 
 	// Step 4: Send header message to DM
-	header := fmt.Sprintf("🎯 *%s* — 执行能力任务", cap.Name)
+	header := e.messages.GetExecutorHeader(cap.Name)
 	if _, _, err := e.client.PostMessageContext(
 		ctx,
 		dmChannel,
@@ -126,6 +147,10 @@ func (e *Executor) Execute(ctx context.Context, userID string, cap Capability, p
 	if e.MessageHandler != nil {
 		if err := e.MessageHandler(ctx, userID, dmChannel, prompt); err != nil {
 			e.logger.Error("Message handler failed", "error", err)
+			// Call error handler if configured
+			if e.ErrorHandler != nil {
+				e.ErrorHandler(ctx, userID, cap.ID, err)
+			}
 			// Don't fail the execution, the prompt was already sent
 		}
 	}
@@ -185,4 +210,16 @@ func (e *Executor) SetBrain(b brain.Brain) {
 // HasBrain checks if the executor has a brain instance configured.
 func (e *Executor) HasBrain() bool {
 	return e.brain != nil
+}
+
+// SetMessages sets the messages configuration (for late initialization).
+func (e *Executor) SetMessages(cfg *MessagesConfig) {
+	if cfg != nil {
+		e.messages = cfg
+	}
+}
+
+// SetErrorHandler sets the error handler callback (for late initialization).
+func (e *Executor) SetErrorHandler(handler func(ctx context.Context, userID, capabilityID string, err error)) {
+	e.ErrorHandler = handler
 }

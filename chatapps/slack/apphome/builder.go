@@ -10,12 +10,6 @@ const (
 	// ActionIDPrefix is the prefix for capability button action IDs.
 	ActionIDPrefix = "cap_click:"
 
-	// HomeTitle is the primary title displayed in the App Home.
-	HomeTitle = "🔥 HotPlex 能力中心"
-
-	// HomeSubtitle is the secondary title or tagline.
-	HomeSubtitle = "AI-Driven Developer Capability Center • Powered by Native Brain"
-
 	// MaxCapabilitiesPerRow is the maximum number of capability cards per row.
 	MaxCapabilitiesPerRow = 3
 )
@@ -23,13 +17,31 @@ const (
 // Builder constructs Slack App Home Tab views.
 type Builder struct {
 	registry *Registry
+	messages *MessagesConfig
+}
+
+// BuilderOption configures a Builder.
+type BuilderOption func(*Builder)
+
+// WithBuilderMessages sets the messages configuration for the builder.
+func WithBuilderMessages(cfg *MessagesConfig) BuilderOption {
+	return func(b *Builder) {
+		b.messages = cfg
+	}
 }
 
 // NewBuilder creates a new App Home builder.
-func NewBuilder(registry *Registry) *Builder {
-	return &Builder{
+func NewBuilder(registry *Registry, opts ...BuilderOption) *Builder {
+	b := &Builder{
 		registry: registry,
+		messages: DefaultMessagesConfig(),
 	}
+
+	for _, opt := range opts {
+		opt(b)
+	}
+
+	return b
 }
 
 // HomeState represents the dynamic state of the App Home tab.
@@ -95,10 +107,10 @@ func (b *Builder) BuildBlocks() []slack.Block {
 
 // buildHeader creates the main header block with a subtitle.
 func (b *Builder) buildHeader() []slack.Block {
-	headerText := slack.NewTextBlockObject(slack.PlainTextType, HomeTitle, false, false)
+	headerText := slack.NewTextBlockObject(slack.PlainTextType, b.messages.GetHomeTitle(), false, false)
 	header := slack.NewHeaderBlock(headerText)
 
-	subtitleText := slack.NewTextBlockObject(slack.MarkdownType, HomeSubtitle, false, false)
+	subtitleText := slack.NewTextBlockObject(slack.MarkdownType, b.messages.GetHomeSubtitle(), false, false)
 	subtitle := slack.NewContextBlock("", subtitleText)
 
 	return []slack.Block{header, subtitle}
@@ -106,9 +118,9 @@ func (b *Builder) buildHeader() []slack.Block {
 
 // buildWelcome creates a personalized welcome block.
 func (b *Builder) buildWelcome(userID, userName string) slack.Block {
-	text := fmt.Sprintf("👋 欢迎回来, <@%s>!", userID)
+	text := b.messages.GetWelcomeMessage(userID)
 	if userName != "" {
-		text = fmt.Sprintf("👋 欢迎回来, *%s*!", userName)
+		text = b.messages.GetWelcomeMessage(userID)
 	}
 	welcomeText := slack.NewTextBlockObject(slack.MarkdownType, text, false, false)
 	return slack.NewSectionBlock(welcomeText, nil, nil)
@@ -116,20 +128,15 @@ func (b *Builder) buildWelcome(userID, userName string) slack.Block {
 
 // buildStatsSection creates a status and statistics summary.
 func (b *Builder) buildStatsSection(state HomeState) []slack.Block {
-	statusEmoji := "🟢"
-	statusText := "运行良好"
-	if !state.EngineOK {
-		statusEmoji = "🔴"
-		statusText = "引擎离线"
-	}
+	statusEmoji, statusText := b.messages.GetStatusInfo(state.EngineOK)
 
 	fields := []*slack.TextBlockObject{
 		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*系统状态*\n%s %s", statusEmoji, statusText), false, false),
-		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*累计任务*\n🚀 %d", state.TaskCount), false, false),
-		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*当前模型*\n🧠 %s", state.ModelInfo), false, false),
+		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*累计任务*\n%s %d", b.messages.GetTaskCountPrefix(), state.TaskCount), false, false),
+		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*当前模型*\n%s %s", b.messages.GetModelPrefix(), state.ModelInfo), false, false),
 	}
 
-	refreshBtn := slack.NewButtonBlockElement("app_home_refresh", "refresh", slack.NewTextBlockObject(slack.PlainTextType, "🔄 刷新状态", false, false))
+	refreshBtn := slack.NewButtonBlockElement("app_home_refresh", "refresh", slack.NewTextBlockObject(slack.PlainTextType, b.messages.GetRefreshButtonText(), false, false))
 
 	return []slack.Block{
 		slack.NewSectionBlock(nil, fields, slack.NewAccessory(refreshBtn)),
@@ -171,7 +178,7 @@ func (b *Builder) BuildCapabilitySection(cap Capability) slack.Block {
 	btn := slack.NewButtonBlockElement(
 		ActionIDPrefix+cap.ID,
 		cap.ID,
-		slack.NewTextBlockObject(slack.PlainTextType, "执行", false, false),
+		slack.NewTextBlockObject(slack.PlainTextType, b.messages.GetFormExecuteText(), false, false),
 	)
 
 	return slack.NewSectionBlock(mainText, nil, slack.NewAccessory(btn))
@@ -181,7 +188,7 @@ func (b *Builder) BuildCapabilitySection(cap Capability) slack.Block {
 func (b *Builder) buildFooter() slack.Block {
 	helpText := slack.NewTextBlockObject(
 		slack.MarkdownType,
-		"_点击能力卡片上的「执行」按钮开始使用。_\n_能力中心由 Native Brain 智能驱动。_",
+		fmt.Sprintf("%s\n_能力中心由 %s 智能驱动。_", b.messages.GetFooterHelp(), b.messages.GetFooterPoweredBy()),
 		false, false,
 	)
 	return slack.NewContextBlock("", helpText)

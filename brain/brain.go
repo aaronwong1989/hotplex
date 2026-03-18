@@ -6,6 +6,14 @@ import (
 	"github.com/hrygo/hotplex/brain/llm"
 )
 
+// Compile-time interface verification
+var (
+	_ Brain           = (*enhancedBrainWrapper)(nil)
+	_ StreamingBrain  = (*enhancedBrainWrapper)(nil)
+	_ RoutableBrain   = (*enhancedBrainWrapper)(nil)
+	_ ObservableBrain = (*enhancedBrainWrapper)(nil)
+)
+
 // Brain represents the core "System 1" intelligence for HotPlex.
 // It provides fast, structured, and low-cost reasoning capabilities.
 type Brain interface {

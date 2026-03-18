@@ -173,14 +173,21 @@ func Init(logger *slog.Logger) error {
 	return nil
 }
 
+// llmClient defines the interface for LLM client operations used by Brain.
+// This enables composition and middleware wrapping at the client level.
+type llmClient interface {
+	Chat(ctx context.Context, prompt string) (string, error)
+	Analyze(ctx context.Context, prompt string, target any) error
+	ChatStream(ctx context.Context, prompt string) (<-chan string, error)
+	HealthCheck(ctx context.Context) HealthStatus
+}
+
+// Compile-time interface verification for llmClient
+var _ llmClient = (llm.LLMClient)(nil)
+
 // enhancedBrainWrapper satisfies Brain, StreamingBrain, RoutableBrain, and ObservableBrain interfaces.
 type enhancedBrainWrapper struct {
-	client interface {
-		Chat(ctx context.Context, prompt string) (string, error)
-		Analyze(ctx context.Context, prompt string, target any) error
-		ChatStream(ctx context.Context, prompt string) (<-chan string, error)
-		HealthCheck(ctx context.Context) HealthStatus
-	}
+	client         llmClient
 	config         Config
 	metrics        *llm.MetricsCollector
 	costCalculator *llm.CostCalculator
@@ -198,121 +205,122 @@ func (w *enhancedBrainWrapper) Analyze(ctx context.Context, prompt string, targe
 }
 
 func (w *enhancedBrainWrapper) ChatWithModel(ctx context.Context, model string, prompt string) (string, error) {
-	// Apply timeout from config
-	if w.config.Model.TimeoutS > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(w.config.Model.TimeoutS)*time.Second)
-		defer cancel()
+	ctx = w.applyTimeout(ctx)
+
+	model = w.selectModel(ctx, model, llm.ScenarioChat)
+
+	if err := w.applyRateLimit(ctx, model); err != nil {
+		return "", err
 	}
 
-	// Select model via router if not specified
-	if model == "" && w.router != nil {
-		scenario := w.router.DetectScenario(prompt)
-		strategy := llm.StrategyCostPriority // Default strategy
-		if w.router.GetDefaultStrategy() != "" {
-			strategy = w.router.GetDefaultStrategy()
-		}
-		selectedModel, err := w.router.SelectModel(ctx, scenario, strategy)
-		if err == nil {
-			model = selectedModel.Name
-		} else if w.logger != nil {
-			w.logger.Warn("Model selection failed, using default", "error", err)
-		}
-	}
-
-	// Use default model if still empty
-	if model == "" {
-		model = w.config.Model.Model
-	}
-
-	// Apply rate limiting
-	if w.rateLimiter != nil {
-		if err := w.rateLimiter.WaitModel(ctx, model); err != nil {
-			return "", err
-		}
-	}
-
-	// Start metrics timer
-	var timer *llm.RequestTimer
-	if w.metrics != nil {
-		timer = llm.NewRequestTimer(w.metrics, model, "chat")
-	}
-
-	// Execute request
+	timer := w.startMetricsTimer(model, "chat")
 	result, err := w.client.Chat(ctx, prompt)
-
-	// Record metrics
-	if timer != nil {
-		inputTokens := w.costCalculator.CountTokens(prompt)
-		outputTokens := w.costCalculator.CountTokens(result)
-		cost := 0.0
-		if w.costCalculator != nil {
-			cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
-			_, _, _ = w.costCalculator.TrackRequest("default", model, inputTokens, outputTokens)
-		}
-		timer.Record(int64(inputTokens), int64(outputTokens), cost, err)
-	}
+	w.recordMetrics(timer, model, prompt, result, err)
 
 	return result, err
 }
 
 func (w *enhancedBrainWrapper) AnalyzeWithModel(ctx context.Context, model string, prompt string, target any) error {
-	// Apply timeout from config
+	ctx = w.applyTimeout(ctx)
+
+	model = w.selectModel(ctx, model, llm.ScenarioAnalyze)
+
+	if err := w.applyRateLimit(ctx, model); err != nil {
+		return err
+	}
+
+	timer := w.startMetricsTimer(model, "analyze")
+	err := w.client.Analyze(ctx, prompt, target)
+	w.recordMetricsForAnalyze(timer, model, prompt, err)
+
+	return err
+}
+
+// applyTimeout applies the configured timeout to the context.
+func (w *enhancedBrainWrapper) applyTimeout(ctx context.Context) context.Context {
 	if w.config.Model.TimeoutS > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(w.config.Model.TimeoutS)*time.Second)
 		defer cancel()
 	}
+	return ctx
+}
 
-	// Select model via router if not specified
-	if model == "" && w.router != nil {
-		scenario := llm.ScenarioAnalyze
-		strategy := llm.StrategyCostPriority // Default strategy
-		if w.router.GetDefaultStrategy() != "" {
-			strategy = w.router.GetDefaultStrategy()
+// selectModel selects a model using the router, or falls back to default.
+func (w *enhancedBrainWrapper) selectModel(ctx context.Context, model string, scenario llm.Scenario) string {
+	if model != "" || w.router == nil {
+		if model == "" {
+			model = w.config.Model.Model
 		}
-		selectedModel, err := w.router.SelectModel(ctx, scenario, strategy)
-		if err == nil {
-			model = selectedModel.Name
-		} else if w.logger != nil {
-			w.logger.Warn("Model selection failed, using default", "error", err)
-		}
+		return model
 	}
 
-	// Use default model if still empty
-	if model == "" {
+	if scenario == "" {
+		scenario = w.router.DetectScenario("")
+	}
+
+	strategy := llm.StrategyCostPriority
+	if w.router.GetDefaultStrategy() != "" {
+		strategy = w.router.GetDefaultStrategy()
+	}
+
+	selectedModel, err := w.router.SelectModel(ctx, scenario, strategy)
+	if err == nil {
+		model = selectedModel.Name
+	} else if w.logger != nil {
+		w.logger.Warn("Model selection failed, using default", "error", err)
 		model = w.config.Model.Model
 	}
 
-	// Apply rate limiting
+	return model
+}
+
+// applyRateLimit applies rate limiting for the specified model.
+func (w *enhancedBrainWrapper) applyRateLimit(ctx context.Context, model string) error {
 	if w.rateLimiter != nil {
-		if err := w.rateLimiter.WaitModel(ctx, model); err != nil {
-			return err
-		}
+		return w.rateLimiter.WaitModel(ctx, model)
 	}
+	return nil
+}
 
-	// Start metrics timer
-	var timer *llm.RequestTimer
+// startMetricsTimer starts a metrics timer for the given model and operation.
+func (w *enhancedBrainWrapper) startMetricsTimer(model, operation string) *llm.RequestTimer {
 	if w.metrics != nil {
-		timer = llm.NewRequestTimer(w.metrics, model, "analyze")
+		return llm.NewRequestTimer(w.metrics, model, operation)
+	}
+	return nil
+}
+
+// recordMetrics records metrics for a chat operation.
+func (w *enhancedBrainWrapper) recordMetrics(timer *llm.RequestTimer, model, prompt, result string, err error) {
+	if timer == nil {
+		return
 	}
 
-	// Execute request
-	err := w.client.Analyze(ctx, prompt, target)
+	inputTokens := w.costCalculator.CountTokens(prompt)
+	outputTokens := w.costCalculator.CountTokens(result)
+	cost := 0.0
+	if w.costCalculator != nil {
+		cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
+		_, _, _ = w.costCalculator.TrackRequest("default", model, inputTokens, outputTokens)
+	}
+	timer.Record(int64(inputTokens), int64(outputTokens), cost, err)
+}
 
-	// Record metrics
-	if timer != nil {
-		inputTokens := w.costCalculator.CountTokens(prompt)
-		outputTokens := 100 // Estimate for structured output
-		cost := 0.0
-		if w.costCalculator != nil {
-			cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
-			_, _, _ = w.costCalculator.TrackRequest("default", model, inputTokens, outputTokens)
-		}
-		timer.Record(int64(inputTokens), int64(outputTokens), cost, err)
+// recordMetricsForAnalyze records metrics for an analyze operation.
+func (w *enhancedBrainWrapper) recordMetricsForAnalyze(timer *llm.RequestTimer, model, prompt string, err error) {
+	if timer == nil {
+		return
 	}
 
-	return err
+	inputTokens := w.costCalculator.CountTokens(prompt)
+	outputTokens := 100 // Estimate for structured output
+	cost := 0.0
+	if w.costCalculator != nil {
+		cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
+		_, _, _ = w.costCalculator.TrackRequest("default", model, inputTokens, outputTokens)
+	}
+	timer.Record(int64(inputTokens), int64(outputTokens), cost, err)
 }
 
 func (w *enhancedBrainWrapper) ChatStream(ctx context.Context, prompt string) (<-chan string, error) {
@@ -323,14 +331,48 @@ func (w *enhancedBrainWrapper) ChatStream(ctx context.Context, prompt string) (<
 		defer cancel()
 	}
 
-	// Apply rate limiting
-	if w.rateLimiter != nil {
-		if err := w.rateLimiter.WaitModel(ctx, w.config.Model.Model); err != nil {
-			return nil, err
-		}
+	// Select model and apply rate limiting
+	model := w.selectModel(ctx, "", llm.ScenarioChat)
+	if err := w.applyRateLimit(ctx, model); err != nil {
+		return nil, err
 	}
 
-	return w.client.ChatStream(ctx, prompt)
+	// Start metrics timer
+	timer := w.startMetricsTimer(model, "chat_stream")
+	inputTokens := w.costCalculator.CountTokens(prompt)
+
+	// Get the stream from client
+	stream, err := w.client.ChatStream(ctx, prompt)
+	if err != nil {
+		// Record metrics on error
+		if timer != nil {
+			timer.Record(int64(inputTokens), 0, 0, err)
+		}
+		return nil, err
+	}
+
+	// Wrap the stream to track output tokens
+	outputChan := make(chan string)
+
+	go func() {
+		defer close(outputChan)
+		var outputTokens int
+		for token := range stream {
+			outputTokens += w.costCalculator.CountTokens(token)
+			outputChan <- token
+		}
+		// Record metrics when stream completes
+		if timer != nil {
+			cost := 0.0
+			if w.costCalculator != nil {
+				cost, _ = w.costCalculator.CalculateCost(model, inputTokens, outputTokens)
+				_, _, _ = w.costCalculator.TrackRequest("stream", model, inputTokens, outputTokens)
+			}
+			timer.Record(int64(inputTokens), int64(outputTokens), cost, nil)
+		}
+	}()
+
+	return outputChan, nil
 }
 
 func (w *enhancedBrainWrapper) HealthCheck(ctx context.Context) HealthStatus {

@@ -48,7 +48,7 @@ func NewHandler(registry *Registry, opts ...HandlerOption) *Handler {
 	h := &Handler{
 		registry: registry,
 		builder:  NewBuilder(registry),
-		form:     &FormBuilder{},
+		form:     NewFormBuilder(),
 		logger:   slog.Default(),
 	}
 

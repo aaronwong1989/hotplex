@@ -15,11 +15,31 @@ const (
 )
 
 // FormBuilder constructs dynamic Modal forms based on Capability definitions.
-type FormBuilder struct{}
+type FormBuilder struct {
+	messages *MessagesConfig
+}
+
+// FormBuilderOption configures a FormBuilder.
+type FormBuilderOption func(*FormBuilder)
+
+// WithFormMessages sets the messages configuration for the form builder.
+func WithFormMessages(cfg *MessagesConfig) FormBuilderOption {
+	return func(f *FormBuilder) {
+		f.messages = cfg
+	}
+}
 
 // NewFormBuilder creates a new form builder.
-func NewFormBuilder() *FormBuilder {
-	return &FormBuilder{}
+func NewFormBuilder(opts ...FormBuilderOption) *FormBuilder {
+	f := &FormBuilder{
+		messages: DefaultMessagesConfig(),
+	}
+
+	for _, opt := range opts {
+		opt(f)
+	}
+
+	return f
 }
 
 // BuildModal creates a Modal view for a capability.
@@ -29,8 +49,8 @@ func (f *FormBuilder) BuildModal(cap Capability) *slack.ModalViewRequest {
 	return &slack.ModalViewRequest{
 		Type:            slack.VTModal,
 		Title:           slack.NewTextBlockObject(slack.PlainTextType, truncate(cap.Name, 24), false, false),
-		Submit:          slack.NewTextBlockObject(slack.PlainTextType, "执行", false, false),
-		Close:           slack.NewTextBlockObject(slack.PlainTextType, "取消", false, false),
+		Submit:          slack.NewTextBlockObject(slack.PlainTextType, f.messages.GetFormSubmitText(), false, false),
+		Close:           slack.NewTextBlockObject(slack.PlainTextType, f.messages.GetFormCancelText(), false, false),
 		Blocks:          slack.Blocks{BlockSet: blocks},
 		PrivateMetadata: cap.ID,
 	}
@@ -83,7 +103,7 @@ func (f *FormBuilder) buildInputBlock(param Parameter) slack.Block {
 // buildTextInput creates a plain text input block.
 func (f *FormBuilder) buildTextInput(param Parameter, blockID, actionID string) slack.Block {
 	placeholder := slack.NewTextBlockObject(slack.PlainTextType, param.Placeholder, false, false)
-	label := slack.NewTextBlockObject(slack.PlainTextType, buildLabel(param), false, false)
+	label := slack.NewTextBlockObject(slack.PlainTextType, f.buildLabel(param), false, false)
 
 	textInput := slack.NewPlainTextInputBlockElement(
 		placeholder,
@@ -101,7 +121,7 @@ func (f *FormBuilder) buildTextInput(param Parameter, blockID, actionID string) 
 // buildTextarea creates a multiline text input block.
 func (f *FormBuilder) buildTextarea(param Parameter, blockID, actionID string) slack.Block {
 	placeholder := slack.NewTextBlockObject(slack.PlainTextType, param.Placeholder, false, false)
-	label := slack.NewTextBlockObject(slack.PlainTextType, buildLabel(param), false, false)
+	label := slack.NewTextBlockObject(slack.PlainTextType, f.buildLabel(param), false, false)
 
 	textInput := slack.NewPlainTextInputBlockElement(
 		placeholder,
@@ -120,7 +140,7 @@ func (f *FormBuilder) buildTextarea(param Parameter, blockID, actionID string) s
 
 // buildSelect creates a static select input block.
 func (f *FormBuilder) buildSelect(param Parameter, blockID, actionID string) slack.Block {
-	label := slack.NewTextBlockObject(slack.PlainTextType, buildLabel(param), false, false)
+	label := slack.NewTextBlockObject(slack.PlainTextType, f.buildLabel(param), false, false)
 
 	// Build options
 	var options []*slack.OptionBlockObject
@@ -192,7 +212,7 @@ func (f *FormBuilder) ValidateParams(cap Capability, params map[string]string) m
 		value := params[param.ID]
 
 		if param.Required && value == "" {
-			errors[param.ID] = fmt.Sprintf("%s 是必填项", param.Label)
+			errors[param.ID] = fmt.Sprintf("%s %s", param.Label, f.messages.GetRequiredFieldSuffix())
 		}
 	}
 
@@ -200,9 +220,9 @@ func (f *FormBuilder) ValidateParams(cap Capability, params map[string]string) m
 }
 
 // buildLabel creates a label text with required marker.
-func buildLabel(param Parameter) string {
+func (f *FormBuilder) buildLabel(param Parameter) string {
 	if param.Required {
-		return param.Label + " *"
+		return param.Label + " " + f.messages.GetRequiredFieldSuffix()
 	}
 	return param.Label
 }
