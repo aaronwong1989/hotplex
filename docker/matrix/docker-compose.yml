@@ -1,9 +1,14 @@
 # ------------------------------------------------------------------------------
-# Named Volumes (Shared across instances)
+# Named Volumes
 # ------------------------------------------------------------------------------
 volumes:
+  # Shared across instances
   matrix-go-mod: { name: matrix-go-mod }
   matrix-go-build: { name: matrix-go-build }
+  # Per-instance Claude state (isolated between bots)
+  matrix-claude-01: { name: "matrix-claude-${U0AHRCL1KCM:-hotplex01}" }
+  matrix-claude-02: { name: "matrix-claude-${U0AJVRH4YF6:-hotplex02}" }
+  matrix-claude-03: { name: "matrix-claude-${U0AL7H8UU75:-hotplex03}" }
 
 # ------------------------------------------------------------------------------
 # 🚀 Multi-Bot Matrix
@@ -24,6 +29,7 @@ services:
     ports: [ "127.0.0.1:18080:8080" ]
     env_file: [ .env-01 ]
     volumes:
+      - matrix-claude-01:/home/hotplex/.claude:rw
       - ~/.hotplex/instances/U0AHRCL1KCM:/home/hotplex/.hotplex:rw
       - ~/.hotplex/instances/U0AHRCL1KCM/projects:/home/hotplex/projects:rw
     environment:
@@ -38,6 +44,7 @@ services:
     ports: [ "127.0.0.1:18081:8080" ]
     env_file: [ .env-02 ]
     volumes:
+      - matrix-claude-02:/home/hotplex/.claude:rw
       - ~/.hotplex/instances/U0AJVRH4YF6:/home/hotplex/.hotplex:rw
       - ~/.hotplex/instances/U0AJVRH4YF6/projects:/home/hotplex/projects:rw
     environment:
@@ -52,6 +59,7 @@ services:
     ports: [ "127.0.0.1:18082:8080" ]
     env_file: [ .env-03 ]
     volumes:
+      - matrix-claude-03:/home/hotplex/.claude:rw
       - ~/.hotplex/instances/U0AL7H8UU75:/home/hotplex/.hotplex:rw
       - ~/.hotplex/instances/U0AL7H8UU75/projects:/home/hotplex/projects:rw
     environment:
