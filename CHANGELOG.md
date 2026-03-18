@@ -1,5 +1,21 @@
 # CHANGELOG.md
 
+## [v0.31.3] - 2026-03-19
+
+### Fixed
+- **add-bot.sh** - Fixed macOS compatibility and heredoc variable expansion issues:
+  - Replaced macOS-incompatible `sed \n` insertion with `awk` approach
+  - Replaced heredoc with `printf %s` to fix variable expansion in Docker Compose output
+  - Fixed `cp` command redirect placement bug
+
+### Refactored
+- **Docker Matrix** - Renamed all volumes from `matrix-*` to `hotplex-matrix-*-*` naming convention
+- **Per-instance build cache** - Isolated `hotplex-matrix-go-build` cache per bot instance to avoid cross-contamination
+- **add-bot.sh** - Refactored to support new volume architecture with role auto-detection (primary/secondary)
+- **Documentation** - Updated all Docker Matrix docs to reflect new volume layout
+
+---
+
 ## [v0.31.2] - 2026-03-18
 
 ### Fixed
