@@ -6,9 +6,9 @@ volumes:
   matrix-go-mod: { name: matrix-go-mod }
   matrix-go-build: { name: matrix-go-build }
   # Per-instance Claude state (isolated between bots)
-  matrix-claude-01: { name: "matrix-claude-${U0AHRCL1KCM:-hotplex01}" }
-  matrix-claude-02: { name: "matrix-claude-${U0AJVRH4YF6:-hotplex02}" }
-  matrix-claude-03: { name: "matrix-claude-${U0AL7H8UU75:-hotplex03}" }
+  matrix-claude-01: { name: matrix-claude-01 }
+  matrix-claude-02: { name: matrix-claude-02 }
+  matrix-claude-03: { name: matrix-claude-03 }
 
 # ------------------------------------------------------------------------------
 # 🚀 Multi-Bot Matrix
