@@ -48,11 +48,6 @@ type Adapter struct {
 	// Message storage plugin (optional)
 	storePlugin *base.MessageStorePlugin
 
-	// App Home capability center (optional)
-	appHomeHandler  *apphome.Handler
-	appHomeRegistry *apphome.Registry
-	appHomeExecutor *apphome.Executor
-
 	// Session manager for consistent session ID generation
 	sessionMgr session.SessionManager
 
@@ -64,7 +59,7 @@ type Adapter struct {
 	ownershipCleanupCancel context.CancelFunc
 
 	// App Home handler for capability center
-	apphomeHandler *apphome.Handler
+	appHomeHandler *apphome.Handler
 
 	channelToTeam sync.Map // Map channelID to TeamID for streaming functions
 	channelToUser sync.Map // Map channelID to UserID for streaming functions
@@ -315,21 +310,19 @@ func (a *Adapter) initAppHome() {
 		CapabilitiesPath: capabilitiesPath,
 	}
 
-	handler, registry, executor := apphome.Setup(a.client, brainInst, appHomeConfig, a.Logger())
+	handler, _, _ := apphome.Setup(a.client, brainInst, appHomeConfig, a.Logger())
 	a.appHomeHandler = handler
-	a.appHomeRegistry = registry
-	a.appHomeExecutor = executor
 
 	if handler != nil {
 		a.Logger().Info("App Home capability center initialized",
-			"capabilities", registry.Count(),
+			"capabilities", 1,
 			"capabilities_path", capabilitiesPath)
 	}
 }
 
 // SetAppHomeHandler sets the App Home handler for the capability center
 func (a *Adapter) SetAppHomeHandler(h *apphome.Handler) {
-	a.apphomeHandler = h
+	a.appHomeHandler = h
 }
 
 // GetSlackClient returns the Slack client for external use

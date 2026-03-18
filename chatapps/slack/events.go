@@ -276,7 +276,7 @@ func (a *Adapter) handleEventCallback(ctx context.Context, teamID string, eventD
 
 // handleAppHomeOpened handles the app_home_opened event
 func (a *Adapter) handleAppHomeOpened(ctx context.Context, eventData json.RawMessage) {
-	if a.apphomeHandler == nil {
+	if a.appHomeHandler == nil {
 		a.Logger().Debug("AppHome handler not configured, skipping app_home_opened event")
 		return
 	}
@@ -303,7 +303,7 @@ func (a *Adapter) handleAppHomeOpened(ctx context.Context, eventData json.RawMes
 		Tab:     event.Tab,
 	}
 
-	if err := a.apphomeHandler.HandleHomeOpened(ctx, homeEvent); err != nil {
+	if err := a.appHomeHandler.HandleHomeOpened(ctx, homeEvent); err != nil {
 		a.Logger().Error("Failed to handle app_home_opened",
 			"user", event.User,
 			"error", err)
