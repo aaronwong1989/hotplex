@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## [v0.31.4] - 2026-03-19
+
+### Added
+- **Docker Matrix** - Added `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable support:
+  - Enables authenticated GitHub API requests (higher rate limits)
+  - Supports private repository access
+  - Configured via `GITHUB_PERSONAL_ACCESS_TOKEN` env var in add-bot.sh
+
+---
+
 ## [v0.31.3] - 2026-03-19
 
 ### Fixed
