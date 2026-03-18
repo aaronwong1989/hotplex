@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## [v0.31.5] - 2026-03-19
+
+### Fixed
+- **Docker Matrix** - Added `TZ` environment variable for container timezone synchronization:
+  - Default timezone: Asia/Shanghai
+  - Configurable via `TZ` env var
+  - Ensures container logs and timestamps match host timezone
+
+---
+
 ## [v0.31.4] - 2026-03-19
 
 ### Added
