@@ -12,6 +12,10 @@ x-hotplex-common: &hotplex-common
   # Run as root to fix permissions via entrypoint, then drop to hotplex user
   user: "0:0"
   environment: &common-env
+    # ─────────────────────────────────────────────────────────────────
+    # Timezone Configuration
+    # ─────────────────────────────────────────────────────────────────
+    TZ: ${TZ:-Asia/Shanghai}
     HOST_UID: ${HOST_UID:-1000}
     # ─────────────────────────────────────────────────────────────────
     # Proxy Configuration (OPTIONAL)
