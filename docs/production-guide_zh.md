@@ -419,7 +419,13 @@ services:
     env_file: [.env-01]
     volumes:
       - ~/.hotplex/instances/U0AHRCL1KCM:/home/hotplex/.hotplex:rw
-      - ~/.claude:/home/hotplex/.claude_seed:ro
+      # Claude 配置文件 (只读)
+      - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro
+      - ${HOME}/.claude/skills:/home/hotplex/.claude/skills:ro
+      # Per-instance Claude 状态 (named volume)
+      - hotplex-matrix-claude-01:/home/hotplex/.claude:rw
+      # Per-instance Go build cache (named volume)
+      - hotplex-matrix-go-build-01:/home/hotplex/.cache/go-build:rw
     environment:
       HOTPLEX_BOT_ID: U0AHRCL1KCM
       HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml
@@ -434,7 +440,13 @@ services:
     env_file: [.env-02]
     volumes:
       - ~/.hotplex/instances/U0AJVRH4YF6:/home/hotplex/.hotplex:rw
-      - ~/.claude:/home/hotplex/.claude_seed:ro
+      # Claude 配置文件 (只读)
+      - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro
+      - ${HOME}/.claude/skills:/home/hotplex/.claude/skills:ro
+      # Per-instance Claude 状态 (named volume)
+      - hotplex-matrix-claude-02:/home/hotplex/.claude:rw
+      # Per-instance Go build cache (named volume)
+      - hotplex-matrix-go-build-02:/home/hotplex/.cache/go-build:rw
     environment:
       HOTPLEX_BOT_ID: U0AJVRH4YF6
       HOTPLEX_SERVER_CONFIG: /home/hotplex/.hotplex/configs/server.yaml

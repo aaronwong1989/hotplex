@@ -175,8 +175,11 @@ services:
     volumes:
       # 实例完整隔离
       - ~/.hotplex/instances/U0AHRCL1KCM:/home/hotplex/.hotplex:rw
-      # 共享 Claude 配置 (只读)
-      - ~/.claude:/home/hotplex/.claude_seed:ro
+      # Claude 配置文件 (只读，来自宿主机)
+      - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro
+      - ${HOME}/.claude/skills:/home/hotplex/.claude/skills:ro
+      # Per-instance Claude 状态 (named Docker volume)
+      - hotplex-matrix-claude-01:/home/hotplex/.claude:rw
     environment:
       HOTPLEX_BOT_ID: U0AHRCL1KCM
     labels:
@@ -198,11 +201,15 @@ services:
       HOTPLEX_PROJECTS_DIR: /home/hotplex/projects
       # 其他配置...
     volumes:
-      - ~/.hotplex/instances/$BOT_ID:/home/hotplex/.hotplex:rw
-      - ~/.claude:/home/hotplex/.claude_seed:ro
+      # Claude 配置文件 (只读，来自宿主机)
+      - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro
+      - ${HOME}/.claude/skills:/home/hotplex/.claude/skills:ro
+      # Go 模块缓存 (shared named volume, safe to share)
+      - hotplex-matrix-go-mod:/home/hotplex/go/pkg/mod:rw
+      # Per-instance build cache 在 docker-compose.yml 各服务中单独挂载
 ```
 
-**注意**: 使用现有环境变量 `HOTPLEX_SERVER_CONFIG` 和 `HOTPLEX_CHATAPPS_CONFIG_DIR`，无需新增 `HOTPLEX_DATA_ROOT`。
+**注意**: `hotplex-matrix-go-build` 已改为 per-instance，在 `docker-compose.yml` 各服务定义中挂载。
 
 ---
 
@@ -263,7 +270,7 @@ HOTPLEX_PROJECTS_DIR=~/.hotplex/projects
 **Docker 实例** (`docker/matrix/.env-NN`):
 ```bash
 # Docker 实例使用 instances/$ID/ 目录
-HOTPLEX_MESSAGE_STORE_SQLITE_PATH=~/.hotplex/instances/${HOTPLEX_BOT_ID}/storage/chatapp_messages.db
+HOTPLEX_MESSAGE_STORE_SQLITE_PATH=~/.hotplex/instances/${HOTPLEX_BOT_ID}/chatapp_messages.db
 HOTPLEX_PROJECTS_DIR=~/.hotplex/instances/${HOTPLEX_BOT_ID}/projects
 ```
 

@@ -362,16 +362,17 @@ services:
   hotplex-base:
     <<: *hotplex-common
     volumes:
-      # 实例完整隔离 - 挂载到统一的容器内路径
-      - ~/.hotplex/instances/${HOTPLEX_BOT_ID:-U0AHRCL1KCM}:/home/hotplex/.hotplex:rw
-      # 共享 Claude 配置 (只读)
-      - ~/.claude:/home/hotplex/.claude_seed:ro
-      # Go 模块缓存
-      - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
-      - matrix-go-build:/home/hotplex/.cache/go-build:rw
+      # Claude 配置文件 (只读，来自宿主机)
+      - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro
+      - ${HOME}/.claude/skills:/home/hotplex/.claude/skills:ro
+      # Go 模块缓存 (shared named volume)
+      - hotplex-matrix-go-mod:/home/hotplex/go/pkg/mod:rw
+      # Per-instance build cache 在 docker-compose.yml 各服务中单独挂载
       # Entrypoint mount
       - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
 ```
+
+> **注意**: `.claude` 状态和 `.cache/go-build` 已改为 per-instance named volume，在 `docker-compose.yml` 的各服务定义中单独挂载。
 
 ### Task 4.2: 更新 docker-compose.yml
 

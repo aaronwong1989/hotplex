@@ -84,10 +84,12 @@ services:
   hotplex-base:
     <<: *hotplex-common
     volumes:
-      # Shared volumes (common to all instances)
-      - ~/.claude:/home/hotplex/.claude_seed:ro
-      - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
-      - matrix-go-build:/home/hotplex/.cache/go-build:rw
+      # Claude config from host (read-only, hot-reload on host changes)
+      - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro
+      - ${HOME}/.claude/skills:/home/hotplex/.claude/skills:ro
+      # Shared Go module cache (safe to share across instances)
+      - hotplex-matrix-go-mod:/home/hotplex/go/pkg/mod:rw
+      # Note: Per-instance build cache is mounted in docker-compose.yml per service
       # Entrypoint mount (enables hot-updates without image rebuild)
       - ../docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
     environment:
