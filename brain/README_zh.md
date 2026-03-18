@@ -24,6 +24,7 @@ graph TD
 
     subgraph Providers [LLM 提供商]
         Obs --> OpenAI[OpenAI SDK]
+        Obs --> Anthropic[Anthropic 官方 SDK]
         Obs --> Custom[自定义提供商]
     end
 ```
@@ -354,11 +355,26 @@ health := obs.GetClientHealth(ctx)
 
 | 变量                                   | 描述                         | 默认值   |
 | :------------------------------------- | :--------------------------- | :------- |
-| `HOTPLEX_BRAIN_PROVIDER`               | 主提供商 (openai/dashscope等) | `openai` |
+| `HOTPLEX_BRAIN_PROVIDER`               | 主提供商 (openai/anthropic等) | `openai` |
+| `HOTPLEX_BRAIN_PROTOCOL`               | 协议 (openai/anthropic)       | `openai` |
+| `HOTPLEX_BRAIN_API_KEY`                | 显式 API Key (第一优先级)     | `unset`  |
+| `HOTPLEX_PROVIDER_TYPE`                | CLI 发现类型 (第二优先级)     | `unset`  |
+| `HOTPLEX_BRAIN_TIMEOUT_S`              | 请求超时时间 (秒)             | `30`     |
 | `HOTPLEX_BRAIN_CIRCUIT_BREAKER_ENABLED`| 启用熔断器保护               | `false`  |
 | `HOTPLEX_BRAIN_ROUTER_ENABLED`         | 启用场景模型路由             | `false`  |
 | `HOTPLEX_BRAIN_FAILOVER_ENABLED`       | 启用自动多提供商切换         | `false`  |
 | `HOTPLEX_BRAIN_BUDGET_LIMIT`           | 周期硬性美元限制             | `10.0`   |
+
+---
+
+### 🚦 配置优先级 (三级系统)
+
+系统使用分层优先级模型解析凭证和端点：
+
+1.  **第一优先级：显式覆盖** (`HOTPLEX_BRAIN_*`)：通过环境变量直接配置。
+2.  **第二优先级：CLI 自动发现**：自动从本地开发者工具中提取配置：
+    - **Claude Code CLI**：解析 `~/.claude/settings.json`，支持 `PROXY_MANAGED` 状态并自动生成符合规范的占位 Key，确保无缝接入。
+3.  **第三优先级：系统环境**：回退至系统环境中的标准提供商变量（如 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 等）。
 
 ---
 
