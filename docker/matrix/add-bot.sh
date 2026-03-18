@@ -63,6 +63,7 @@ BUILD_VOLUME="hotplex-matrix-go-build-$BOT_PADDED_INDEX"
 if [ -f ".env-01" ]; then
     DEFAULT_OWNER=$(grep "^HOTPLEX_SLACK_PRIMARY_OWNER=" .env-01 2>/dev/null | cut -d= -f2 | tr -d ' ' | tr -d '\r')
     DEFAULT_GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" .env-01 2>/dev/null | cut -d= -f2 | tr -d ' ' | tr -d '\r')
+    DEFAULT_GITHUB_PAT=$(grep "^GITHUB_PERSONAL_ACCESS_TOKEN=" .env-01 2>/dev/null | cut -d= -f2 | tr -d ' ' | tr -d '\r')
     DEFAULT_IMAGE=$(grep "^HOTPLEX_IMAGE=" .env-01 2>/dev/null | cut -d= -f2 | tr -d ' ' | tr -d '\r')
 fi
 
@@ -105,6 +106,10 @@ HOTPLEX_SLACK_PRIMARY_OWNER=${INPUT_OWNER:-$DEFAULT_OWNER}
 printf "  ${CYAN}GitHub Token [${DEFAULT_GITHUB_TOKEN:0:8}...]:${NC} "
 read -r INPUT_GH
 GITHUB_TOKEN=${INPUT_GH:-$DEFAULT_GITHUB_TOKEN}
+
+printf "  ${CYAN}GitHub PAT [${DEFAULT_GITHUB_PAT:0:8}...]:${NC} "
+read -r INPUT_GH_PAT
+GITHUB_PERSONAL_ACCESS_TOKEN=${INPUT_GH_PAT:-$DEFAULT_GITHUB_PAT}
 
 printf "  ${CYAN}Docker Image [${DEFAULT_IMAGE:-hotplex:go}]:${NC} "
 read -r INPUT_IMG
@@ -173,8 +178,9 @@ HOTPLEX_SLACK_BOT_TOKEN=$HOTPLEX_SLACK_BOT_TOKEN
 HOTPLEX_SLACK_APP_TOKEN=$HOTPLEX_SLACK_APP_TOKEN
 HOTPLEX_SLACK_PRIMARY_OWNER=$HOTPLEX_SLACK_PRIMARY_OWNER
 
-# --- GitHub (Optional - inherit from .env-01 if not provided) ---
-# GITHUB_TOKEN=$GITHUB_TOKEN
+# --- GitHub (Required for Git operations) ---
+GITHUB_TOKEN=$GITHUB_TOKEN
+GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_PERSONAL_ACCESS_TOKEN
 
 # --- Git Identity (Optional) ---
 GIT_USER_NAME="$GIT_USER"
