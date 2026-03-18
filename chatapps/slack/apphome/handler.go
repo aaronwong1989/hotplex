@@ -79,8 +79,11 @@ func (h *Handler) HandleHomeOpened(ctx context.Context, event *HomeOpenedEvent) 
 		"channel", event.Channel,
 		"tab", event.Tab)
 
+	// Collect state for the Home Tab
+	state := h.getHomeState(ctx, event.User)
+
 	// Build the Home Tab view
-	view := h.builder.BuildFullHomeView()
+	view := h.builder.BuildFullHomeView(state)
 
 	// Publish the view
 	_, err := h.client.PublishViewContext(
@@ -207,6 +210,27 @@ func ExtractCapabilityID(actionID string) string {
 	return strings.TrimPrefix(actionID, ActionIDPrefix)
 }
 
+// IsAppHomeAction checks if an action ID belongs to the App Home.
+func (h *Handler) IsAppHomeAction(actionID string) bool {
+	return actionID == "app_home_refresh" || strings.HasPrefix(actionID, ActionIDPrefix)
+}
+
+// HandleAction dispatches an App Home block action.
+func (h *Handler) HandleAction(ctx context.Context, callback *slack.InteractionCallback, action *slack.BlockAction) error {
+	actionID := action.ActionID
+
+	if actionID == "app_home_refresh" {
+		return h.HandleHomeRefresh(ctx, callback.User.ID)
+	}
+
+	if strings.HasPrefix(actionID, ActionIDPrefix) {
+		capID := ExtractCapabilityID(actionID)
+		return h.HandleCapabilityClick(ctx, callback, capID)
+	}
+
+	return nil
+}
+
 // SetClient sets the Slack client (for late initialization).
 func (h *Handler) SetClient(client *slack.Client) {
 	h.client = client
@@ -215,4 +239,46 @@ func (h *Handler) SetClient(client *slack.Client) {
 // SetExecutor sets the executor (for late initialization).
 func (h *Handler) SetExecutor(executor *Executor) {
 	h.executor = executor
+}
+
+// getHomeState collects dynamic state for the App Home.
+func (h *Handler) getHomeState(ctx context.Context, userID string) HomeState {
+	engineOK := h.executor != nil && h.executor.HasBrain()
+
+	state := HomeState{
+		UserID:    userID,
+		EngineOK:  engineOK,
+		TaskCount: h.registry.Count(), // Use capability count as a placeholder or real metric if available
+		ModelInfo: "Claude 3.5 Sonnet",
+	}
+
+	// Try to get user info if client is available
+	if h.client != nil {
+		user, err := h.client.GetUserInfoContext(ctx, userID)
+		if err == nil {
+			state.UserName = user.RealName
+			if state.UserName == "" {
+				state.UserName = user.Name
+			}
+		}
+	}
+
+	return state
+}
+
+// HandleHomeRefresh refreshes the App Home view.
+func (h *Handler) HandleHomeRefresh(ctx context.Context, userID string) error {
+	h.logger.Debug("Refreshing App Home", "user", userID)
+
+	state := h.getHomeState(ctx, userID)
+	view := h.builder.BuildFullHomeView(state)
+
+	_, err := h.client.PublishViewContext(
+		ctx,
+		slack.PublishViewContextRequest{
+			UserID: userID,
+			View:   *view,
+		},
+	)
+	return err
 }

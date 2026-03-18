@@ -33,7 +33,7 @@ func TestConfig_LoadFromEnv(t *testing.T) {
 	// Set test environment variables
 	_ = os.Setenv("HOTPLEX_BRAIN_API_KEY", "test-key")
 	_ = os.Setenv("HOTPLEX_BRAIN_PROVIDER", "openai")
-	_ = os.Setenv("HOTPLEX_BRAIN_MODEL", "gpt-4o-mini")
+	_ = os.Setenv("HOTPLEX_BRAIN_MODEL", "gpt-4o")
 	_ = os.Setenv("HOTPLEX_BRAIN_TIMEOUT_S", "30")
 	_ = os.Setenv("HOTPLEX_BRAIN_CACHE_SIZE", "500")
 	_ = os.Setenv("HOTPLEX_BRAIN_MAX_RETRIES", "5")
@@ -55,7 +55,7 @@ func TestConfig_LoadFromEnv(t *testing.T) {
 
 	assert.True(t, config.Enabled)
 	assert.Equal(t, "openai", config.Model.Provider)
-	assert.Equal(t, "gpt-4o-mini", config.Model.Model)
+	assert.Equal(t, "gpt-4o", config.Model.Model)
 	assert.Equal(t, 30, config.Model.TimeoutS)
 	assert.Equal(t, 500, config.Cache.Size)
 	assert.Equal(t, 5, config.Retry.MaxAttempts)
@@ -73,13 +73,17 @@ func TestConfig_DefaultValues(t *testing.T) {
 	_ = os.Unsetenv("HOTPLEX_BRAIN_MAX_RETRIES")
 	_ = os.Unsetenv("HOTPLEX_BRAIN_RETRY_MIN_WAIT_MS")
 	_ = os.Unsetenv("HOTPLEX_BRAIN_RETRY_MAX_WAIT_MS")
+	_ = os.Unsetenv("ANTHROPIC_API_KEY")
+	_ = os.Unsetenv("OPENAI_API_KEY")
+	_ = os.Unsetenv("DEEPSEEK_API_KEY")
+	_ = os.Setenv("HOTPLEX_BRAIN_PROVIDER", "openai") // Ensure predictable provider for default test
 
 	config := LoadConfigFromEnv()
 
 	assert.False(t, config.Enabled)
 	assert.Equal(t, "openai", config.Model.Provider)
-	assert.Equal(t, "gpt-4o-mini", config.Model.Model)
-	assert.Equal(t, 10, config.Model.TimeoutS)
+	assert.Equal(t, "gpt-4o", config.Model.Model)
+	assert.Equal(t, 30, config.Model.TimeoutS)
 	assert.Equal(t, 1000, config.Cache.Size)
 	assert.Equal(t, 3, config.Retry.MaxAttempts)
 	assert.Equal(t, 100, config.Retry.MinWaitMs)

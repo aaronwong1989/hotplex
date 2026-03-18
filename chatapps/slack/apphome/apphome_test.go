@@ -260,7 +260,13 @@ func TestBuilder_BuildFullHomeView(t *testing.T) {
 	}))
 
 	builder := NewBuilder(registry)
-	view := builder.BuildFullHomeView()
+	view := builder.BuildFullHomeView(HomeState{
+		UserID:    "U123",
+		UserName:  "Test User",
+		EngineOK:  true,
+		TaskCount: 1,
+		ModelInfo: "Test Model",
+	})
 
 	require.NotNil(t, view)
 	assert.Equal(t, slack.VTHomeTab, view.Type)

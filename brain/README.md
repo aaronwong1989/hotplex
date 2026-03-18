@@ -22,6 +22,7 @@ graph TD
 
     subgraph Providers [LLM Providers]
         Obs --> OpenAI[OpenAI SDK]
+        Obs --> Anthropic[Anthropic Official SDK]
         Obs --> Custom[Custom Providers]
     end
 ```
@@ -349,14 +350,28 @@ The system tracks enterprise-level metrics using OpenTelemetry:
 ---
 
 ## ⚙️ Configuration Reference
-
 | Variable                                | Description                               | Default  |
 | :-------------------------------------- | :---------------------------------------- | :------- |
-| `HOTPLEX_BRAIN_PROVIDER`                | Primary provider (openai/dashscope/etc)   | `openai` |
+| `HOTPLEX_BRAIN_PROVIDER`                | Primary provider (openai/anthropic/etc)   | `openai` |
+| `HOTPLEX_BRAIN_PROTOCOL`                | Protocol (openai/anthropic)               | `openai` |
+| `HOTPLEX_BRAIN_API_KEY`                 | Explicit API Key (Level 1 Priority)       | `unset`  |
+| `HOTPLEX_PROVIDER_TYPE`                 | CLI Discovery type (Level 2 Priority)     | `unset`  |
+| `HOTPLEX_BRAIN_TIMEOUT_S`               | Request timeout in seconds                | `30`     |
 | `HOTPLEX_BRAIN_CIRCUIT_BREAKER_ENABLED` | Enable circuit breaker protection         | `false`  |
 | `HOTPLEX_BRAIN_ROUTER_ENABLED`          | Enable scenario-based model routing       | `false`  |
 | `HOTPLEX_BRAIN_FAILOVER_ENABLED`        | Enable automatic multi-provider switching | `false`  |
 | `HOTPLEX_BRAIN_BUDGET_LIMIT`            | Hard USD limit for the period             | `10.0`   |
+
+---
+
+### 🚦 Configuration Priority (Three-Tier System)
+
+The system resolves credentials and endpoints using a tiered priority model:
+
+1.  **Level 1: Explicit Overrides** (`HOTPLEX_BRAIN_*`): Direct control via environment variables.
+2.  **Level 2: CLI Discovery**: Automatically extracts config from local developer tools:
+    - **Claude Code CLI**: Parses `~/.claude/settings.json`, supports `PROXY_MANAGED` status with automatic dummy key generation.
+3.  **Level 3: System Environment**: Fallback to standard provider vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.).
 
 ---
 

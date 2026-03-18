@@ -38,9 +38,11 @@ import (
 
 // ModelConfig configures the LLM backend for Brain operations.
 type ModelConfig struct {
-	Provider string // LLM provider: "openai", "anthropic", "google"
-	Model    string // Model name: "gpt-4o-mini", "claude-3-haiku", etc.
-	Endpoint string // Custom API endpoint (optional, for self-hosted)
+	Provider string // LLM provider identifier (e.g., "openai", "anthropic", "siliconflow")
+	Protocol string // Protocol to use: "openai" or "anthropic"
+	APIKey   string // API Key for the provider
+	Model    string // Model name: "gpt-4o", "claude-3-7-sonnet", etc.
+	Endpoint string // Custom API endpoint (optional)
 	TimeoutS int    // Request timeout in seconds
 }
 
@@ -230,15 +232,100 @@ type Config struct {
 
 // LoadConfigFromEnv loads the brain configuration from environment variables.
 func LoadConfigFromEnv() Config {
+	// 1. Primary check: Direct brain configuration
 	apiKey := os.Getenv("HOTPLEX_BRAIN_API_KEY")
+	provider := getEnv("HOTPLEX_BRAIN_PROVIDER", "openai")
+	protocol := getEnv("HOTPLEX_BRAIN_PROTOCOL", "openai")
+	model := getEnv("HOTPLEX_BRAIN_MODEL", "gpt-4o") // 2026 Best Practice: Use full 4o/5 class for reasoning by default
+	endpoint := os.Getenv("HOTPLEX_BRAIN_ENDPOINT")
+
+	// 2. Secondary check: Link with global provider and CLI extraction
+	if apiKey == "" {
+		providerType := os.Getenv("HOTPLEX_PROVIDER_TYPE")
+		if providerType == "" {
+			providerType = provider // Default to openai
+		}
+
+		// Try CLI Extractor first (Priority 2)
+		var extracted *ExtractedConfig
+		switch providerType {
+		case "claude-code", "anthropic":
+			extracted, _ = NewClaudeCodeExtractor().Extract()
+		}
+
+		if extracted != nil {
+			if extracted.APIKey != "" {
+				apiKey = extracted.APIKey
+				// Update provider/protocol based on extraction source
+				if providerType == "claude-code" || providerType == "anthropic" {
+					provider = "anthropic"
+					protocol = "anthropic"
+				}
+			}
+			if endpoint == "" && extracted.Endpoint != "" {
+				endpoint = extracted.Endpoint
+			}
+			if (model == "" || model == "gpt-4o") && extracted.Model != "" {
+				model = extracted.Model
+			}
+		}
+
+		// Fallback to System Environment Variables (Priority 3)
+		if apiKey == "" {
+			switch providerType {
+			case "claude-code", "anthropic":
+				apiKey = os.Getenv("ANTHROPIC_API_KEY")
+				provider = "anthropic"
+				protocol = "anthropic"
+				if model == "gpt-4o" {
+					model = getEnv("HOTPLEX_PROVIDER_MODEL", "claude-3-7-sonnet-latest")
+				}
+				if endpoint == "" {
+					endpoint = os.Getenv("ANTHROPIC_BASE_URL")
+				}
+			case "openai":
+				apiKey = os.Getenv("OPENAI_API_KEY")
+				provider = "openai"
+				protocol = "openai"
+				if model == "gpt-4o" {
+					model = getEnv("HOTPLEX_PROVIDER_MODEL", "gpt-4o")
+				}
+				if endpoint == "" {
+					endpoint = os.Getenv("OPENAI_BASE_URL")
+				}
+			case "siliconflow":
+				apiKey = os.Getenv("SILICONFLOW_API_KEY")
+				provider = "openai"
+				protocol = "openai"
+				if model == "gpt-4o" {
+					model = getEnv("HOTPLEX_PROVIDER_MODEL", "deepseek-ai/DeepSeek-V3")
+				}
+				if endpoint == "" {
+					endpoint = getEnv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
+				}
+			case "deepseek":
+				apiKey = os.Getenv("DEEPSEEK_API_KEY")
+				provider = "openai"
+				protocol = "openai"
+				if model == "gpt-4o" {
+					model = getEnv("HOTPLEX_PROVIDER_MODEL", "deepseek-chat")
+				}
+				if endpoint == "" {
+					endpoint = getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+				}
+			}
+		}
+	}
 
 	return Config{
 		Enabled: apiKey != "",
 		Model: ModelConfig{
-			Provider: getEnv("HOTPLEX_BRAIN_PROVIDER", "openai"),
-			Model:    getEnv("HOTPLEX_BRAIN_MODEL", "gpt-4o-mini"),
-			Endpoint: os.Getenv("HOTPLEX_BRAIN_ENDPOINT"),
-			TimeoutS: getIntEnv("HOTPLEX_BRAIN_TIMEOUT_S", 10),
+			Provider: provider,
+			Protocol: protocol,
+			APIKey:   apiKey,
+			Model:    model,
+			Endpoint: endpoint,
+			TimeoutS: getIntEnv("HOTPLEX_BRAIN_TIMEOUT_S", 30), // 2026 Best Practice: 30s to allow for deep reasoning models
 		},
 		Cache: CacheConfig{
 			Enabled: true,

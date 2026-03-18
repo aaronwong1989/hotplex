@@ -181,3 +181,8 @@ func (e *Executor) SetBrain(b brain.Brain) {
 	e.brain = b
 	e.brainIntegration = NewBrainIntegration(b)
 }
+
+// HasBrain checks if the executor has a brain instance configured.
+func (e *Executor) HasBrain() bool {
+	return e.brain != nil
+}

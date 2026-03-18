@@ -10,8 +10,11 @@ const (
 	// ActionIDPrefix is the prefix for capability button action IDs.
 	ActionIDPrefix = "cap_click:"
 
-	// HomeTitle is the title displayed in the App Home.
+	// HomeTitle is the primary title displayed in the App Home.
 	HomeTitle = "🔥 HotPlex 能力中心"
+
+	// HomeSubtitle is the secondary title or tagline.
+	HomeSubtitle = "AI-Driven Developer Capability Center • Powered by Native Brain"
 
 	// MaxCapabilitiesPerRow is the maximum number of capability cards per row.
 	MaxCapabilitiesPerRow = 3
@@ -29,13 +32,18 @@ func NewBuilder(registry *Registry) *Builder {
 	}
 }
 
-// BuildHomeTab constructs the complete Home Tab view.
+// HomeState represents the dynamic state of the App Home tab.
+type HomeState struct {
+	UserID    string
+	UserName  string
+	EngineOK  bool
+	TaskCount int
+	ModelInfo string
+}
+
+// BuildHomeTab constructs the complete Home Tab view with default state.
 func (b *Builder) BuildHomeTab() *slack.HomeTabViewRequest {
-	blocks := b.BuildBlocks()
-	return &slack.HomeTabViewRequest{
-		Type:   slack.VTHomeTab,
-		Blocks: slack.Blocks{BlockSet: blocks},
-	}
+	return b.BuildFullHomeView(HomeState{})
 }
 
 // BuildBlocks constructs the block set for the Home Tab.
@@ -43,7 +51,7 @@ func (b *Builder) BuildBlocks() []slack.Block {
 	var blocks []slack.Block
 
 	// Header
-	blocks = append(blocks, b.buildHeader())
+	blocks = append(blocks, b.buildHeader()...)
 
 	// Group capabilities by category
 	categories := b.registry.GetCategories()
@@ -85,10 +93,47 @@ func (b *Builder) BuildBlocks() []slack.Block {
 	return blocks
 }
 
-// buildHeader creates the main header block.
-func (b *Builder) buildHeader() slack.Block {
+// buildHeader creates the main header block with a subtitle.
+func (b *Builder) buildHeader() []slack.Block {
 	headerText := slack.NewTextBlockObject(slack.PlainTextType, HomeTitle, false, false)
-	return slack.NewHeaderBlock(headerText)
+	header := slack.NewHeaderBlock(headerText)
+
+	subtitleText := slack.NewTextBlockObject(slack.MarkdownType, HomeSubtitle, false, false)
+	subtitle := slack.NewContextBlock("", subtitleText)
+
+	return []slack.Block{header, subtitle}
+}
+
+// buildWelcome creates a personalized welcome block.
+func (b *Builder) buildWelcome(userID, userName string) slack.Block {
+	text := fmt.Sprintf("👋 欢迎回来, <@%s>!", userID)
+	if userName != "" {
+		text = fmt.Sprintf("👋 欢迎回来, *%s*!", userName)
+	}
+	welcomeText := slack.NewTextBlockObject(slack.MarkdownType, text, false, false)
+	return slack.NewSectionBlock(welcomeText, nil, nil)
+}
+
+// buildStatsSection creates a status and statistics summary.
+func (b *Builder) buildStatsSection(state HomeState) []slack.Block {
+	statusEmoji := "🟢"
+	statusText := "运行良好"
+	if !state.EngineOK {
+		statusEmoji = "🔴"
+		statusText = "引擎离线"
+	}
+
+	fields := []*slack.TextBlockObject{
+		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*系统状态*\n%s %s", statusEmoji, statusText), false, false),
+		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*累计任务*\n🚀 %d", state.TaskCount), false, false),
+		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*当前模型*\n🧠 %s", state.ModelInfo), false, false),
+	}
+
+	refreshBtn := slack.NewButtonBlockElement("app_home_refresh", "refresh", slack.NewTextBlockObject(slack.PlainTextType, "🔄 刷新状态", false, false))
+
+	return []slack.Block{
+		slack.NewSectionBlock(nil, fields, slack.NewAccessory(refreshBtn)),
+	}
 }
 
 // buildCategoryHeader creates a category section header.
@@ -174,26 +219,34 @@ func (b *Builder) BuildCapabilityBlocks() []slack.Block {
 	return blocks
 }
 
-// BuildFullHomeView builds the complete Home Tab with proper block structure.
-func (b *Builder) BuildFullHomeView() *slack.HomeTabViewRequest {
+// BuildFullHomeView builds the complete Home Tab with dynamic state.
+func (b *Builder) BuildFullHomeView(state HomeState) *slack.HomeTabViewRequest {
 	var blocks []slack.Block
 
-	// Header
-	blocks = append(blocks, b.buildHeader())
-
-	// Introduction
-	introText := slack.NewTextBlockObject(
-		slack.MarkdownType,
-		"欢迎使用 HotPlex 能力中心！选择一个能力开始工作。",
-		false, false,
-	)
-	blocks = append(blocks, slack.NewSectionBlock(introText, nil, nil))
+	// 1. Header & Subtitle
+	blocks = append(blocks, b.buildHeader()...)
 	blocks = append(blocks, slack.NewDividerBlock())
 
-	// Capabilities by category
+	// 2. Personalized Welcome
+	if state.UserID != "" {
+		blocks = append(blocks, b.buildWelcome(state.UserID, state.UserName))
+	}
+
+	// 3. Stats Section
+	if state.ModelInfo == "" {
+		state.ModelInfo = "Claude 3.5 Sonnet" // Default fallback
+	}
+	blocks = append(blocks, b.buildStatsSection(state)...)
+	blocks = append(blocks, slack.NewDividerBlock())
+
+	// 4. Capability Catalog Header
+	catalogTitle := slack.NewTextBlockObject(slack.MarkdownType, "*🔭 能力目录*", false, false)
+	blocks = append(blocks, slack.NewSectionBlock(catalogTitle, nil, nil))
+
+	// 5. Capabilities by category
 	blocks = append(blocks, b.BuildCapabilityBlocks()...)
 
-	// Footer
+	// 6. Footer
 	blocks = append(blocks, slack.NewDividerBlock())
 	blocks = append(blocks, b.buildFooter())
 

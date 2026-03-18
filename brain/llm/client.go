@@ -23,6 +23,7 @@ type LLMClient interface {
 // Compile-time interface compliance verification.
 var (
 	_ LLMClient = (*OpenAIClient)(nil)
+	_ LLMClient = (*AnthropicClient)(nil)
 	_ LLMClient = (*RateLimitedClient)(nil)
 	_ LLMClient = (*CachedClient)(nil)
 	_ LLMClient = (*RetryClient)(nil)

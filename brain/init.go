@@ -25,174 +25,150 @@ func Init(logger *slog.Logger) error {
 		return nil
 	}
 
-	switch config.Model.Provider {
+	var baseClient llm.LLMClient
+
+	// 1. Initialize base client based on Protocol
+	switch config.Model.Protocol {
+	case "anthropic":
+		baseClient = llm.NewAnthropicClient("", config.Model.Endpoint, config.Model.Model, logger)
+		logger.Info("Anthropic brain client initialized", "model", config.Model.Model)
 	case "openai":
-		// This uses OpenAI SDK for OpenAI, DeepSeek, Groq, etc.
-		var client interface {
-			Chat(ctx context.Context, prompt string) (string, error)
-			Analyze(ctx context.Context, prompt string, target any) error
-			ChatStream(ctx context.Context, prompt string) (<-chan string, error)
-			HealthCheck(ctx context.Context) llm.HealthStatus
-		}
-
-		baseClient := llm.NewOpenAIClient("", config.Model.Endpoint, config.Model.Model, logger)
-
-		// === Phase 2: Initialize observability components ===
-
-		// Initialize metrics collector
-		var metricsCollector *llm.MetricsCollector
-		if config.Metrics.Enabled {
-			metricsCollector = llm.NewMetricsCollector(llm.MetricsConfig{
-				Enabled:           true,
-				ServiceName:       config.Metrics.ServiceName,
-				MaxLatencySamples: 1000,
-			})
-			logger.Info("Metrics collection enabled", "service", config.Metrics.ServiceName)
-		}
-
-		// Initialize cost calculator
-		var costCalculator *llm.CostCalculator
-		if config.Cost.Enabled {
-			costCalculator = llm.NewCostCalculator()
-			logger.Info("Cost tracking enabled")
-		}
-
-		// Initialize rate limiter
-		var rateLimiter *llm.RateLimiter
-		if config.RateLimit.Enabled {
-			rateLimiter = llm.NewRateLimiter(llm.RateLimitConfig{
-				RequestsPerSecond: config.RateLimit.RPS,
-				BurstSize:         config.RateLimit.Burst,
-				MaxQueueSize:      config.RateLimit.QueueSize,
-				QueueTimeout:      config.RateLimit.QueueTimeout,
-				PerModel:          config.RateLimit.PerModel,
-			})
-			logger.Info("Rate limiting enabled",
-				"rps", config.RateLimit.RPS,
-				"burst", config.RateLimit.Burst,
-				"queue_size", config.RateLimit.QueueSize)
-		}
-
-		// Initialize model router
-		var router *llm.Router
-		if config.Router.Enabled {
-			modelConfigs := config.Router.Models
-			if len(modelConfigs) == 0 {
-				// Use default models if not configured (convert from pricing to config)
-				pricing := llm.DefaultModelPricing()
-				for _, p := range pricing {
-					modelConfigs = append(modelConfigs, llm.ModelConfig{
-						Name:            p.ModelName,
-						Provider:        p.Provider,
-						CostPer1KInput:  p.CostPer1KInput,
-						CostPer1KOutput: p.CostPer1KOutput,
-						Enabled:         true,
-					})
-				}
-			}
-
-			router = llm.NewRouter(llm.RouterConfig{
-				DefaultStrategy:  llm.RouteStrategy(config.Router.DefaultStage),
-				Models:           modelConfigs,
-				ScenarioModelMap: make(map[llm.Scenario]string),
-				FallbackModel:    config.Model.Model,
-				Logger:           logger,
-			}, metricsCollector)
-
-			logger.Info("Model routing enabled",
-				"strategy", config.Router.DefaultStage,
-				"models", len(modelConfigs))
-		}
-
-		// Wrap with production features: retry, cache, streaming
-		client = llm.NewRetryClient(baseClient, config.Retry.MaxAttempts, config.Retry.MinWaitMs, config.Retry.MaxWaitMs)
-
-		if config.Cache.Enabled && config.Cache.Size > 0 {
-			client = llm.NewCachedClient(client, config.Cache.Size)
-		}
-
-		// Wrap with rate limiting if enabled
-		if rateLimiter != nil {
-			client = llm.NewRateLimitedClient(client, rateLimiter)
-		}
-
-		// Create enhanced brain wrapper with all Phase 2 features
-		SetGlobal(&enhancedBrainWrapper{
-			client:         client,
-			config:         config,
-			metrics:        metricsCollector,
-			costCalculator: costCalculator,
-			router:         router,
-			rateLimiter:    rateLimiter,
-			logger:         logger,
-		})
-
-		// === Phase 3: Initialize feature components ===
-
-		// Initialize Intent Router
-		if config.IntentRouter.Enabled {
-			InitIntentRouter(IntentRouterConfig{
-				Enabled:             config.IntentRouter.Enabled,
-				ConfidenceThreshold: config.IntentRouter.ConfidenceThreshold,
-				CacheSize:           config.IntentRouter.CacheSize,
-			}, logger)
-		}
-
-		// Initialize Memory Compression
-		if config.Memory.Enabled {
-			sessionTTL, _ := time.ParseDuration(config.Memory.SessionTTL)
-			if sessionTTL == 0 {
-				sessionTTL = 24 * time.Hour
-			}
-			InitMemory(CompressionConfig{
-				Enabled:          config.Memory.Enabled,
-				TokenThreshold:   config.Memory.TokenThreshold,
-				TargetTokenCount: config.Memory.TargetTokenCount,
-				PreserveTurns:    config.Memory.PreserveTurns,
-				MaxSummaryTokens: config.Memory.MaxSummaryTokens,
-				CompressionRatio: config.Memory.CompressionRatio,
-				SessionTTL:       sessionTTL,
-			}, logger)
-		}
-
-		// Initialize Safety Guard
-		if config.Guard.Enabled {
-			if err := InitGuard(GuardConfig{
-				Enabled:            config.Guard.Enabled,
-				InputGuardEnabled:  config.Guard.InputGuardEnabled,
-				OutputGuardEnabled: config.Guard.OutputGuardEnabled,
-				Chat2ConfigEnabled: config.Guard.Chat2ConfigEnabled,
-				MaxInputLength:     config.Guard.MaxInputLength,
-				ScanDepth:          config.Guard.ScanDepth,
-				Sensitivity:        config.Guard.Sensitivity,
-				AdminUsers:         config.Guard.AdminUsers,
-				AdminChannels:      config.Guard.AdminChannels,
-				ResponseTimeout:    config.Guard.ResponseTimeout,
-				RateLimitRPS:       config.Guard.RateLimitRPS,
-				RateLimitBurst:     config.Guard.RateLimitBurst,
-			}, logger); err != nil {
-				logger.Warn("Failed to initialize SafetyGuard", "error", err)
-			}
-		}
-
-		logger.Info("Native Brain initialized (Phase 3)",
-			"provider", config.Model.Provider,
-			"model", config.Model.Model,
-			"timeout_s", config.Model.TimeoutS,
-			"cache_enabled", config.Cache.Enabled,
-			"cache_size", config.Cache.Size,
-			"max_retries", config.Retry.MaxAttempts,
-			"metrics_enabled", config.Metrics.Enabled,
-			"cost_tracking_enabled", config.Cost.Enabled,
-			"rate_limit_enabled", config.RateLimit.Enabled,
-			"router_enabled", config.Router.Enabled,
-			"intent_router_enabled", config.IntentRouter.Enabled,
-			"memory_enabled", config.Memory.Enabled,
-			"guard_enabled", config.Guard.Enabled)
+		fallthrough
 	default:
-		// Fallback for unknown provider
-		logger.Warn("Unknown brain provider specified. Brain disabled.", "provider", config.Model.Provider)
+		// Default to OpenAI compatible client
+		baseClient = llm.NewOpenAIClient("", config.Model.Endpoint, config.Model.Model, logger)
+		logger.Debug("OpenAI brain client initialized", "model", config.Model.Model)
 	}
+
+	// 2. Initialize orchestration & observability components (shared)
+	var metricsCollector *llm.MetricsCollector
+	if config.Metrics.Enabled {
+		metricsCollector = llm.NewMetricsCollector(llm.MetricsConfig{
+			Enabled:           true,
+			ServiceName:       config.Metrics.ServiceName,
+			MaxLatencySamples: 1000,
+		})
+	}
+
+	var costCalculator *llm.CostCalculator
+	if config.Cost.Enabled {
+		costCalculator = llm.NewCostCalculator()
+	}
+
+	var rateLimiter *llm.RateLimiter
+	if config.RateLimit.Enabled {
+		rateLimiter = llm.NewRateLimiter(llm.RateLimitConfig{
+			RequestsPerSecond: config.RateLimit.RPS,
+			BurstSize:         config.RateLimit.Burst,
+			MaxQueueSize:      config.RateLimit.QueueSize,
+			QueueTimeout:      config.RateLimit.QueueTimeout,
+			PerModel:          config.RateLimit.PerModel,
+		})
+	}
+
+	var router *llm.Router
+	if config.Router.Enabled {
+		modelConfigs := config.Router.Models
+		if len(modelConfigs) == 0 {
+			pricing := llm.DefaultModelPricing()
+			for _, p := range pricing {
+				modelConfigs = append(modelConfigs, llm.ModelConfig{
+					Name:            p.ModelName,
+					Provider:        p.Provider,
+					CostPer1KInput:  p.CostPer1KInput,
+					CostPer1KOutput: p.CostPer1KOutput,
+					Enabled:         true,
+				})
+			}
+		}
+
+		router = llm.NewRouter(llm.RouterConfig{
+			DefaultStrategy:  llm.RouteStrategy(config.Router.DefaultStage),
+			Models:           modelConfigs,
+			ScenarioModelMap: make(map[llm.Scenario]string),
+			FallbackModel:    config.Model.Model,
+			Logger:           logger,
+		}, metricsCollector)
+	}
+
+	// 3. Apply shared middleware wrapping
+	client := baseClient
+
+	// Retry
+	client = llm.NewRetryClient(client, config.Retry.MaxAttempts, config.Retry.MinWaitMs, config.Retry.MaxWaitMs)
+
+	// Cache
+	if config.Cache.Enabled && config.Cache.Size > 0 {
+		client = llm.NewCachedClient(client, config.Cache.Size)
+	}
+
+	// Rate limiting
+	if rateLimiter != nil {
+		client = llm.NewRateLimitedClient(client, rateLimiter)
+	}
+
+	// 4. Register global brain instance
+	SetGlobal(&enhancedBrainWrapper{
+		client:         client,
+		config:         config,
+		metrics:        metricsCollector,
+		costCalculator: costCalculator,
+		router:         router,
+		rateLimiter:    rateLimiter,
+		logger:         logger,
+	})
+
+	// 5. Initialize specialized brain components
+	if config.IntentRouter.Enabled {
+		InitIntentRouter(IntentRouterConfig{
+			Enabled:             config.IntentRouter.Enabled,
+			ConfidenceThreshold: config.IntentRouter.ConfidenceThreshold,
+			CacheSize:           config.IntentRouter.CacheSize,
+		}, logger)
+	}
+
+	if config.Memory.Enabled {
+		sessionTTL, _ := time.ParseDuration(config.Memory.SessionTTL)
+		if sessionTTL == 0 {
+			sessionTTL = 24 * time.Hour
+		}
+		InitMemory(CompressionConfig{
+			Enabled:          config.Memory.Enabled,
+			TokenThreshold:   config.Memory.TokenThreshold,
+			TargetTokenCount: config.Memory.TargetTokenCount,
+			PreserveTurns:    config.Memory.PreserveTurns,
+			MaxSummaryTokens: config.Memory.MaxSummaryTokens,
+			CompressionRatio: config.Memory.CompressionRatio,
+			SessionTTL:       sessionTTL,
+		}, logger)
+	}
+
+	if config.Guard.Enabled {
+		if err := InitGuard(GuardConfig{
+			Enabled:            config.Guard.Enabled,
+			InputGuardEnabled:  config.Guard.InputGuardEnabled,
+			OutputGuardEnabled: config.Guard.OutputGuardEnabled,
+			Chat2ConfigEnabled: config.Guard.Chat2ConfigEnabled,
+			MaxInputLength:     config.Guard.MaxInputLength,
+			ScanDepth:          config.Guard.ScanDepth,
+			Sensitivity:        config.Guard.Sensitivity,
+			AdminUsers:         config.Guard.AdminUsers,
+			AdminChannels:      config.Guard.AdminChannels,
+			ResponseTimeout:    config.Guard.ResponseTimeout,
+			RateLimitRPS:       config.Guard.RateLimitRPS,
+			RateLimitBurst:     config.Guard.RateLimitBurst,
+		}, logger); err != nil {
+			logger.Warn("Failed to initialize SafetyGuard", "error", err)
+		}
+	}
+
+	logger.Info("Native Brain initialized",
+		"provider", config.Model.Provider,
+		"protocol", config.Model.Protocol,
+		"model", config.Model.Model,
+		"cache", config.Cache.Enabled,
+		"metrics", config.Metrics.Enabled,
+		"intent_router", config.IntentRouter.Enabled)
 
 	return nil
 }

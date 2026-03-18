@@ -101,6 +101,31 @@ func (a *Adapter) handleBlockActions(callback *SlackInteractionCallback, w http.
 		return
 	}
 
+	if a.appHomeHandler != nil {
+		if a.appHomeHandler.IsAppHomeAction(actionID) {
+			// Convert to Slack SDK BlockAction (or use specialized handler method)
+			slackAction := &slack.BlockAction{
+				ActionID: action.ActionID,
+				BlockID:  action.BlockID,
+				Value:    action.Value,
+				ActionTs: callback.Message.Ts,
+			}
+			callbackSDK := &slack.InteractionCallback{
+				Type: slack.InteractionType(callback.Type),
+				User: slack.User{ID: callback.User.ID, Name: callback.User.Username},
+				Team: slack.Team{ID: callback.Team.ID},
+			}
+			if callback.View != nil {
+				callbackSDK.View = *callback.View
+			}
+			if err := a.appHomeHandler.HandleAction(context.Background(), callbackSDK, slackAction); err != nil {
+				a.Logger().Error("App Home action failed", "error", err)
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}
+
 	a.Logger().Info("Unhandled block action",
 		"action_id", actionID,
 		"value", action.Value,
