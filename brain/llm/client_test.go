@@ -175,3 +175,24 @@ func TestHealthMonitor_IsHealthy(t *testing.T) {
 	assert.True(t, monitor.IsHealthy())
 	mockClient.AssertExpectations(t)
 }
+
+func TestCachedClient_MakeKey_UsesHash(t *testing.T) {
+	t.Parallel()
+	mockClient := new(MockLLMClient)
+	cachedClient := NewCachedClient(mockClient, 100)
+
+	key1 := cachedClient.makeKey("hello world", false)
+	key2 := cachedClient.makeKey("hello world", false)
+	key3 := cachedClient.makeKey("hello world", true)
+
+	// Same prompt should produce same key
+	assert.Equal(t, key1, key2)
+	// Key should NOT be the raw prompt (security: no plaintext in memory maps)
+	assert.NotEqual(t, "hello world", key1)
+	// Key should have "chat:" prefix for non-analyze
+	assert.Contains(t, key1, "chat:")
+	// Key should have "analyze:" prefix for analyze
+	assert.Contains(t, key3, "analyze:")
+	// Chat and analyze keys should differ for same prompt
+	assert.NotEqual(t, key1, key3)
+}

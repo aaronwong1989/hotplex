@@ -135,6 +135,8 @@ func (rl *RateLimiter) WaitModel(ctx context.Context, model string) error {
 		rl.atomics.QueuedRequests.Inc()
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-time.After(rl.config.QueueTimeout):
+		return fmt.Errorf("enqueue timeout exceeded (%v)", rl.config.QueueTimeout)
 	}
 
 	// Wait for turn or cancellation
@@ -142,25 +144,22 @@ func (rl *RateLimiter) WaitModel(ctx context.Context, model string) error {
 	case <-req.done:
 		return req.err
 	case <-ctx.Done():
-		req.err = ctx.Err()
-		close(req.done) // 关闭done防止goroutine泄漏
+		// Do NOT close req.done — WaitModel owns cleanup on error paths
 		return ctx.Err()
 	case <-time.After(rl.config.QueueTimeout):
-		req.err = fmt.Errorf("queue timeout exceeded (%v)", rl.config.QueueTimeout)
-		close(req.done) // 关闭done防止goroutine泄漏
-		return req.err
+		// Do NOT close req.done — WaitModel owns cleanup on error paths
+		return fmt.Errorf("queue timeout exceeded (%v)", rl.config.QueueTimeout)
 	}
 }
 
 // processQueue processes queued requests in order.
 func (rl *RateLimiter) processQueue() {
 	for req := range rl.queue {
-		// Check if request is already cancelled
+		// Check if request is already cancelled before waiting
 		select {
 		case <-req.ctx.Done():
 			req.err = req.ctx.Err()
-			close(req.done)
-			continue
+			continue // req.done already closed by WaitModel or sender
 		default:
 		}
 
@@ -172,7 +171,7 @@ func (rl *RateLimiter) processQueue() {
 		err := limiter.Wait(req.ctx)
 		if err != nil {
 			req.err = err
-			close(req.done)
+			// Do NOT close req.done — WaitModel owns cleanup on ctx/timeout
 			continue
 		}
 

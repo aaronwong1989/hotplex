@@ -142,8 +142,9 @@ type PriorityScheduler struct {
 	mediumDropped   *atomic.Int64
 	lowDropped      *atomic.Int64
 
-	// Channel-based notification for context cancellation support
-	notify chan struct{}
+	// Channel-based notification for work availability.
+	// Buffered so Signal() never blocks.
+	workCh chan struct{}
 
 	// Shutdown
 	shutdown   *atomic.Bool
@@ -185,7 +186,7 @@ func NewPriorityScheduler(config PriorityConfig) *PriorityScheduler {
 		shutdownCh:      make(chan struct{}),
 	}
 
-	ps.notify = make(chan struct{}, 1)
+	ps.workCh = make(chan struct{}, 1)
 	heap.Init(ps.queue)
 
 	// Start cleanup goroutine
@@ -304,9 +305,9 @@ func (ps *PriorityScheduler) Enqueue(ctx context.Context, id string, priority Pr
 	// Add to queue
 	heap.Push(ps.queue, request)
 	ps.queueSize.Inc()
-	// Signal waiting Dequeue calls via channel (supports context cancellation)
+	// Non-blocking signal to wake up a waiting Dequeue
 	select {
-	case ps.notify <- struct{}{}:
+	case ps.workCh <- struct{}{}:
 	default:
 	}
 
@@ -321,39 +322,39 @@ func (ps *PriorityScheduler) Enqueue(ctx context.Context, id string, priority Pr
 }
 
 // Dequeue removes and returns the highest priority request.
+// It uses a channel-based wait that properly integrates with context cancellation.
 func (ps *PriorityScheduler) Dequeue(ctx context.Context) (*PriorityRequest, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-
-	for ps.queue.Len() == 0 {
+	for {
+		ps.mu.Lock()
 		if ps.shutdown.Load() {
+			ps.mu.Unlock()
 			return nil, fmt.Errorf("scheduler is shutdown")
 		}
+		if ps.queue.Len() > 0 {
+			req := heap.Pop(ps.queue).(*PriorityRequest)
+			ps.queueSize.Dec()
+			ps.processed.Inc()
+			switch req.Priority {
+			case PriorityHigh:
+				ps.highProcessed.Inc()
+			case PriorityMedium:
+				ps.mediumProcessed.Inc()
+			case PriorityLow:
+				ps.lowProcessed.Inc()
+			}
+			ps.mu.Unlock()
+			return req, nil
+		}
+		ps.mu.Unlock()
 
-		// Wait with context using channel (no goroutine needed)
+		// Wait for work or context cancellation without holding the lock
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-ps.notify:
-			// Item available, re-check queue length
+		case <-ps.workCh:
+			// Work may be available; loop will re-check queue
 		}
 	}
-
-	request := heap.Pop(ps.queue).(*PriorityRequest)
-	ps.queueSize.Dec()
-	ps.processed.Inc()
-
-	// Update per-priority stats
-	switch request.Priority {
-	case PriorityHigh:
-		ps.highProcessed.Inc()
-	case PriorityMedium:
-		ps.mediumProcessed.Inc()
-	case PriorityLow:
-		ps.lowProcessed.Inc()
-	}
-
-	return request, nil
 }
 
 // TryDequeue tries to dequeue without blocking.
@@ -428,7 +429,11 @@ func (ps *PriorityScheduler) Shutdown() {
 	}
 
 	close(ps.shutdownCh)
-	close(ps.notify) // Wake up all Dequeue waiters via channel
+	// Non-blocking send to wake up pending Dequeue (best-effort)
+	select {
+	case ps.workCh <- struct{}{}:
+	default:
+	}
 
 	if ps.config.Logger != nil {
 		ps.config.Logger.Info("priority scheduler shutdown")

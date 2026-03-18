@@ -272,3 +272,80 @@ func TestPriority_String(t *testing.T) {
 	assert.Equal(t, "medium", PriorityMedium.String())
 	assert.Equal(t, "low", PriorityLow.String())
 }
+
+func TestPriorityScheduler_Dequeue_WakeupOnEnqueue(t *testing.T) {
+	t.Parallel()
+	config := DefaultPriorityConfig()
+	scheduler := NewPriorityScheduler(config)
+	defer scheduler.Shutdown()
+
+	done := make(chan *PriorityRequest, 1)
+
+	go func() {
+		req, err := scheduler.Dequeue(context.Background())
+		done <- req
+		assert.NoError(t, err)
+		assert.Equal(t, "test-req", req.ID)
+	}()
+
+	// Give Dequeue time to block on empty queue
+	time.Sleep(10 * time.Millisecond)
+
+	err := scheduler.Enqueue(context.Background(), "test-req", PriorityHigh, func() error { return nil }, time.Minute)
+	assert.NoError(t, err)
+
+	select {
+	case req := <-done:
+		assert.NotNil(t, req)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Dequeue did not wake up after Enqueue")
+	}
+}
+
+func TestPriorityScheduler_Dequeue_ContextCancellation(t *testing.T) {
+	t.Parallel()
+	config := DefaultPriorityConfig()
+	scheduler := NewPriorityScheduler(config)
+	defer scheduler.Shutdown()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := scheduler.Dequeue(ctx)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		assert.Error(t, err)
+		assert.Equal(t, context.DeadlineExceeded, err)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Dequeue did not cancel within timeout")
+	}
+}
+
+func TestPriorityScheduler_Dequeue_Shutdown(t *testing.T) {
+	t.Parallel()
+	config := DefaultPriorityConfig()
+	scheduler := NewPriorityScheduler(config)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := scheduler.Dequeue(context.Background())
+		done <- err
+	}()
+
+	// Give Dequeue time to block on empty queue
+	time.Sleep(10 * time.Millisecond)
+	scheduler.Shutdown()
+
+	select {
+	case err := <-done:
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "shutdown")
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Dequeue did not return after Shutdown")
+	}
+}
