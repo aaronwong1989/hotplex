@@ -43,6 +43,7 @@ settings:
   event_subscriptions:
     bot_events:
       - app_mention
+      - app_home_opened
       - message.channels
       - message.groups
       - message.im
