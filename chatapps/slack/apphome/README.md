@@ -41,8 +41,43 @@ Capabilities are defined declaratively in `capabilities.yaml`. This allows for a
 
 - **[registry.go](registry.go)**: Loads and maintains the list of enabled capabilities from `capabilities.yaml`.
 - **[form.go](form.go)**: Translates capability definitions into Slack **Block Kit Modals** for user input.
-- **[executor.go](executor.go)**: Handles form submissions, resolves templates, and injects tasks into the HotPlex engine.
-- **[handler.go](handler.go)**: Manages the App Home lifecycle, including rendering the initial catalog view.
+- **[builder.go](builder.go)**: Builds the App Home view (catalog, status, welcome). All text is configurable via `MessagesConfig`.
+- **[messages.go](messages.go)**: Defines `MessagesConfig` — externalizes all user-facing strings for i18n and customization.
+- **[executor.go](executor.go)**: Handles form submissions, resolves templates, and injects tasks into the HotPlex engine. Supports `MessagesConfig` and `ErrorHandler` callbacks.
+- **[handler.go](handler.go)**: Manages the App Home lifecycle; uses Builder to render the catalog view.
+
+## 🔤 MessagesConfig: Text Customization
+
+All UI text is externalized via `MessagesConfig`. Provide it when constructing Builder or Executor to override defaults.
+
+```go
+msgs := &apphome.MessagesConfig{
+    AppTitle:      "*🤖 MyBot Assistant*",
+    CatalogTitle:  "*🔭 My Capabilities*",
+    WelcomeTitle:  "*Welcome, {{.UserName}}!*",
+    StatusOnline:  "● Online",
+    StatusOffline: "○ Offline",
+}
+
+builder := apphome.NewBuilder(msgs, reg, engine)
+executor := apphome.NewExecutor(
+    reg, engine,
+    apphome.WithMessagesConfig(msgs),
+    apphome.WithErrorHandler(func(err error, ctx string) {
+        logger.Error("apphome error", "context", ctx, "err", err)
+    }),
+)
+```
+
+### Available Fields
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `AppTitle` | `*🤖 HotPlex*` | App home header |
+| `CatalogTitle` | `*🔭 能力目录*` | Catalog section header |
+| `WelcomeTitle` | `*Welcome, {{.UserName}}!*` | Welcome message |
+| `StatusOnline` | `● Online` | Online indicator |
+| `StatusOffline` | `○ Offline` | Offline indicator |
 
 ## 🛠️ Usage & Extension
 

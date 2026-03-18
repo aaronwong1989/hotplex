@@ -153,25 +153,58 @@ sanitized := guard.CheckOutput(ctx, llmResponse)
 
 ## 🛠 Developer Guide
 
-### Interface Definitions
+### Explicit Interface Design (v0.31.2)
 
-The package exports several interfaces to allow for granular usage of brain capabilities:
+All LLM client wrappers implement the `LLMClient` interface at compile time, verified via static checks:
 
 ```go
-// Base reasoning
-type Brain interface {
+// Every wrapper declares its interface explicitly
+var _ LLMClient = (*ObservableClient)(nil)
+var _ LLMClient = (*CachedClient)(nil)
+var _ LLMClient = (*RetryClient)(nil)
+var _ LLMClient = (*RateLimitedClient)(nil)
+
+// LLMClient interface definition
+type LLMClient interface {
     Chat(ctx context.Context, prompt string) (string, error)
     Analyze(ctx context.Context, prompt string, target any) error
+    ChatStream(ctx context.Context, prompt string) (<-chan string, error)
+    HealthCheck(ctx context.Context) HealthStatus
 }
-
-// Specialized capabilities
-type StreamingBrain interface { ChatStream(...) }
-type RoutableBrain interface { ChatWithModel(...) }
-type ObservableBrain interface { GetMetrics(...) }
-type ResilientBrain interface { GetCircuitBreaker(...); GetFailoverManager(...) }
 ```
 
+This ensures any new wrapper automatically fails to compile if it does not implement all required methods.
+
 ### Advanced Usage Scenarios & Patterns
+
+#### Priority Scheduler (Channel-Based, Context-Aware)
+
+The `PriorityScheduler` manages request prioritization with full context cancellation support. It uses a channel-based notification mechanism to avoid lock contention and integrates cleanly with Go context cancellation.
+
+```go
+scheduler := NewPriorityScheduler(DefaultPriorityConfig())
+defer scheduler.Shutdown()
+
+// Submit a request
+err := scheduler.Enqueue(ctx, "req-1", PriorityHigh, func() error {
+    return nil // your LLM call here
+}, 5*time.Minute)
+
+// Dequeue with context cancellation support
+req, err := scheduler.Dequeue(ctx)
+if err != nil {
+    return err
+}
+if err := req.Execute(); err != nil {
+    // handle error
+}
+```
+
+**Key design guarantees**:
+- `Dequeue` never holds a mutex while waiting on a channel — no deadlock risk
+- Shutdown uses non-blocking channel send — safe to call from any goroutine
+- Enqueue signals workers via buffered channel (`workCh chan struct{}`, capacity 1)
+- Request expiration cleanup runs in a background goroutine (10s interval)
 
 #### 1. 🎬 Real-time Streaming (Live UI)
 Best for large language outputs where low perceived latency is critical.
@@ -269,9 +302,9 @@ Metrics → Circuit → RateLimit → Retry → Cache → OpenAI
 
 | Layer | Purpose |
 |-------|---------|
-| Cache | LRU response caching |
+| Cache | LRU response caching (SHA-256 hashed keys, no plaintext in memory) |
 | Retry | Exponential backoff retries |
-| Rate Limit | Token bucket rate limiting |
+| Rate Limit | Token bucket rate limiting; enqueue respects `QueueTimeout` to prevent goroutine leaks |
 | Circuit Breaker | Fail-fast on repeated errors |
 | Metrics | Observability and cost tracking |
 
@@ -336,9 +369,20 @@ health := obs.GetClientHealth(ctx)
 The system tracks enterprise-level metrics using OpenTelemetry:
 
 - **Latency**: Detailed histogram of request durations.
-- **Token Usage**: Granular tracking of input/output tokens.
+- **Token Usage**: Granular tracking of input/output tokens per request.
 - **Financials**: Real-time USD cost calculation based on model-specific pricing.
 - **Reliability**: Error rates and circuit breaker state transitions.
+- **Routing**: Model selection decisions logged with scenario and strategy context.
+
+| Metric                 | Type      | Description                 |
+| :--------------------- | :-------- | :-------------------------- |
+| `llm_request_duration` | Histogram | Latency per model/operation |
+| `llm_tokens_total`     | Counter   | Total tokens consumed       |
+| `llm_cost_usd`         | Gauge     | Cumulative cost in USD      |
+| `llm_error_rate`       | Gauge     | Failure percentage          |
+| `llm_routing_decisions`| Counter   | Model selection by scenario |
+
+**MetricsCollector** provides a unified entry point for extracting component-level statistics from wrapped clients:
 
 | Metric                 | Type      | Description                 |
 | :--------------------- | :-------- | :-------------------------- |
@@ -373,19 +417,30 @@ The system resolves credentials and endpoints using a tiered priority model:
     - **Claude Code CLI**: Parses `~/.claude/settings.json`, supports `PROXY_MANAGED` status with automatic dummy key generation.
 3.  **Level 3: System Environment**: Fallback to standard provider vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.).
 
+**MetricsCollector** provides a unified entry point for extracting component-level statistics from wrapped clients:
+
+```go
+collector := llm.NewMetricsCollector()
+obs := llm.AsObservable(client, collector)
+stats := collector.GetStats()
+// stats.TotalRequests, stats.CacheHits, stats.CacheMisses, stats.ErrorCount
+```
+
 ---
 
 ## 🧪 Testing
 
-The package includes high-coverage unit tests and integration tests for providers.
-
 ```bash
+# Fast unit tests (all packages)
 go test -v ./brain/...
+
+# Race detection (mandatory before commit)
+go test -race ./brain/llm/... -timeout 30s
 ```
 
-- **Unit tests**: Fast, mocks provider calls.
-- **Integration tests**: Requires API keys, tests real connectivity.
-- **Scenario tests**: Validates routing and budget logic under load.
+- **Unit tests**: Fast, mocks provider calls. Coverage includes all middleware layers (cache, retry, rate limit, priority scheduler).
+- **Concurrency tests**: `Dequeue` wakeup, context cancellation, and shutdown scenarios verified.
+- **Security tests**: `CachedClient.makeKey` ensures SHA-256 hashed keys (no plaintext prompts in memory maps).
 
 ---
 
