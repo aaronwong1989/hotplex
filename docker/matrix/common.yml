@@ -17,11 +17,11 @@ x-hotplex-common: &hotplex-common
     # Proxy Configuration (OPTIONAL)
     # Set HTTP_PROXY/HTTPS_PROXY in .env-* files if needed
     # ─────────────────────────────────────────────────────────────────
-    ANTHROPIC_BASE_URL: http://host.docker.internal:15721
-    HTTP_PROXY: ${HTTP_PROXY:-}
-    HTTPS_PROXY: ${HTTPS_PROXY:-}
+    HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7897}
+    HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7897}
     NO_PROXY: localhost,127.0.0.1,host.docker.internal,.local,.internal
-    HOTPLEX_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
+    ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-http://host.docker.internal:15721}
+    HOTPLEX_ALLOWED_ORIGINS: ${HOTPLEX_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080,http://host.docker.internal:8080}
     # ─────────────────────────────────────────────────────────────────
     # Git Identity Defaults
     # ─────────────────────────────────────────────────────────────────

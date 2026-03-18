@@ -101,10 +101,19 @@ read -r INPUT_LOG_LEVEL
 HOTPLEX_LOG_LEVEL=${INPUT_LOG_LEVEL:-debug}
 
 # CORS Origins (Optional)
-DEFAULT_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+DEFAULT_ORIGINS="http://localhost:8080,http://127.0.0.1:8080,http://host.docker.internal:8080"
 printf "  ${CYAN}CORS Origins (comma-separated) [${DEFAULT_ORIGINS}]:${NC} "
 read -r INPUT_ORIGINS
 HOTPLEX_ALLOWED_ORIGINS=${INPUT_ORIGINS:-$DEFAULT_ORIGINS}
+
+# Proxy Configuration (Optional)
+printf "  ${CYAN}HTTP Proxy [none]:${NC} "
+read -r INPUT_HTTP_PROXY
+HTTP_PROXY=${INPUT_HTTP_PROXY:-}
+
+printf "  ${CYAN}HTTPS Proxy [none]:${NC} "
+read -r INPUT_HTTPS_PROXY
+HTTPS_PROXY=${INPUT_HTTPS_PROXY:-}
 
 BOT_NAME="Bot $BOT_INDEX"
 GIT_USER="HotPlex secondary-$BOT_INDEX"
@@ -157,6 +166,10 @@ HOTPLEX_LOG_LEVEL=$HOTPLEX_LOG_LEVEL
 
 # --- CORS (Optional - for Web UI access) ---
 HOTPLEX_ALLOWED_ORIGINS=$HOTPLEX_ALLOWED_ORIGINS
+
+# --- Proxy (Optional) ---
+HTTP_PROXY=$HTTP_PROXY
+HTTPS_PROXY=$HTTPS_PROXY
 
 # --- Provider (Optional override) ---
 # HOTPLEX_PROVIDER_MODEL=sonnet
