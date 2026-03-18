@@ -103,3 +103,60 @@ func TestConfig_ThreeTierPriority(t *testing.T) {
 		// Let's check config.go again.
 	})
 }
+
+func TestOpenCodeExtractor_Extract(t *testing.T) {
+	// Create a temporary config file
+	tmpDir, err := os.MkdirTemp("", "opencode-test")
+	assert.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	configPath := filepath.Join(tmpDir, "opencode.json")
+
+	t.Run("Extract valid config with provider info", func(t *testing.T) {
+		content := `{
+			"model": "minimax-cn-coding-plan/MiniMax-M2.5",
+			"provider": {
+				"minimax-cn-coding-plan": {
+					"options": {
+						"apiKey": "sk-cp-test-key",
+						"baseURL": "https://api.minimax.chat/v1"
+					}
+				}
+			}
+		}`
+		err := os.WriteFile(configPath, []byte(content), 0644)
+		assert.NoError(t, err)
+
+		extractor := &OpenCodeExtractor{configPath: configPath}
+		config, err := extractor.Extract()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "sk-cp-test-key", config.APIKey)
+		assert.Equal(t, "https://api.minimax.chat/v1", config.Endpoint)
+		assert.Equal(t, "minimax-cn-coding-plan/MiniMax-M2.5", config.Model)
+	})
+
+	t.Run("Extract config with no provider match", func(t *testing.T) {
+		content := `{
+			"model": "unknown-model",
+			"provider": {}
+		}`
+		err := os.WriteFile(configPath, []byte(content), 0644)
+		assert.NoError(t, err)
+
+		extractor := &OpenCodeExtractor{configPath: configPath}
+		config, err := extractor.Extract()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "", config.APIKey)
+		assert.Equal(t, "", config.Endpoint)
+		assert.Equal(t, "unknown-model", config.Model)
+	})
+
+	t.Run("Handle missing file", func(t *testing.T) {
+		extractor := &OpenCodeExtractor{configPath: "non-existent.json"}
+		config, err := extractor.Extract()
+		assert.Error(t, err)
+		assert.Nil(t, config)
+	})
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ExtractedConfig represents configuration pulled from a CLI tool.
@@ -22,6 +23,9 @@ type ConfigExtractor interface {
 type ClaudeCodeExtractor struct {
 	ConfigPath string
 }
+
+// Compile-time interface check
+var _ ConfigExtractor = (*ClaudeCodeExtractor)(nil)
 
 // NewClaudeCodeExtractor creates a new extractor for Claude Code CLI.
 func NewClaudeCodeExtractor() *ClaudeCodeExtractor {
@@ -71,6 +75,74 @@ func (e *ClaudeCodeExtractor) Extract() (*ExtractedConfig, error) {
 	// Extract Model
 	if settings.Model != "" {
 		config.Model = settings.Model
+	}
+
+	return config, nil
+}
+
+// OpenCodeExtractor extracts config from OpenCode CLI settings.
+type OpenCodeExtractor struct {
+	configPath string
+}
+
+// Compile-time interface check
+var _ ConfigExtractor = (*OpenCodeExtractor)(nil)
+
+// NewOpenCodeExtractor creates a new extractor for OpenCode CLI.
+func NewOpenCodeExtractor() *OpenCodeExtractor {
+	var configPath string
+	if home, err := os.UserHomeDir(); err == nil {
+		configPath = filepath.Join(home, ".config", "opencode", "opencode.json")
+	}
+
+	return &OpenCodeExtractor{
+		configPath: configPath,
+	}
+}
+
+type openCodeOptions struct {
+	APIKey  string `json:"apiKey"`
+	BaseURL string `json:"baseURL"`
+}
+
+type openCodeProvider struct {
+	Options openCodeOptions `json:"options"`
+}
+
+// openCodeJSON represents the structure of ~/.config/opencode/opencode.json.
+type openCodeJSON struct {
+	Model    string                      `json:"model"`
+	Provider map[string]openCodeProvider `json:"provider"`
+}
+
+func (e *OpenCodeExtractor) Extract() (*ExtractedConfig, error) {
+	if e.configPath == "" {
+		return nil, os.ErrNotExist
+	}
+
+	data, err := os.ReadFile(e.configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var settings openCodeJSON
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return nil, err
+	}
+
+	config := &ExtractedConfig{}
+
+	if settings.Model != "" {
+		config.Model = settings.Model
+
+		parts := strings.SplitN(settings.Model, "/", 2)
+		if len(parts) > 0 {
+			providerName := parts[0]
+			if providerInfo, ok := settings.Provider[providerName]; ok {
+				config.APIKey = providerInfo.Options.APIKey
+				config.Endpoint = providerInfo.Options.BaseURL
+			}
+		}
 	}
 
 	return config, nil
