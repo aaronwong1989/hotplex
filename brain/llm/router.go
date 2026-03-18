@@ -179,7 +179,7 @@ func (r *Router) selectByLatency() *ModelConfig {
 }
 
 // selectByQuality selects the highest quality model for the scenario.
-func (r *Router) selectByQuality(scenario Scenario) *ModelConfig {
+func (r *Router) selectByQuality(_ Scenario) *ModelConfig {
 	// Quality heuristic: prefer models with larger context windows
 	var best *ModelConfig
 	maxTokens := 0

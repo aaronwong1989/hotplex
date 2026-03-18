@@ -142,8 +142,6 @@ type PriorityScheduler struct {
 	mediumDropped   *atomic.Int64
 	lowDropped      *atomic.Int64
 
-	// Condition for waiting
-	cond *sync.Cond
 	// Channel-based notification for context cancellation support
 	notify chan struct{}
 
@@ -187,7 +185,6 @@ func NewPriorityScheduler(config PriorityConfig) *PriorityScheduler {
 		shutdownCh:      make(chan struct{}),
 	}
 
-	ps.cond = sync.NewCond(&ps.mu)
 	ps.notify = make(chan struct{}, 1)
 	heap.Init(ps.queue)
 
