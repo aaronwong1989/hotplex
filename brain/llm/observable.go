@@ -81,6 +81,11 @@ func (o *ObservableClientImpl) extractComponents(client LLMClient) {
 	case *RetryClient:
 		// RetryClient uses anonymous interface, can't traverse further
 		// No observable state to extract from retry
+	default:
+		// Try to traverse unknown wrapper types via their underlying client accessor
+		if uc, ok := client.(interface{ UnderlyingClient() LLMClient }); ok {
+			o.extractComponents(uc.UnderlyingClient())
+		}
 	}
 }
 

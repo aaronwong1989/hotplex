@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -182,8 +183,9 @@ func (h *Handler) HandleViewSubmission(ctx context.Context, callback *slack.Inte
 	// Execute capability
 	if h.executor != nil {
 		go func() {
-			// Execute in background to avoid blocking the response
-			execCtx := context.Background()
+			// Execute in background with a reasonable timeout to avoid leaking
+			execCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
 			if err := h.executor.Execute(execCtx, userID, cap, params); err != nil {
 				h.logger.Error("Capability execution failed",
 					"user", userID,

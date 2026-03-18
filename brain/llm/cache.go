@@ -2,7 +2,10 @@ package llm
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"log"
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -85,7 +88,8 @@ func (c *CachedClient) Analyze(ctx context.Context, prompt string, target any) e
 	// Cache the result by marshaling target back to JSON
 	jsonData, err := json.Marshal(target)
 	if err != nil {
-		// Don't fail the request if caching fails
+		// Don't fail the request if caching fails, but log for observability
+		log.Printf("[CachedClient] WARN: failed to marshal analyze result for cache: %v", err)
 		return nil
 	}
 
@@ -106,11 +110,14 @@ func (c *CachedClient) HealthCheck(ctx context.Context) HealthStatus {
 	return c.client.HealthCheck(ctx)
 }
 
-// makeKey creates a unique cache key for a request.
+// makeKey creates a unique cache key for a request using SHA-256 hash.
 func (c *CachedClient) makeKey(prompt string, isAnalyze bool) string {
-	// Simple key format: for now just use prompt hash
-	// In production, you might want to include model, temperature, etc.
-	return prompt
+	h := sha256.Sum256([]byte(prompt))
+	prefix := "chat"
+	if isAnalyze {
+		prefix = "analyze"
+	}
+	return prefix + ":" + hex.EncodeToString(h[:])
 }
 
 // ClearCache clears all cached entries.

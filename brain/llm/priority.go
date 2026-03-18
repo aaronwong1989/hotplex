@@ -144,6 +144,8 @@ type PriorityScheduler struct {
 
 	// Condition for waiting
 	cond *sync.Cond
+	// Channel-based notification for context cancellation support
+	notify chan struct{}
 
 	// Shutdown
 	shutdown   *atomic.Bool
@@ -186,6 +188,7 @@ func NewPriorityScheduler(config PriorityConfig) *PriorityScheduler {
 	}
 
 	ps.cond = sync.NewCond(&ps.mu)
+	ps.notify = make(chan struct{}, 1)
 	heap.Init(ps.queue)
 
 	// Start cleanup goroutine
@@ -304,7 +307,11 @@ func (ps *PriorityScheduler) Enqueue(ctx context.Context, id string, priority Pr
 	// Add to queue
 	heap.Push(ps.queue, request)
 	ps.queueSize.Inc()
-	ps.cond.Signal()
+	// Signal waiting Dequeue calls via channel (supports context cancellation)
+	select {
+	case ps.notify <- struct{}{}:
+	default:
+	}
 
 	if ps.config.Logger != nil {
 		ps.config.Logger.Debug("request enqueued",
@@ -326,18 +333,12 @@ func (ps *PriorityScheduler) Dequeue(ctx context.Context) (*PriorityRequest, err
 			return nil, fmt.Errorf("scheduler is shutdown")
 		}
 
-		// Wait with context
-		done := make(chan struct{})
-		go func() {
-			ps.cond.Wait()
-			close(done)
-		}()
-
+		// Wait with context using channel (no goroutine needed)
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-done:
-			// Continue loop to check queue
+		case <-ps.notify:
+			// Item available, re-check queue length
 		}
 	}
 
@@ -430,7 +431,7 @@ func (ps *PriorityScheduler) Shutdown() {
 	}
 
 	close(ps.shutdownCh)
-	ps.cond.Broadcast() // Wake up all waiters
+	close(ps.notify) // Wake up all Dequeue waiters via channel
 
 	if ps.config.Logger != nil {
 		ps.config.Logger.Info("priority scheduler shutdown")
