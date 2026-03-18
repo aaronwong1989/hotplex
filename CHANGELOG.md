@@ -1,5 +1,21 @@
 # CHANGELOG.md
 
+## [v0.31.2] - 2026-03-18
+
+### Fixed
+- **Slack App Home** - Fixed App Home not opening issue:
+  - Unified duplicate `appHomeHandler` field name in Slack adapter
+  - The adapter had two duplicate fields (appHomeHandler and apphomeHandler), causing Socket Mode to never receive the handler
+  - Now App Home events are properly handled in both Socket Mode and HTTP mode
+
+### Changed
+- **Docker Configuration** - Enhanced proxy and CORS configuration:
+  - Added HTTP_PROXY/HTTPS_PROXY prompts in add-bot.sh
+  - Updated default CORS origins to port 8080
+  - Set default proxy to http://host.docker.internal:7897
+
+---
+
 ## [v0.31.1] - 2026-03-17
 
 ### Added
