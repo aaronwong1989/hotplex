@@ -190,14 +190,22 @@ printf "  ${GREEN}✓${NC} Created ${BOLD}$ENV_FILE${NC}\n"
 
 # --- 5. Update docker-compose.yml ---
 
-# 5a. Add named volume to top-level volumes: section
-# Find the line with "volumes:" and append after the last volume definition
+# 5a. Add named volume to top-level volumes: section (macOS-compatible)
 if grep -q "^  $CLAUDE_VOLUME:" docker-compose.yml 2>/dev/null; then
     printf "  ${YELLOW}⚠${NC} Volume ${BOLD}$CLAUDE_VOLUME${NC} already exists in compose file.\n"
 else
     if grep -q "^services:" docker-compose.yml; then
-        # Insert volume definitions before "services:"
-        sed -i "/^services:/i\\  # Per-instance Claude state (auto-added by add-bot.sh)\\n  $CLAUDE_VOLUME: { name: $CLAUDE_VOLUME }\\n  # Per-instance Go build cache (auto-added by add-bot.sh)\\n  $BUILD_VOLUME: { name: $BUILD_VOLUME }\\n" docker-compose.yml
+        # Use awk to insert before "services:" (macOS sed incompatible with \n in replacement)
+        awk -v claude="$CLAUDE_VOLUME" -v build="$BUILD_VOLUME" '
+            /^services:/ {
+                print "  # Per-instance Claude state (auto-added by add-bot.sh)"
+                print "  " claude ": { name: " claude " }"
+                print "  # Per-instance Go build cache (auto-added by add-bot.sh)"
+                print "  " build ": { name: " build " }"
+                print ""
+            }
+            { print }
+        ' docker-compose.yml > docker-compose.yml.tmp && mv docker-compose.yml.tmp docker-compose.yml
     else
         # No services section yet, append at end
         printf "\nvolumes:\n  $CLAUDE_VOLUME: { name: $CLAUDE_VOLUME }\n  $BUILD_VOLUME: { name: $BUILD_VOLUME }\n" >> docker-compose.yml
@@ -205,33 +213,36 @@ else
     printf "  ${GREEN}✓${NC} Added volumes ${BOLD}$CLAUDE_VOLUME${NC} and ${BOLD}$BUILD_VOLUME${NC} to top-level volumes.\n"
 fi
 
-# 5b. Append service definition
-# Determine port binding (127.0.0.1 for security)
-cat >> docker-compose.yml <<EOF
-
+# 5b. Append service definition (variables expanded via printf then passed to cat)
+ROLE_DISPLAY="$(echo "$BOT_ROLE" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')"
+SERVICE_BLOCK=$(printf "\
   # ============================================================================
-  # Bot $BOT_PADDED_INDEX: ${BOT_ROLE^} Instance (Auto-added by add-bot.sh)
+  # Bot %s: %s Instance (Auto-added by add-bot.sh)
   # ============================================================================
-  $SERVICE_NAME:
+  %s:
     extends:
       file: common.yml
       service: hotplex-base
-    container_name: $SERVICE_NAME
-    ports: [ "127.0.0.1:$PORT:8080" ]
-    env_file: [ $ENV_FILE ]
+    container_name: %s
+    ports: [ \"127.0.0.1:%s:8080\" ]
+    env_file: [ %s ]
     volumes:
       # Claude state (named Docker volume for isolation)
-      - $CLAUDE_VOLUME:/home/hotplex/.claude:rw
+      - %s:/home/hotplex/.claude:rw
       # Per-instance Go build cache (isolated)
-      - $BUILD_VOLUME:/home/hotplex/.cache/go-build:rw
+      - %s:/home/hotplex/.cache/go-build:rw
       # Bot instance data (host path)
-      - ~/.hotplex/instances/$HOTPLEX_BOT_ID:/home/hotplex/.hotplex:rw
+      - ~/.hotplex/instances/%s:/home/hotplex/.hotplex:rw
       # Project workspaces (host path)
-      - ~/.hotplex/instances/$HOTPLEX_BOT_ID/projects:/home/hotplex/projects:rw
+      - ~/.hotplex/instances/%s/projects:/home/hotplex/projects:rw
     labels:
-      - "hotplex.bot.id=$HOTPLEX_BOT_ID"
-      - "hotplex.bot.role=$BOT_ROLE"
-EOF
+      - \"hotplex.bot.id=%s\"
+      - \"hotplex.bot.role=%s\"
+" "$BOT_PADDED_INDEX" "$ROLE_DISPLAY" "$SERVICE_NAME" "$SERVICE_NAME" \
+  "$PORT" "$ENV_FILE" "$CLAUDE_VOLUME" "$BUILD_VOLUME" \
+  "$HOTPLEX_BOT_ID" "$HOTPLEX_BOT_ID" "$HOTPLEX_BOT_ID" "$BOT_ROLE")
+
+printf "\n%s\n" "$SERVICE_BLOCK" >> docker-compose.yml
 
 printf "  ${GREEN}✓${NC} Service ${BOLD}$SERVICE_NAME${NC} added to compose file.\n"
 
@@ -243,7 +254,7 @@ mkdir -p "$BOT_CONFIG_DIR/base"
 
 # Copy base templates from ../../configs/base/
 if [ -d "../../configs/base" ]; then
-    cp -r ../../configs/base/* "$BOT_CONFIG_DIR/base/ 2>/dev/null"
+    cp -r ../../configs/base/* "$BOT_CONFIG_DIR/base/" 2>/dev/null
     printf "  ${GREEN}✓${NC} Copied base templates to ${BOLD}$BOT_CONFIG_DIR/base/${NC}\n"
 else
     printf "  ${YELLOW}⚠${NC} Base templates not found at ../../configs/base, skipping.\n"
