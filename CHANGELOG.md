@@ -1,5 +1,14 @@
 # CHANGELOG.md
 
+## [v0.31.7] - 2026-03-19
+
+### Fixed
+- **Docker Matrix** - Removed GitHub token env var references to prevent token leakage in docker-compose output:
+  - Token environment variables should be injected via env_file (.env-01/.env-02/.env-03)
+  - Avoids exposing tokens in docker-compose process listings
+
+---
+
 ## [v0.31.6] - 2026-03-19
 
 ### Added
