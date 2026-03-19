@@ -375,27 +375,26 @@ func (c *StreamCallback) resetIdleTimer() {
 		c.idleTimer.Stop()
 	}
 
-	// Capture current status for closure
-	currentStatus := c.currentStatus
+	// Capture trigger status before timer fires - avoid race with status changes during 3s window
+	triggerStatus := c.currentStatus
 
 	c.idleTimer = time.AfterFunc(3*time.Second, func() {
 		c.mu.Lock()
 		finished := c.isFinished
-		stillCurrentStatus := c.currentStatus
 		c.mu.Unlock()
 
 		if finished {
 			return
 		}
 
-		// Don't send fallback thinking if still in tool execution state
-		// Tool execution typically takes longer, so we preserve the tool status
-		if stillCurrentStatus == base.MessageTypeToolUse || stillCurrentStatus == base.MessageTypeToolResult {
-			c.logger.Debug("Skipping fallback thinking - tool execution in progress", "session_id", c.sessionID, "status", stillCurrentStatus)
+		// Don't send fallback thinking if session entered tool execution state during the 3s window
+		// We check triggerStatus (captured at timer set) not currentStatus (which may have changed)
+		if triggerStatus == base.MessageTypeToolUse || triggerStatus == base.MessageTypeToolResult {
+			c.logger.Debug("Skipping fallback thinking - tool execution in progress", "session_id", c.sessionID, "trigger_status", triggerStatus)
 			return
 		}
 
-		c.logger.Debug("Session idle for 3s, sending fallback thinking status", "session_id", c.sessionID, "previous_status", currentStatus)
+		c.logger.Debug("Session idle for 3s, sending fallback thinking status", "session_id", c.sessionID, "previous_status", triggerStatus)
 		if err := c.updateStatusMessage(base.MessageTypeThinking, StatusThinkingLabel); err != nil {
 			c.logger.Warn("Failed to update status for idle thinking fallback", "error", err)
 		}
