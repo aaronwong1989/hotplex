@@ -697,6 +697,7 @@ func (c *StreamCallback) convertToChatMessage(msg *base.ChatMessage) *ChatMessag
 
 func (c *StreamCallback) handleToolUse(data any) error {
 	toolName := string(provider.EventTypeToolUse)
+	var inputSummary string
 	if m, ok := data.(*event.EventWithMeta); ok {
 		if m.Meta != nil && m.Meta.ToolName != "" {
 			toolName = m.Meta.ToolName
@@ -704,18 +705,64 @@ func (c *StreamCallback) handleToolUse(data any) error {
 			c.lastToolName = toolName
 			c.mu.Unlock()
 		}
+		if m.Meta != nil {
+			inputSummary = m.Meta.InputSummary
+		}
 	}
 
-	// UI Native: tool_use is now status-only with categorized emoji
-	category := base.CategorizeTool(toolName)
-	statusText := fmt.Sprintf(base.CategoryStatusLabel(category), toolName)
-	c.logger.Debug("Tool use status generated", "tool_name", toolName, "category", category, "status_text", statusText)
+	// Build precise status text based on tool type
+	statusText := buildToolUseStatusText(toolName, inputSummary)
+	c.logger.Debug("Tool use status generated", "tool_name", toolName, "input_summary", inputSummary, "status_text", statusText)
 	if err := c.updateStatusMessage(base.MessageTypeToolUse, statusText); err != nil {
 		c.logger.Warn("Failed to update status for tool_use", "error", err)
 	}
 
-	c.logger.Debug("Processed tool use (status-only)", "tool_name", toolName, "category", category)
+	c.logger.Debug("Processed tool use (status-only)", "tool_name", toolName)
 	return nil
+}
+
+// buildToolUseStatusText generates a concise status text for tool use events.
+// Format: {emoji} {tool_name} | {input_summary} (max 50 chars total)
+// Examples:
+//   - Bash: "⚡ bash | git status"
+//   - Git: "🌿 git commit | fix: bug"
+//   - Skill: "🧩 skill/simplify"
+//   - Default: "⚙️ {category} | {input_summary}" or "⚙️ {category} [{tool_name}]"
+func buildToolUseStatusText(toolName, inputSummary string) string {
+	const maxLen = 50
+
+	category := base.CategorizeTool(toolName)
+	emoji := base.CategoryEmoji(category)
+
+	// For skill tools, show skill name directly
+	if strings.HasPrefix(strings.ToLower(toolName), "skill:") {
+		skillName := strings.TrimPrefix(toolName, "skill:")
+		return fmt.Sprintf("%s skill/%s", emoji, skillName)
+	}
+
+	// If we have input summary, use it for a more informative display
+	if inputSummary != "" {
+		// Truncate input summary if needed
+		summary := inputSummary
+		if len(summary) > maxLen-10 {
+			summary = summary[:maxLen-10] + "…"
+		}
+
+		// Format: emoji tool_name | summary
+		text := fmt.Sprintf("%s %s | %s", emoji, toolName, summary)
+		if len(text) <= maxLen {
+			return text
+		}
+
+		// If still too long, truncate the whole thing
+		if len(text) > maxLen {
+			text = text[:maxLen-1] + "…"
+		}
+		return text
+	}
+
+	// Fallback to category-based status
+	return fmt.Sprintf(base.CategoryStatusLabel(category), toolName)
 }
 
 func (c *StreamCallback) handleToolResult(data any) error {

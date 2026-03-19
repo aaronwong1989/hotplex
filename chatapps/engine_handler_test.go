@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/hrygo/hotplex/chatapps/base"
@@ -244,5 +245,75 @@ func TestHandleToolResult_NilMeta(t *testing.T) {
 	// Verify status was updated with fallback tool name
 	if !mockStatus.updateCalled {
 		t.Error("Status should be updated for event with content")
+	}
+}
+
+// TestBuildToolUseStatusText tests the buildToolUseStatusText function.
+func TestBuildToolUseStatusText(t *testing.T) {
+	tests := []struct {
+		name         string
+		toolName     string
+		inputSummary string
+		wantContains string
+		wantMaxLen   int
+	}{
+		{
+			name:         "bash with command",
+			toolName:     "Bash",
+			inputSummary: "git status",
+			wantContains: "git status",
+			wantMaxLen:   50,
+		},
+		{
+			name:         "git with commit",
+			toolName:     "git_commit",
+			inputSummary: "fix: resolve bug",
+			wantContains: "fix: resolve bug",
+			wantMaxLen:   50,
+		},
+		{
+			name:         "skill tool",
+			toolName:     "skill:simplify",
+			inputSummary: "",
+			wantContains: "skill/simplify",
+			wantMaxLen:   50,
+		},
+		{
+			name:         "file read with path",
+			toolName:     "Read",
+			inputSummary: "file: /path/to/main.go",
+			wantContains: "file: /path/to/main.go",
+			wantMaxLen:   50,
+		},
+		{
+			name:         "long command truncated",
+			toolName:     "Bash",
+			inputSummary: "git log --oneline --graph --all --decorate --color",
+			wantContains: "…",
+			wantMaxLen:   60, // emoji + tool + | + long truncated summary
+		},
+		{
+			name:         "no input summary fallback",
+			toolName:     "RandomTool",
+			inputSummary: "",
+			wantContains: "RandomTool",
+			wantMaxLen:   50,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildToolUseStatusText(tt.toolName, tt.inputSummary)
+
+			// Check max length
+			if len(result) > tt.wantMaxLen {
+				t.Errorf("buildToolUseStatusText() length %d exceeds max %d: %q", len(result), tt.wantMaxLen, result)
+			}
+
+			// Check contains expected text
+			if tt.wantContains != "" && !strings.Contains(result, tt.wantContains) {
+				t.Errorf("buildToolUseStatusText() should contain %q, got: %q", tt.wantContains, result)
+			}
+		})
 	}
 }

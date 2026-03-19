@@ -203,7 +203,7 @@ func TestCategoryStatusLabel(t *testing.T) {
 		{"agent", ToolCategoryAgent, "委派"},
 		{"skill", ToolCategorySkill, "技能"},
 		{"notebook", ToolCategoryNotebook, "笔记本"},
-		{"git", ToolCategoryGit, "版本"},
+		{"git", ToolCategoryGit, "操作"},
 		{"test", ToolCategoryTest, "测试"},
 		{"debug", ToolCategoryDebug, "调试"},
 		{"browser", ToolCategoryBrowser, "浏览"},
