@@ -26,6 +26,8 @@ type StreamMessage struct {
 	Permission *PermissionDetail          `json:"permission,omitempty"`
 	Decision   *DecisionDetail            `json:"decision,omitempty"`
 	ModelUsage map[string]ModelUsageStats `json:"modelUsage,omitempty"`
+	// PermissionDenials contains tools that were denied by user (Claude Code stop_reason="tool_disallowed")
+	PermissionDenials []PermissionDeniedDetail `json:"permission_denials,omitempty"`
 }
 
 // ModelUsageStats represents the token consumption per model.
@@ -119,4 +121,13 @@ func NewEventWithMeta(eventType, eventData string, meta *EventMeta) *EventWithMe
 		EventData: eventData,
 		Meta:      meta,
 	}
+}
+
+// PermissionDeniedDetail represents a tool permission denial in Claude Code's result event.
+// This is embedded in the "result" type event's permission_denials array when
+// the user denies a tool execution request (stop_reason="tool_disallowed").
+type PermissionDeniedDetail struct {
+	ToolName  string         `json:"tool_name"`            // Name of the denied tool (e.g., "Edit", "Bash")
+	ToolUseID string         `json:"tool_use_id"`          // Unique ID for correlating with tool_use event
+	ToolInput map[string]any `json:"tool_input,omitempty"` // The tool input that was denied
 }

@@ -739,6 +739,19 @@ func (r *Engine) dispatchNormalizedCallback(pevt *provider.ProviderEvent, callba
 		}
 		return callback("ask_user_question", event.NewEventWithMeta("ask_user_question", pevt.Content, meta))
 
+	case provider.EventTypePermissionDenied:
+		// Permission denied - tool execution was rejected by user
+		r.logger.Info("[RUNNER] Permission denied event received",
+			"session_id", pevt.SessionID,
+			"tool_name", pevt.ToolName,
+			"tool_id", pevt.ToolID)
+		meta := &event.EventMeta{
+			ToolName:        pevt.ToolName,
+			ToolID:          pevt.ToolID,
+			TotalDurationMs: totalDur,
+		}
+		return callback("permission_denied", event.NewEventWithMeta("permission_denied", pevt.Content, meta))
+
 	default:
 		// Fallback for other event types
 		if pevt.Content != "" {

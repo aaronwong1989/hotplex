@@ -319,3 +319,118 @@ func TestPermissionRequestResponseIntegration(t *testing.T) {
 
 	t.Logf("Integration test passed: Request parsed correctly, response format validated")
 }
+
+// TestPermissionDenials_Parse validates the permission_denials field in result events.
+// This is the new format used when Claude Code stop_reason="tool_disallowed".
+// Reference: Claude Code permission_denials in type="result" events
+func TestPermissionDenials_Parse(t *testing.T) {
+	tests := []struct {
+		name            string
+		input           string
+		wantDenialCount int
+		wantToolNames   []string
+		wantToolUseIDs  []string
+	}{
+		{
+			name: "result with single permission denial",
+			input: `{
+				"type": "result",
+				"result": "Tool 'Edit' permission denied",
+				"session_id": "c8418a03-b679-5dcc-bcde-dda4f38da44f",
+				"permission_denials": [
+					{
+						"tool_name": "Edit",
+						"tool_use_id": "call_function_abc123",
+						"tool_input": {"file_path": "/Users/user/.zshrc", "old_string": "old token", "new_string": "new token"}
+					}
+				]
+			}`,
+			wantDenialCount: 1,
+			wantToolNames:   []string{"Edit"},
+			wantToolUseIDs:  []string{"call_function_abc123"},
+		},
+		{
+			name: "result with multiple permission denials (AskUserQuestion + Edit + Edit)",
+			input: `{
+				"type": "result",
+				"result": "Waiting for permission approval...",
+				"session_id": "c8418a03-b679-5dcc-bcde-dda4f38da44f",
+				"permission_denials": [
+					{
+						"tool_name": "AskUserQuestion",
+						"tool_use_id": "call_function_iyhdvqe9p04y_1",
+						"tool_input": {"questions": [{"header": "Shell Profile"}]}
+					},
+					{
+						"tool_name": "Edit",
+						"tool_use_id": "call_function_fxjuemzoghzo_1",
+						"tool_input": {"file_path": "/Users/huangzhonghui/.zshrc"}
+					},
+					{
+						"tool_name": "Edit",
+						"tool_use_id": "call_function_fxjuemzoghzo_2",
+						"tool_input": {"file_path": "/Users/huangzhonghui/.zprofile"}
+					}
+				]
+			}`,
+			wantDenialCount: 3,
+			wantToolNames:   []string{"AskUserQuestion", "Edit", "Edit"},
+			wantToolUseIDs:  []string{"call_function_iyhdvqe9p04y_1", "call_function_fxjuemzoghzo_1", "call_function_fxjuemzoghzo_2"},
+		},
+		{
+			name: "result without permission denials",
+			input: `{
+				"type": "result",
+				"result": "Task completed successfully",
+				"session_id": "sess_123"
+			}`,
+			wantDenialCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var msg StreamMessage
+			if err := json.Unmarshal([]byte(tt.input), &msg); err != nil {
+				t.Fatalf("Failed to unmarshal: %v", err)
+			}
+
+			if len(msg.PermissionDenials) != tt.wantDenialCount {
+				t.Errorf("PermissionDenials count = %d, want %d", len(msg.PermissionDenials), tt.wantDenialCount)
+			}
+
+			for i, denial := range msg.PermissionDenials {
+				if i < len(tt.wantToolNames) && denial.ToolName != tt.wantToolNames[i] {
+					t.Errorf("Denial[%d].ToolName = %q, want %q", i, denial.ToolName, tt.wantToolNames[i])
+				}
+				if i < len(tt.wantToolUseIDs) && denial.ToolUseID != tt.wantToolUseIDs[i] {
+					t.Errorf("Denial[%d].ToolUseID = %q, want %q", i, denial.ToolUseID, tt.wantToolUseIDs[i])
+				}
+			}
+		})
+	}
+}
+
+// TestPermissionDeniedDetail_JSON validates the JSON serialization of PermissionDeniedDetail.
+func TestPermissionDeniedDetail_JSON(t *testing.T) {
+	input := `{
+		"tool_name": "Bash",
+		"tool_use_id": "call_123",
+		"tool_input": {"command": "rm -rf /tmp/*"}
+	}`
+
+	var denial PermissionDeniedDetail
+	if err := json.Unmarshal([]byte(input), &denial); err != nil {
+		t.Fatalf("Failed to unmarshal: %v", err)
+	}
+
+	if denial.ToolName != "Bash" {
+		t.Errorf("ToolName = %q, want %q", denial.ToolName, "Bash")
+	}
+	if denial.ToolUseID != "call_123" {
+		t.Errorf("ToolUseID = %q, want %q", denial.ToolUseID, "call_123")
+	}
+	if denial.ToolInput == nil {
+		t.Error("ToolInput should not be nil")
+	}
+}
