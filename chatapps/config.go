@@ -602,8 +602,15 @@ func (c *ConfigLoader) Load(configDir string) error {
 		}
 
 		if cfg.Platform == "" {
-			c.logger.Warn("Config missing platform field", "file", filename)
-			continue
+			// Infer platform from filename (e.g., "slack.yaml" → "slack")
+			inferredPlatform := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+			if inferredPlatform != "" {
+				c.logger.Warn("Config missing platform field, inferring from filename", "file", filename, "platform", inferredPlatform)
+				cfg.Platform = inferredPlatform
+			} else {
+				c.logger.Warn("Config missing platform field", "file", filename)
+				continue
+			}
 		}
 
 		c.mu.Lock()

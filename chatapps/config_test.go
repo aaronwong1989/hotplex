@@ -849,6 +849,77 @@ platform: slack
 	}
 }
 
+// TestPlatformInferenceFromFilename tests that platform is inferred from filename when missing
+func TestPlatformInferenceFromFilename(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Config WITHOUT platform field — should be inferred from filename "slack.yaml"
+	config := `
+mode: socket
+system_prompt: "Test config"
+engine:
+  timeout: 30m
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "slack.yaml"), []byte(config), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Failed to create config loader: %v", err)
+	}
+
+	cfg := loader.GetConfig("slack")
+	if cfg == nil {
+		t.Fatal("Expected slack config to be loaded via filename inference")
+	}
+
+	// Platform should be inferred from filename
+	if cfg.Platform != "slack" {
+		t.Errorf("Expected Platform 'slack' (inferred from filename), got '%s'", cfg.Platform)
+	}
+	if cfg.Mode != "socket" {
+		t.Errorf("Expected Mode 'socket', got '%s'", cfg.Mode)
+	}
+}
+
+// TestPlatformInferenceFromFilenameNonStandardName tests inference with non-standard platform names
+func TestPlatformInferenceFromFilenameNonStandardName(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hotplex-config-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Config with "my.custom-platform" in filename
+	config := `
+mode: http
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "my.custom-platform.yaml"), []byte(config), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	loader, err := NewConfigLoader(tmpDir, logger)
+	if err != nil {
+		t.Fatalf("Failed to create config loader: %v", err)
+	}
+
+	// Platform inferred from filename should match the base name without extension
+	cfg := loader.GetConfig("my.custom-platform")
+	if cfg == nil {
+		t.Fatal("Expected config to be loaded via filename inference")
+	}
+	if cfg.Platform != "my.custom-platform" {
+		t.Errorf("Expected Platform 'my.custom-platform', got '%s'", cfg.Platform)
+	}
+}
+
 // TestEnvVarUndefined tests that undefined env vars expand to empty string
 func TestEnvVarUndefined(t *testing.T) {
 	// Ensure env var is not set

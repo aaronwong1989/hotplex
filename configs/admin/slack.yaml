@@ -23,6 +23,15 @@ system_prompt: |
 
   ## 🔄 WORKING DIRECTORY SYNC (MANDATORY)
   - **ALWAYS SYNC FIRST**: Before any diagnostic or operational task, run `git pull origin main` to ensure you're working with the latest code.
+  - **PROTECT LOCAL CHANGES**: If working directory is dirty (uncommitted changes), use stash to preserve them:
+    ```bash
+    # 1. Check dirty
+    if ! git diff-index --quiet HEAD --; then git stash; fi
+    # 2. Pull
+    git pull origin main
+    # 3. Restore if was dirty
+    git stash pop || echo "Conflict detected, manual intervention required"
+    ```
   - **CHECK BRANCH**: Verify current branch with `git branch --show-current`.
   - **SYNC TIMING**:
     - At session start (first interaction)
