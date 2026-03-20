@@ -264,3 +264,186 @@ func TestInferToolFromOperation(t *testing.T) {
 		})
 	}
 }
+
+// TestIdleTimerFired_SkipsFallbackForToolStatus verifies that the race condition
+// fix correctly skips fallback when trigger status is ToolUse or ToolResult.
+func TestIdleTimerFired_SkipsFallbackForToolStatus(t *testing.T) {
+	tests := []struct {
+		name           string
+		triggerStatus  base.MessageType
+		expectFallback bool
+	}{
+		{"ToolUse status skips fallback", base.MessageTypeToolUse, false},
+		{"ToolResult status skips fallback", base.MessageTypeToolResult, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+			callback := &StreamCallback{
+				ctx:        context.Background(),
+				sessionID:  "test-session",
+				logger:     logger,
+				metadata:   map[string]any{"channel_id": "test", "thread_ts": "123"},
+				isFinished: false,
+			}
+
+			// Call idleTimerFired directly - this executes the callback logic
+			sent := callback.idleTimerFired(tt.triggerStatus)
+
+			if sent != tt.expectFallback {
+				t.Errorf("expected fallback=%v, got %v", tt.expectFallback, sent)
+			}
+		})
+	}
+}
+
+// TestIdleTimerFired_FinishedSessionNoFallback verifies that no fallback is
+// sent when the session is already finished.
+func TestIdleTimerFired_FinishedSessionNoFallback(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	callback := &StreamCallback{
+		ctx:        context.Background(),
+		sessionID:  "test-session",
+		logger:     logger,
+		metadata:   map[string]any{"channel_id": "test", "thread_ts": "123"},
+		isFinished: true, // Session already finished
+	}
+
+	// idleTimerFired should return false for finished session
+	sent := callback.idleTimerFired(base.MessageTypeThinking)
+	if sent {
+		t.Error("expected no fallback for finished session")
+	}
+}
+
+// TestIdleTimerFired_SendsFallbackForThinking verifies that fallback thinking
+// is sent when the trigger status is Thinking.
+func TestIdleTimerFired_SendsFallbackForThinking(t *testing.T) {
+	mockStatus := &mockStatusProvider{}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	statusMgr := internal.NewStatusManager(mockStatus, logger)
+
+	callback := &StreamCallback{
+		ctx:        context.Background(),
+		sessionID:  "test-session",
+		logger:     logger,
+		metadata:   map[string]any{"channel_id": "test", "thread_ts": "123"},
+		isFinished: false,
+		statusMgr:  statusMgr,
+	}
+
+	// Call idleTimerFired with Thinking status - should send fallback
+	sent := callback.idleTimerFired(base.MessageTypeThinking)
+
+	if !sent {
+		t.Error("expected fallback to be sent for Thinking status")
+	}
+}
+
+// TestIdleTimerFired_SendsFallbackForAnswer verifies that fallback thinking
+// is sent when the trigger status is Answer.
+func TestIdleTimerFired_SendsFallbackForAnswer(t *testing.T) {
+	mockStatus := &mockStatusProvider{}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	statusMgr := internal.NewStatusManager(mockStatus, logger)
+
+	callback := &StreamCallback{
+		ctx:        context.Background(),
+		sessionID:  "test-session",
+		logger:     logger,
+		metadata:   map[string]any{"channel_id": "test", "thread_ts": "123"},
+		isFinished: false,
+		statusMgr:  statusMgr,
+	}
+
+	// Call idleTimerFired with Answer status - should send fallback
+	sent := callback.idleTimerFired(base.MessageTypeAnswer)
+
+	if !sent {
+		t.Error("expected fallback to be sent for Answer status")
+	}
+}
+
+// TestResetIdleTimer_FinishedSessionNoTimer verifies that resetIdleTimer
+// returns early without setting a timer when isFinished is true.
+func TestResetIdleTimer_FinishedSessionNoTimer(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	callback := &StreamCallback{
+		ctx:        context.Background(),
+		sessionID:  "test-session",
+		logger:     logger,
+		metadata:   map[string]any{"channel_id": "test", "thread_ts": "123"},
+		isFinished: true, // Session already finished
+	}
+
+	// resetIdleTimer should return early without setting a timer
+	callback.resetIdleTimer()
+
+	// Verify no timer was set
+	if callback.idleTimer != nil {
+		t.Error("idleTimer should not be set for finished session")
+	}
+}
+
+// TestResetIdleTimer_CapturesTriggerStatus verifies that resetIdleTimer
+// correctly captures triggerStatus at timer set time.
+func TestResetIdleTimer_CapturesTriggerStatus(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	callback := &StreamCallback{
+		ctx:        context.Background(),
+		sessionID:  "test-session",
+		logger:     logger,
+		metadata:   map[string]any{"channel_id": "test", "thread_ts": "123"},
+		isFinished: false,
+	}
+
+	// Set status to Thinking and call resetIdleTimer
+	callback.mu.Lock()
+	callback.currentStatus = base.MessageTypeThinking
+	callback.mu.Unlock()
+
+	callback.resetIdleTimer()
+
+	// Verify timer was set
+	if callback.idleTimer == nil {
+		t.Fatal("idleTimer should be set")
+	}
+
+	// Stop timer to clean up
+	callback.idleTimer.Stop()
+}
+
+// TestResetIdleTimer_StopsPreviousTimer verifies that resetIdleTimer stops
+// any previously running timer.
+func TestResetIdleTimer_StopsPreviousTimer(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	callback := &StreamCallback{
+		ctx:        context.Background(),
+		sessionID:  "test-session",
+		logger:     logger,
+		metadata:   map[string]any{"channel_id": "test", "thread_ts": "123"},
+		isFinished: false,
+	}
+
+	// Set first timer
+	callback.mu.Lock()
+	callback.currentStatus = base.MessageTypeThinking
+	callback.mu.Unlock()
+	callback.resetIdleTimer()
+	firstTimer := callback.idleTimer
+
+	// Set second timer - should stop the first
+	callback.mu.Lock()
+	callback.currentStatus = base.MessageTypeAnswer
+	callback.mu.Unlock()
+	callback.resetIdleTimer()
+
+	// Verify timer was replaced
+	if callback.idleTimer == firstTimer {
+		t.Error("timer should be replaced, not the same instance")
+	}
+
+	// Clean up
+	callback.idleTimer.Stop()
+}

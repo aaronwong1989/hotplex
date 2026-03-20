@@ -366,6 +366,26 @@ func (c *StreamCallback) getEngine() Engine {
 	return c.engine
 }
 
+// idleTimerFired is the callback for the idle timer. Extracted for testability.
+// Returns true if fallback thinking was sent, false if skipped (tool execution or finished).
+func (c *StreamCallback) idleTimerFired(triggerStatus base.MessageType) bool {
+	if c.isFinished {
+		return false
+	}
+
+	// Don't send fallback thinking if trigger was tool execution state
+	if triggerStatus == base.MessageTypeToolUse || triggerStatus == base.MessageTypeToolResult {
+		c.logger.Debug("Skipping fallback thinking - tool execution in progress", "session_id", c.sessionID, "trigger_status", triggerStatus)
+		return false
+	}
+
+	c.logger.Debug("Session idle for 3s, sending fallback thinking status", "session_id", c.sessionID, "previous_status", triggerStatus)
+	if err := c.updateStatusMessage(base.MessageTypeThinking, StatusThinkingLabel); err != nil {
+		c.logger.Warn("Failed to update status for idle thinking fallback", "error", err)
+	}
+	return true
+}
+
 // resetIdleTimer resets the 3-second generic thinking fallback timer
 // Only triggers fallback if session is truly idle (not in tool execution state)
 func (c *StreamCallback) resetIdleTimer() {
@@ -380,30 +400,14 @@ func (c *StreamCallback) resetIdleTimer() {
 		c.idleTimer.Stop()
 	}
 
-	// Capture current status for closure
-	currentStatus := c.currentStatus
+	// Capture trigger status before timer fires - avoid race with status changes during 3s window
+	triggerStatus := c.currentStatus
 
 	c.idleTimer = time.AfterFunc(3*time.Second, func() {
-		c.mu.Lock()
-		finished := c.isFinished
-		stillCurrentStatus := c.currentStatus
-		c.mu.Unlock()
-
-		if finished {
+		if c.isFinished {
 			return
 		}
-
-		// Don't send fallback thinking if still in tool execution state
-		// Tool execution typically takes longer, so we preserve the tool status
-		if stillCurrentStatus == base.MessageTypeToolUse || stillCurrentStatus == base.MessageTypeToolResult {
-			c.logger.Debug("Skipping fallback thinking - tool execution in progress", "session_id", c.sessionID, "status", stillCurrentStatus)
-			return
-		}
-
-		c.logger.Debug("Session idle for 3s, sending fallback thinking status", "session_id", c.sessionID, "previous_status", currentStatus)
-		if err := c.updateStatusMessage(base.MessageTypeThinking, StatusThinkingLabel); err != nil {
-			c.logger.Warn("Failed to update status for idle thinking fallback", "error", err)
-		}
+		c.idleTimerFired(triggerStatus)
 	})
 }
 
