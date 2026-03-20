@@ -7,6 +7,7 @@ import (
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/hrygo/hotplex/engine"
 	"github.com/hrygo/hotplex/event"
+	"github.com/hrygo/hotplex/internal/permission"
 	"github.com/hrygo/hotplex/types"
 )
 
@@ -26,6 +27,7 @@ type Engine interface {
 	GetAllowedTools() []string
 	GetDisallowedTools() []string
 	GetOptions() engine.EngineOptions
+	PermissionMatcher() *permission.PermissionMatcher
 }
 
 // Session abstracts session state and operations

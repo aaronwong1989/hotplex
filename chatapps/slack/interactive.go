@@ -81,6 +81,15 @@ func (a *Adapter) handleBlockActions(callback *SlackInteractionCallback, w http.
 
 	actionID := action.ActionID
 
+	// New permission action IDs: perm_allow_once, perm_allow_always, perm_deny_once, perm_deny_all
+	if strings.HasPrefix(actionID, "perm_allow_once:") ||
+		strings.HasPrefix(actionID, "perm_allow_always:") ||
+		strings.HasPrefix(actionID, "perm_deny_once:") ||
+		strings.HasPrefix(actionID, "perm_deny_all:") {
+		a.handleNewPermissionCallback(callback, action, w)
+		return
+	}
+
 	if strings.HasPrefix(actionID, "perm_allow:") || strings.HasPrefix(actionID, "perm_deny:") {
 		a.handlePermissionCallback(callback, action, w)
 		return
@@ -223,6 +232,109 @@ func (a *Adapter) handlePermissionCallback(callback *SlackInteractionCallback, a
 		"session_id", sessionID,
 		"message_id", messageID,
 	)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleNewPermissionCallback handles the new 4-button permission flow.
+// ActionID format: perm_{action}:{sessionID}:{messageID}
+// action ∈ {allow_once, allow_always, deny_once, deny_all}
+func (a *Adapter) handleNewPermissionCallback(callback *SlackInteractionCallback, action SlackAction, w http.ResponseWriter) {
+	userID := callback.User.ID
+	channelID := callback.Channel.ID
+	messageTS := callback.Message.Ts
+	actionID := action.ActionID
+
+	a.Logger().Info("New permission callback received",
+		"user_id", userID,
+		"channel_id", channelID,
+		"action_id", actionID,
+	)
+
+	// Parse actionID: perm_{action}:{sessionID}:{messageID}
+	parts := strings.Split(actionID, ":")
+	if len(parts) != 3 {
+		a.Logger().Error("Invalid permission action_id", "action_id", actionID)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	fullAction := parts[0] // e.g. "perm_allow_once"
+	sessionID := parts[1]
+	msgID := parts[2]
+
+	// Extract actual action (strip "perm_" prefix)
+	actionType := strings.TrimPrefix(fullAction, "perm_")
+
+	// Retrieve tool+command from in-memory context (stored when card was built)
+	toolCmd, hasCtx := base.LoadPermissionContext(actionID)
+	if !hasCtx && (actionType == "allow_always" || actionType == "deny_all") {
+		a.Logger().Warn("No permission context found for actionID, skipping persistence", "action_id", actionID)
+	}
+
+	// Determine behavior (allow/deny) and persist decision
+	var behavior string
+	if actionType == "allow_once" || actionType == "allow_always" {
+		behavior = "allow"
+	} else {
+		behavior = "deny"
+	}
+
+	// CRITICAL: Resolve pending permission registry BEFORE WriteInput.
+	// This unblocks the goroutine in engine_handler.go that waits for user decision.
+	decision := base.PermissionDecision{Allow: behavior == "allow", Reason: actionType}
+	if resolved := base.GlobalPermissionRegistry.ResolvePermission(sessionID, decision); !resolved {
+		a.Logger().Warn("No pending permission found in registry, WriteInput may not be received",
+			"session_id", sessionID)
+	}
+
+	// Send to engine via session input
+	if a.eng != nil {
+		if sess, ok := a.eng.GetSession(sessionID); ok {
+			response := map[string]any{
+				"type":       "permission_response",
+				"message_id": msgID,
+				"behavior":   behavior,
+			}
+			_ = sess.WriteInput(response)
+		}
+	}
+
+	// Persist whitelist/blacklist for _always/_all variants
+	// Note: botID must match the bot's own userID (e.g. "U0AHRCL1KCM"), not "platform_userID".
+	// Slack adapter exposes botID via a.config.BotUserID.
+	botID := a.config.BotUserID
+	if a.eng != nil && (actionType == "allow_always" || actionType == "deny_all") && hasCtx {
+		pm := a.eng.PermissionMatcher()
+		if pm != nil {
+			if actionType == "allow_always" {
+				_ = pm.AddWhitelist(botID, toolCmd, userID)
+				// Allow Always: add tool to AllowedTools for new sessions.
+				// Note: current running session is unaffected (AllowedTools is applied at
+				// session startup); only sessions started after this call see the update.
+				toolName := strings.SplitN(toolCmd, ":", 2)[0]
+				allowedTools := a.eng.GetAllowedTools()
+				found := false
+				for _, t := range allowedTools {
+					if t == toolName {
+						found = true
+						break
+					}
+				}
+				if !found {
+					a.eng.SetAllowedTools(append(allowedTools, toolName))
+				}
+			} else {
+				_ = pm.AddBlacklist(botID, toolCmd, userID)
+			}
+		}
+	}
+
+	// Update card to result state
+	blocks := BuildPermissionResultBlocks(actionType, "", "")
+	if err := a.UpdateMessageSDK(context.Background(), channelID, messageTS, blocks, ""); err != nil {
+		a.Logger().Error("Update permission result card failed", "cause", err)
+	}
 
 	w.WriteHeader(http.StatusOK)
 }

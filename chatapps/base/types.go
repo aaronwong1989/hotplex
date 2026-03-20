@@ -68,6 +68,9 @@ const (
 	MessageTypeUserMessageReceived MessageType = "user_message_received"
 	// MessageTypePermissionRequest indicates a permission request from Claude Code
 	MessageTypePermissionRequest MessageType = "permission_request"
+	// MessageTypePermissionDenials indicates a dangerous operation intercepted by WAF
+	// awaiting user permission decision via interactive card.
+	MessageTypePermissionDenials MessageType = "permission_denials"
 )
 
 type ChatMessage struct {

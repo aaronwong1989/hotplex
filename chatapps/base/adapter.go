@@ -518,3 +518,9 @@ func (a *Adapter) StopStream(ctx context.Context, channelID, messageTS string) e
 type EngineSupport interface {
 	SetEngine(eng *engine.Engine)
 }
+
+// FeishuEngineSupport defines optional interface for Feishu adapters that need
+// engine + botID injection for permission management.
+type FeishuEngineSupport interface {
+	SetEngineWithBotID(eng *engine.Engine, botID string)
+}

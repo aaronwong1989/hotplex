@@ -10,6 +10,7 @@ import (
 
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/hrygo/hotplex/chatapps/command"
+	"github.com/hrygo/hotplex/engine"
 )
 
 // Adapter implements the Feishu (Lark) chat adapter
@@ -113,6 +114,18 @@ func (a *Adapter) SendMessage(ctx context.Context, sessionID string, msg *base.C
 // SetSender sets the message sender function
 func (a *Adapter) SetSender(fn func(ctx context.Context, sessionID string, msg *base.ChatMessage) error) {
 	a.sender.SetSender(fn)
+}
+
+// SetEngine implements base.EngineSupport (engine injection only).
+func (a *Adapter) SetEngine(eng *engine.Engine) {
+	a.SetEngineWithBotID(eng, "")
+}
+
+// SetEngineWithBotID implements base.FeishuEngineSupport.
+func (a *Adapter) SetEngineWithBotID(eng *engine.Engine, botID string) {
+	if a.interactiveHandler != nil {
+		a.interactiveHandler.SetEngine(eng, botID)
+	}
 }
 
 // NewStreamWriter creates a new streaming writer for Feishu messages

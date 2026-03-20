@@ -13,6 +13,7 @@ import (
 	"github.com/hrygo/hotplex/engine"
 	"github.com/hrygo/hotplex/event"
 	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/internal/permission"
 	"github.com/hrygo/hotplex/internal/strutil"
 	"github.com/hrygo/hotplex/provider"
 	"github.com/hrygo/hotplex/types"
@@ -159,6 +160,10 @@ func (w *engineWrapper) GetAllowedTools() []string {
 
 func (w *engineWrapper) GetDisallowedTools() []string {
 	return w.eng.GetDisallowedTools()
+}
+
+func (w *engineWrapper) PermissionMatcher() *permission.PermissionMatcher {
+	return w.eng.PermissionMatcher()
 }
 
 func (w *engineWrapper) GetOptions() engine.EngineOptions {
@@ -1453,9 +1458,9 @@ func (h *EngineMessageHandler) Handle(ctx context.Context, msg *ChatMessage) err
 	}
 
 	// ========================================
-	// WAF Pre-flight Check (Option C)
-	// Check for dangerous prompts BEFORE calling Engine.Execute().
-	// If blocked: render card → block on approval channel → resume or abort.
+	// WAF Pre-flight + Permission Check
+	// Check dangerous prompts BEFORE calling Engine.Execute().
+	// If WAF blocks: consult PermissionMatcher for whitelist/blacklist decision.
 	// ========================================
 	if blocked, operation, reason := h.engine.CheckDanger(msg.Content); blocked {
 		h.logger.Warn("WAF pre-flight: dangerous prompt intercepted",
@@ -1463,44 +1468,121 @@ func (h *EngineMessageHandler) Handle(ctx context.Context, msg *ChatMessage) err
 			"operation", operation,
 			"reason", reason)
 
-		// Render danger block card via the callback (reuses existing handleDangerBlock)
-		dangerData := map[string]any{
-			"operation": operation,
-			"reason":    reason,
+		// Extract tool name from the dangerous operation (best-effort inference)
+		toolName := inferToolFromOperation(operation)
+
+		// Check PermissionMatcher for permanent whitelist/blacklist
+		pm := h.engine.PermissionMatcher()
+		var decision permission.Decision
+		if pm != nil {
+			decision = pm.Check(msg.Platform, toolName, operation)
+		} else {
+			decision = permission.DecisionUnknown
 		}
-		if err := callback.Handle("danger_block", dangerData); err != nil {
-			h.logger.Error("Failed to render danger block card", "error", err)
-		}
 
-		// Register pending approval and block on user decision
-		approvalCh := base.GlobalDangerRegistry.Register(msg.SessionID)
-		defer base.GlobalDangerRegistry.Cancel(msg.SessionID)
+		switch decision {
+		case permission.DecisionAllow:
+			// Permanently whitelisted — skip WAF block and proceed
+			h.logger.Info("WAF pre-flight: tool is permanently whitelisted, allowing",
+				"session_id", msg.SessionID,
+				"tool", toolName,
+				"operation", operation)
+			cfg.WAFApproved = true
+			// Fall through to Engine.Execute() below
 
-		h.logger.Info("WAF pre-flight: blocking on user approval",
-			"session_id", msg.SessionID)
-
-		select {
-		case approved := <-approvalCh:
-			if approved {
-				h.logger.Info("WAF pre-flight: user approved dangerous prompt",
-					"session_id", msg.SessionID)
-				cfg.WAFApproved = true
-				// Fall through to Engine.Execute() below
-			} else {
-				h.logger.Info("WAF pre-flight: user denied dangerous prompt",
-					"session_id", msg.SessionID)
-				// Clear assistant status — operation cancelled
-				_ = callback.updateStatusMessage(base.MessageTypeSessionStats, "")
-				return nil // User denied — no error, operation simply cancelled
+		case permission.DecisionDeny:
+			// Permanently blacklisted — send danger block and abort
+			h.logger.Warn("WAF pre-flight: tool is permanently blacklisted, blocking",
+				"session_id", msg.SessionID,
+				"tool", toolName,
+				"operation", operation)
+			dangerData := map[string]any{
+				"operation": operation,
+				"reason":    reason + " (permission denied: permanently blocked)",
 			}
-		case <-ctx.Done():
-			h.logger.Warn("WAF pre-flight: context cancelled while waiting for approval",
-				"session_id", msg.SessionID)
-			return ctx.Err()
+			if err := callback.Handle("danger_block", dangerData); err != nil {
+				h.logger.Error("Failed to render danger block card", "error", err)
+			}
+			return nil
+
+		default:
+			// DecisionUnknown — send permission_denials and wait for one-time approval
+			h.logger.Info("WAF pre-flight: unknown permission, sending permission_denials",
+				"session_id", msg.SessionID,
+				"tool", toolName,
+				"operation", operation)
+
+			// Render permission card
+			permData := map[string]any{
+				"tool":       toolName,
+				"command":    operation,
+				"session_id": msg.SessionID,
+				"reason":     reason,
+			}
+			if err := callback.Handle("permission_denials", permData); err != nil {
+				h.logger.Error("Failed to render permission_denials card", "error", err)
+			}
+
+			// Register pending approval and block on user decision
+			approvalCh := base.GlobalPermissionRegistry.RegisterPermission(msg.SessionID)
+			defer base.GlobalPermissionRegistry.CancelPermission(msg.SessionID)
+
+			select {
+			case decision := <-approvalCh:
+				if decision.Allow {
+					h.logger.Info("WAF pre-flight: user approved dangerous prompt",
+						"session_id", msg.SessionID)
+					cfg.WAFApproved = true
+					// Fall through to Engine.Execute() below
+				} else {
+					h.logger.Info("WAF pre-flight: user denied dangerous prompt",
+						"session_id", msg.SessionID)
+					_ = callback.updateStatusMessage(base.MessageTypeSessionStats, "")
+					return nil
+				}
+			case <-ctx.Done():
+				h.logger.Warn("WAF pre-flight: context cancelled while waiting for approval",
+					"session_id", msg.SessionID)
+				return ctx.Err()
+			}
 		}
 	}
 
 	// Execute with Engine
+	// TOCTOU mitigation: re-run WAF check with the ACTUAL prompt before Execute().
+	// This prevents a race where a more dangerous prompt arrives between user approval
+	// and execution (cfg.WAFApproved=true is session-scoped, not prompt-scoped).
+	if blocked, operation, reason := h.engine.CheckDanger(msg.Content); blocked {
+		toolName := inferToolFromOperation(operation)
+		pm := h.engine.PermissionMatcher()
+		var decision permission.Decision
+		if pm != nil {
+			decision = pm.Check(msg.Platform, toolName, operation)
+		} else {
+			decision = permission.DecisionUnknown
+		}
+		switch decision {
+		case permission.DecisionAllow:
+			// Still whitelisted — proceed
+		case permission.DecisionDeny:
+			h.logger.Warn("Execute: prompt is now blacklisted, aborting",
+				"session_id", msg.SessionID,
+				"tool", toolName,
+				"operation", operation,
+				"reason", reason)
+			_ = callback.updateStatusMessage(base.MessageTypeSessionStats, "")
+			return nil
+		default:
+			h.logger.Warn("Execute: prompt requires fresh approval, aborting",
+				"session_id", msg.SessionID,
+				"tool", toolName,
+				"operation", operation,
+				"reason", reason)
+			_ = callback.updateStatusMessage(base.MessageTypeSessionStats, "")
+			return nil
+		}
+	}
+
 	h.logger.Info("Executing prompt via Engine",
 		"session_id", msg.SessionID,
 		"platform", msg.Platform,
@@ -1779,6 +1861,75 @@ func (c *StreamCallback) handlePermissionDenied(data any) error {
 	}
 	msg.Metadata = c.mergeMetadata(msg.Metadata)
 	return c.sendMessageAndGetTS(c.convertToChatMessage(msg))
+}
+
+// inferToolFromOperation extracts the tool name from a dangerous operation string.
+// The operation parameter comes from WAF's CheckDanger and typically contains
+// the command pattern (e.g., "rm -rf /some/path"). This infers the tool name
+// based on common command patterns.
+func inferToolFromOperation(operation string) string {
+	if operation == "" {
+		return ""
+	}
+	opLower := strings.ToLower(operation)
+
+	// File system operations
+	if strings.HasPrefix(opLower, "rm ") ||
+		strings.HasPrefix(opLower, "del ") ||
+		strings.HasPrefix(opLower, "remove ") ||
+		strings.Contains(opLower, " rm") ||
+		strings.Contains(opLower, " rm ") {
+		return "Bash"
+	}
+	if strings.HasPrefix(opLower, "mkdir ") ||
+		strings.HasPrefix(opLower, "mk ") ||
+		strings.Contains(opLower, "mkdir") {
+		return "Bash"
+	}
+	if strings.HasPrefix(opLower, "mv ") ||
+		strings.HasPrefix(opLower, "move ") ||
+		strings.HasPrefix(opLower, "cp ") ||
+		strings.HasPrefix(opLower, "copy ") {
+		return "Bash"
+	}
+
+	// Git operations
+	if strings.HasPrefix(opLower, "git ") ||
+		strings.HasPrefix(opLower, "git") {
+		return "Bash"
+	}
+
+	// Docker operations
+	if strings.HasPrefix(opLower, "docker ") ||
+		strings.HasPrefix(opLower, "docker") {
+		return "Bash"
+	}
+
+	// Network operations
+	if strings.HasPrefix(opLower, "curl ") ||
+		strings.HasPrefix(opLower, "wget ") ||
+		strings.HasPrefix(opLower, "ssh ") ||
+		strings.Contains(opLower, "curl") ||
+		strings.Contains(opLower, "wget") {
+		return "Bash"
+	}
+
+	// Package management
+	if strings.HasPrefix(opLower, "npm ") ||
+		strings.HasPrefix(opLower, "pip ") ||
+		strings.HasPrefix(opLower, "cargo ") ||
+		strings.HasPrefix(opLower, "go ") ||
+		strings.Contains(opLower, "npm install") ||
+		strings.Contains(opLower, "pip install") {
+		return "Bash"
+	}
+
+	// Default: treat the first word as the tool
+	parts := strings.Fields(operation)
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return operation
 }
 
 // isLongTaskPrompt detects if a prompt is likely to trigger a long-running task

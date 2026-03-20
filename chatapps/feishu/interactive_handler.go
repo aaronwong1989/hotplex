@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
+	"github.com/hrygo/hotplex/engine"
 )
 
 // InteractiveEvent represents a Feishu interactive event
@@ -65,6 +67,8 @@ type InteractiveHandler struct {
 	eventHandler *EventHandler
 	adapter      *Adapter
 	logger       *slog.Logger
+	eng          *engine.Engine
+	botID        string
 }
 
 // NewInteractiveHandler creates a new interactive handler
@@ -75,6 +79,12 @@ func NewInteractiveHandler(adapter *Adapter) *InteractiveHandler {
 		adapter:      adapter,
 		logger:       eh.logger,
 	}
+}
+
+// SetEngine injects the engine and botID into the handler.
+func (h *InteractiveHandler) SetEngine(eng *engine.Engine, botID string) {
+	h.eng = eng
+	h.botID = botID
 }
 
 // HandleInteractive handles incoming interactive events
@@ -116,7 +126,8 @@ func (h *InteractiveHandler) HandleInteractive(w http.ResponseWriter, r *http.Re
 
 	// Handle interactive message reply
 	if event.Header.EventType == "im.message.reply" {
-		h.handleButtonCallbackInternal(&event)
+		// Pass request context to enable cancellation when HTTP connection drops
+		h.handleButtonCallbackInternal(r.Context(), &event)
 		h.eventHandler.WriteOKResponse(w)
 		return
 	}
@@ -126,36 +137,43 @@ func (h *InteractiveHandler) HandleInteractive(w http.ResponseWriter, r *http.Re
 	h.eventHandler.WriteOKResponse(w)
 }
 
-// handleButtonCallbackInternal handles button callback without HTTP response
-func (h *InteractiveHandler) handleButtonCallbackInternal(event *InteractiveEvent) {
+// handleButtonCallbackInternal handles button callback without HTTP response.
+// Passes request context for proper cancellation of async operations.
+func (h *InteractiveHandler) handleButtonCallbackInternal(ctx context.Context, event *InteractiveEvent) {
 	if event.Event.Action == nil || event.Event.Action.Value == "" {
 		h.logger.Warn("Missing action value")
 		return
 	}
 
-	var actionValue ActionValue
-	if err := json.Unmarshal([]byte(event.Event.Action.Value), &actionValue); err != nil {
+	h.logger.Info("Button callback received",
+		"value", event.Event.Action.Value,
+		"user_id", event.Event.User.UserID,
+	)
+
+	// Decode action value - try ActionValueWithContext first for new perm_* format
+	var av ActionValueWithContext
+	if err := json.Unmarshal([]byte(event.Event.Action.Value), &av); err != nil {
 		h.logger.Error("Decode action value failed", "error", err)
 		return
 	}
 
-	h.logger.Info("Button callback received",
-		"action", actionValue.Action,
-		"session_id", actionValue.SessionID,
-		"user_id", event.Event.User.UserID,
-	)
-
-	// Route to appropriate handler based on action type
-	switch actionValue.Action {
+	// Route based on action type
+	switch av.Action {
 	case "permission_request":
-		h.handlePermissionCallbackInternal(event, &actionValue)
+		// Legacy permission flow (old format)
+		avSimple := ActionValue{SessionID: av.SessionID, MessageID: av.MessageID}
+		h.handlePermissionCallbackInternal(ctx, event, &avSimple)
+	case "perm_allow_once", "perm_allow_always", "perm_deny_once", "perm_deny_all":
+		// New 4-button permission flow
+		h.handleNewPermissionCallback(ctx, event, &av)
 	default:
-		h.logger.Warn("Unknown action type", "action", actionValue.Action)
+		h.logger.Warn("Unknown action type", "action", av.Action)
 	}
 }
 
-// handlePermissionCallbackInternal handles permission approval/denial
-func (h *InteractiveHandler) handlePermissionCallbackInternal(event *InteractiveEvent, actionValue *ActionValue) {
+// handlePermissionCallbackInternal handles the legacy permission approval flow.
+// Kept for backwards compatibility with old permission_request card format.
+func (h *InteractiveHandler) handlePermissionCallbackInternal(ctx context.Context, event *InteractiveEvent, _ *ActionValue) {
 	chatID := event.Event.Message.ChatID
 	if chatID == "" {
 		h.logger.Error("Missing chat_id in event")
@@ -164,7 +182,6 @@ func (h *InteractiveHandler) handlePermissionCallbackInternal(event *Interactive
 
 	resultText := "✅ 已允许执行"
 
-	ctx := context.Background()
 	token, err := h.adapter.GetAppTokenWithContext(ctx)
 	if err != nil {
 		h.logger.Error("Get token failed", "error", err)
@@ -176,10 +193,102 @@ func (h *InteractiveHandler) handlePermissionCallbackInternal(event *Interactive
 		h.logger.Error("Send confirmation failed", "error", err)
 	}
 
-	// Update permission card async
+	// Update permission card async with request context for cancellation
 	go func() {
 		if err := h.UpdatePermissionCard(ctx, event.Event.Message.MessageID, chatID, "approved"); err != nil {
 			h.logger.Error("Update permission card failed", "error", err)
+		}
+	}()
+}
+
+// handleNewPermissionCallback handles the new 4-button permission flow.
+// Action values: perm_allow_once, perm_allow_always, perm_deny_once, perm_deny_all.
+func (h *InteractiveHandler) handleNewPermissionCallback(ctx context.Context, event *InteractiveEvent, av *ActionValueWithContext) {
+	userID := event.Event.User.UserID
+	chatID := event.Event.Message.ChatID
+	sessionID := av.SessionID
+	msgID := av.MessageID
+	toolCmd := av.Tool + ":" + av.Command
+
+	h.logger.Info("New permission callback received",
+		"user_id", userID,
+		"chat_id", chatID,
+		"action", av.Action,
+		"session_id", sessionID,
+	)
+
+	// Extract action type (strip "perm_" prefix)
+	actionType := strings.TrimPrefix(av.Action, "perm_")
+
+	// Determine behavior (allow/deny)
+	behavior := "deny"
+	if actionType == "allow_once" || actionType == "allow_always" {
+		behavior = "allow"
+	}
+
+	// CRITICAL: Resolve pending permission registry BEFORE WriteInput.
+	// This unblocks the goroutine in engine_handler.go that waits for user decision.
+	if h.eng != nil {
+		decision := base.PermissionDecision{Allow: behavior == "allow", Reason: actionType}
+		if resolved := base.GlobalPermissionRegistry.ResolvePermission(sessionID, decision); !resolved {
+			h.logger.Warn("No pending permission found in registry, WriteInput may not be received",
+				"session_id", sessionID)
+		}
+	}
+
+	// Send to engine via session input
+	if h.eng != nil {
+		if sess, ok := h.eng.GetSession(sessionID); ok {
+			response := map[string]any{
+				"type":       "permission_response",
+				"message_id": msgID,
+				"behavior":   behavior,
+			}
+			_ = sess.WriteInput(response)
+		}
+	}
+
+	// Persist whitelist/blacklist for _always/_all variants
+	if h.eng != nil && (actionType == "allow_always" || actionType == "deny_all") && toolCmd != ":" {
+		pm := h.eng.PermissionMatcher()
+		if pm != nil {
+			if actionType == "allow_always" {
+				_ = pm.AddWhitelist(h.botID, toolCmd, userID)
+				// Add tool to AllowedTools for future sessions
+				allowedTools := h.eng.GetAllowedTools()
+				if !slices.Contains(allowedTools, av.Tool) {
+					h.eng.SetAllowedTools(append(allowedTools, av.Tool))
+				}
+			} else {
+				_ = pm.AddBlacklist(h.botID, toolCmd, userID)
+			}
+		}
+	}
+
+	// Send result card asynchronously with a bounded timeout.
+	// Derived from request context so it's cancelled if HTTP connection drops,
+	// but with its own timeout so it doesn't block on the request lifetime.
+	go func() {
+		ctxChild, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		token, err := h.adapter.GetAppTokenWithContext(ctxChild)
+		if err != nil {
+			h.logger.Error("Get token failed", "error", err)
+			return
+		}
+
+		resultCard := BuildPermissionResultCard(actionType, av.Tool, av.Command)
+		cardJSON, err := json.Marshal(resultCard)
+		if err != nil {
+			h.logger.Error("Marshal result card failed", "error", err)
+			return
+		}
+
+		_, err = h.adapter.client.SendMessage(ctxChild, token, chatID, "interactive", map[string]string{
+			"config": string(cardJSON),
+		})
+		if err != nil {
+			h.logger.Error("Send result card failed", "error", err)
 		}
 	}()
 }

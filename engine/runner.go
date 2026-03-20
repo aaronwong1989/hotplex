@@ -14,6 +14,7 @@ import (
 
 	"github.com/hrygo/hotplex/event"
 	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/internal/permission"
 	"github.com/hrygo/hotplex/internal/security"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/internal/telemetry"
@@ -31,12 +32,13 @@ type EngineOptions = intengine.EngineOptions
 // services by managing a hot-multiplexed process pool, enforcing security WAF rules,
 // and providing a unified event-driven SDK for application integration.
 type Engine struct {
-	opts           EngineOptions
-	cliPath        string
-	logger         *slog.Logger
-	provider       provider.Provider
-	manager        intengine.SessionManager
-	dangerDetector *security.Detector
+	opts              EngineOptions
+	cliPath           string
+	logger            *slog.Logger
+	provider          provider.Provider
+	manager           intengine.SessionManager
+	dangerDetector    *security.Detector
+	permissionMatcher *permission.PermissionMatcher
 	// mu protects runtime configuration updates (AllowedTools, DisallowedTools)
 	mu sync.RWMutex
 }
@@ -884,4 +886,18 @@ func (r *Engine) GetDisallowedTools() []string {
 	defer r.mu.RUnlock()
 
 	return r.opts.DisallowedTools
+}
+
+// SetPermissionMatcher sets the permission matcher for the engine.
+func (r *Engine) SetPermissionMatcher(m *permission.PermissionMatcher) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.permissionMatcher = m
+}
+
+// PermissionMatcher returns the engine's permission matcher.
+func (r *Engine) PermissionMatcher() *permission.PermissionMatcher {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.permissionMatcher
 }

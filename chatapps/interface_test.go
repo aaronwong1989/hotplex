@@ -9,6 +9,7 @@ import (
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/hrygo/hotplex/engine"
 	"github.com/hrygo/hotplex/event"
+	"github.com/hrygo/hotplex/internal/permission"
 	"github.com/hrygo/hotplex/types"
 )
 
@@ -146,6 +147,10 @@ func (m *MockEngine) GetOptions() engine.EngineOptions {
 		return m.GetOptionsFunc()
 	}
 	return engine.EngineOptions{}
+}
+
+func (m *MockEngine) PermissionMatcher() *permission.PermissionMatcher {
+	return nil
 }
 
 // MockMessageOperations implements MessageOperations for testing

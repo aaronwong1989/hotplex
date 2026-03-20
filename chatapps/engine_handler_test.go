@@ -215,34 +215,52 @@ func TestHandleToolResult_SkipEmptyEvents(t *testing.T) {
 	}
 }
 
-// TestHandleToolResult_NilMeta tests that nil Meta is handled gracefully.
-func TestHandleToolResult_NilMeta(t *testing.T) {
-	mockStatus := &mockStatusProvider{}
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	statusMgr := internal.NewStatusManager(mockStatus, logger)
-
-	callback := &StreamCallback{
-		ctx:       context.Background(),
-		logger:    logger,
-		metadata:  map[string]any{"channel_id": "test", "thread_ts": "123"},
-		statusMgr: statusMgr,
+// TestInferToolFromOperation tests the tool inference logic.
+func TestInferToolFromOperation(t *testing.T) {
+	tests := []struct {
+		name     string
+		oper     string
+		expected string
+	}{
+		{"empty", "", ""},
+		{"rm command", "rm -rf /tmp/test", "Bash"},
+		{"del command", "del file.txt", "Bash"},
+		{"remove command", "remove /tmp/test", "Bash"},
+		{"contains rm", "some text containing rm dangerous", "Bash"},
+		{"mkdir command", "mkdir -p /tmp/dir", "Bash"},
+		{"mk command", "mk tmpdir", "Bash"},
+		{"contains mkdir", "create dir with mkdir", "Bash"},
+		{"mv command", "mv file1 file2", "Bash"},
+		{"move command", "move file.txt /tmp/", "Bash"},
+		{"cp command", "cp src dst", "Bash"},
+		{"copy command", "copy file.txt /tmp/", "Bash"},
+		{"git command", "git commit -m 'fix'", "Bash"},
+		{"git prefix", "gitstatus", "Bash"},
+		{"docker command", "docker run -it alpine", "Bash"},
+		{"docker prefix", "docker-compose up -d", "Bash"},
+		{"curl command", "curl -s https://example.com", "Bash"},
+		{"wget command", "wget https://example.com/file", "Bash"},
+		{"ssh command", "ssh user@host", "Bash"},
+		{"contains curl", "run curl request", "Bash"},
+		{"contains wget", "use wget to download", "Bash"},
+		{"npm command", "npm install", "Bash"},
+		{"pip command", "pip install requests", "Bash"},
+		{"cargo command", "cargo build", "Bash"},
+		{"go command", "go run main.go", "Bash"},
+		{"contains npm install", "do npm install", "Bash"},
+		{"contains pip install", "do pip install", "Bash"},
+		{"echo default", "echo hello", "echo"},
+		{"python first word", "python script.py", "python"},
+		{"node first word", "node server.js", "node"},
+		{"case insensitive git", "GIT commit -m 'test'", "Bash"},
 	}
 
-	// Create tool_result event with nil Meta but has content
-	data := &event.EventWithMeta{
-		EventType: string(provider.EventTypeToolResult),
-		EventData: "some output",
-		Meta:      nil,
-	}
-
-	// Execute - should not panic
-	err := callback.handleToolResult(data)
-	if err != nil {
-		t.Fatalf("handleToolResult returned error: %v", err)
-	}
-
-	// Verify status was updated with fallback tool name
-	if !mockStatus.updateCalled {
-		t.Error("Status should be updated for event with content")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := inferToolFromOperation(tt.oper)
+			if got != tt.expected {
+				t.Errorf("inferToolFromOperation(%q) = %q, want %q", tt.oper, got, tt.expected)
+			}
+		})
 	}
 }

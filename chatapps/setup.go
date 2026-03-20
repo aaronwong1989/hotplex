@@ -15,6 +15,7 @@ import (
 	"github.com/hrygo/hotplex/chatapps/slack"
 	"github.com/hrygo/hotplex/chatapps/slack/apphome"
 	"github.com/hrygo/hotplex/engine"
+	"github.com/hrygo/hotplex/internal/permission"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/provider"
 )
@@ -335,20 +336,36 @@ func setupPlatform(
 	}
 	manager.RegisterEngine(eng)
 
-	// 2. Create Adapter
+	// 2. Create PermissionMatcher and inject into engine
+	// Use HOTPLEX_PERMISSION_STORE_DIR for absolute path, falling back to platform-relative dir.
+	// This ensures deterministic file paths in Docker/systemd deployments.
+	permBaseDir := os.Getenv("HOTPLEX_PERMISSION_STORE_DIR")
+	if permBaseDir == "" {
+		permBaseDir = platform // fallback to relative path (platform name)
+	}
+	permissionMatcher := permission.NewPermissionMatcher(permBaseDir)
+	eng.SetPermissionMatcher(permissionMatcher)
+
+	// 3. Create Adapter
 	adapter := adapterFactory(pc)
 	if adapter == nil {
 		logger.Info("Platform not initialized (likely missing credentials)", "platform", platform)
 		return
 	}
 
-	// Wire up Engine for slash command support (platform-agnostic via interface)
+	// 4. Wire up Engine for slash command support (platform-agnostic via interface)
 	// Only adapters that implement EngineSupport will receive the engine
 	if engineSupport, ok := adapter.(base.EngineSupport); ok {
 		engineSupport.SetEngine(eng)
 		logger.Info("Engine injected", "platform", platform)
 	} else {
 		logger.Info("Adapter does not implement EngineSupport", "platform", platform)
+	}
+
+	// 5. For Feishu adapters, also inject botID for permission management
+	if feishuSupport, ok := adapter.(base.FeishuEngineSupport); ok {
+		feishuSupport.SetEngineWithBotID(eng, pc.Security.Permission.BotUserID)
+		logger.Info("Feishu botID injected", "platform", platform, "bot_id", pc.Security.Permission.BotUserID)
 	}
 
 	// 3. Create EngineMessageHandler
