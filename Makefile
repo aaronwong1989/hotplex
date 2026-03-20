@@ -61,7 +61,7 @@ NC            := $(shell printf '\033[0m')
 BINARY_NAME   := hotplexd
 CMD_PATH      := ./cmd/hotplexd
 DIST_DIR      := dist
-VERSION       ?= 0.31.7
+VERSION       ?= 0.31.8
 COMMIT        ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -548,6 +548,56 @@ docker-restart: ## @docker Restart services (down → sync → up)
 docker-logs: ## @docker Follow container logs (Ctrl+C to stop)
 	cd docker/matrix && docker compose logs -f
 
+# --- Interactive Shell ---
+
+# Enter a container as the hotplex user.
+# Usage:
+#   make docker-shell              # Interactive (select from running services)
+#   make docker-shell SVC=hotplex-01  # Direct jump to specific service
+#   make docker-shell SVC=hotplex-01 SHELL=zsh
+docker-shell: ## @docker Interactive shell: auto-detect → select service → enter as hotplex user
+	@cd docker/matrix && { \
+		RUNNING=$$(docker compose ps --services --status running 2>/dev/null); \
+		if [ -z "$$RUNNING" ]; then \
+			printf "%s❌ No running services in docker/matrix/%s\n" "$(RED)" "$(NC)"; \
+			exit 1; \
+		fi; \
+		set -- $$RUNNING; \
+		if [ -n "$(SVC)" ]; then \
+			SVC_NAME="$(SVC)"; \
+		elif [ $$# -eq 1 ]; then \
+			SVC_NAME="$$1"; \
+			printf "%s→ Auto-entering: %s%s%s\n" "$(CYAN)" "$(BOLD)" "$$SVC_NAME" "$(NC)"; \
+		else \
+			printf "\n%s╭─ Select Service ───────────────────────────────%s\n" "$(BOLD)$(CYAN)" "$(NC)"; \
+			i=1; \
+			for svc in $$RUNNING; do \
+				printf "  [%d] %s\n" "$$i" "$$svc"; \
+				i=$$((i+1)); \
+			done; \
+			printf "%s  [Enter] select first service (default)%s\n" "$(DIM)" "$(NC)"; \
+			printf "%s╰─────────────────────────────────────────────────%s\n" "$(BOLD)$(CYAN)" "$(NC)"; \
+			read -r CHOICE; \
+			if [ -z "$$CHOICE" ]; then \
+				SVC_NAME="$$1"; \
+			else \
+				i=1; \
+				for svc in $$RUNNING; do \
+					if [ $$i -eq $$CHOICE ]; then SVC_NAME="$$svc"; fi; \
+					i=$$((i+1)); \
+				done; \
+			fi; \
+		fi; \
+		CONTAINER=$$(docker compose ps -q "$$SVC_NAME" 2>/dev/null); \
+		if [ -z "$$CONTAINER" ]; then \
+			printf "%s❌ Container '%s' not found or not running.%s\n" "$(RED)" "$$SVC_NAME" "$(NC)"; \
+			exit 1; \
+		fi; \
+		printf "%s→ Entering %s%s%s%s as %shotplex%s...%s\n" "$(CYAN)" "$(BOLD)" "$$SVC_NAME" "$(NC)" "$(CYAN)" "$(BOLD)" "$(NC)" "$(CYAN)"; \
+		docker exec -u hotplex -it "$$CONTAINER" $(or $(SHELL),/bin/bash); \
+	}
+
+
 # --- Config Sync ---
 
 sync: ## @config Sync configs to ~/.hotplex/ (admin bot)
@@ -629,7 +679,7 @@ stack-clean: docker-clean
         service-install service-uninstall service-start service-stop service-restart \
         service-status service-logs service-enable service-disable \
         docker-build-base docker-build-app docker-build-stack docker-build-all \
-        docker-up docker-down docker-restart docker-logs docker-sync \
+        docker-up docker-down docker-restart docker-logs docker-sync docker-shell \
         docker-health docker-check-net docker-upgrade docker-clean \
         stack stack-all stack-clean
 

@@ -1,5 +1,20 @@
 # CHANGELOG.md
 
+## [v0.31.8] - 2026-03-20
+
+### Fixed
+- **Permission System** - Added `permission_denials` parsing for Claude Code result events:
+  - Previously, the `permission_denials` field was silently dropped during JSON unmarshaling
+  - Added `PermissionDeniedDetail` struct to capture denied tool permissions
+  - Added `EventTypePermissionDenied` event type for proper event routing
+  - Added `handlePermissionDenied` handler in chatapps for Slack notifications
+  - Added debug logging for permission configuration
+
+### Changed
+- **Permission Debug Logging** - Added detailed permission configuration logging in provider layer
+
+---
+
 ## [v0.31.7] - 2026-03-19
 
 ### Fixed

@@ -1,0 +1,75 @@
+# ==============================================================================
+# HotPlex DevKit Shell Environment (2026 Core)
+# Inspired by OpenClaw DevKit patterns for premium Agent experience.
+# ==============================================================================
+
+# --- 1. Shell Options & History ---
+# Don't put duplicate lines or lines starting with space in the history.
+HISTCONTROL=ignoreboth
+# Append to the history file, don't overwrite it
+shopt -s histappend
+HISTSIZE=10000
+HISTFILESIZE=20000
+# Check the window size after each command
+shopt -s checkwinsize
+
+# --- 2. Fancy Prompt ---
+# Format: user@hotplex-bot-id:path$
+if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
+    # Color support enabled
+    PS1='\[\033[01;32m\]\u\[\033[00m\]@\[\033[01;35m\]${HOTPLEX_BOT_ID:-hotplex}\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+else
+    PS1='\u@${HOTPLEX_BOT_ID:-hotplex}:\w\$ '
+fi
+
+# --- 3. Functional Aliases ---
+# Colorized output
+alias ls='ls --color=auto'
+alias grep='grep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias egrep='egrep --color=auto'
+
+# Navigation/Listing
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+
+# Git Shortcuts
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git log --oneline --graph --decorate'
+alias gb='git branch'
+alias gd='git diff --color=auto'
+alias gco='git checkout'
+
+# HotPlex & Agentic Tools
+alias hp='hotplexd'
+alias c='claude'
+alias oc='opencode'
+alias pi='pi-coding-agent'
+alias lg='lazygit'
+
+# --- 4. Advanced Navigation (Zoxide) ---
+if command -v zoxide &>/dev/null; then
+    eval "$(zoxide init bash)"
+    # Alias cd to z for jumping support
+    alias cd='z'
+fi
+
+# --- 5. Programmable Completion ---
+if ! shopt -oq posix; then
+  if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+  elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+  fi
+fi
+
+# --- 6. Path Synchronization ---
+# Ensure local bin is prioritized for pip tools persistence
+export PATH="/home/hotplex/.local/bin:/usr/local/bin:${PATH}"
+
+# Clear current line and show a welcome banner
+echo -e "\033[0;34m🔥 HotPlex Agent Environment Ready (v2026)\033[0m"

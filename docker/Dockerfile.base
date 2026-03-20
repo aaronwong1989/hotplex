@@ -32,6 +32,7 @@ ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ARG DEBIAN_MIRROR
 ARG HOST_UID=1000
+ARG GITHUB_PROXY
 
 # 1. Global OS Baseline & Mirrors
 RUN if [ "$DEBIAN_MIRROR" != "deb.debian.org" ] && [ -n "$DEBIAN_MIRROR" ]; then \
@@ -41,20 +42,31 @@ RUN if [ "$DEBIAN_MIRROR" != "deb.debian.org" ] && [ -n "$DEBIAN_MIRROR" ]; then
     curl wget ca-certificates git make bash jq gettext-base \
     procps netcat-openbsd openssl libatomic1 unzip gnupg \
     python3 python3-pip python3-venv \
+    zoxide bash-completion \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install GitHub CLI (gh)
-RUN gh_install_version="2.63.0" && \
-    gh_arch=$(uname -m) && \
-    case "$gh_arch" in \
-        x86_64) gh_arch="amd64" ;; \
-        aarch64) gh_arch="arm64" ;; \
+# 2. Multi-Architecture Binary Tools (gh, lazygit)
+RUN bash -c 'set -o pipefail && \
+    arch=$(uname -m) && \
+    case "$arch" in \
+        x86_64) gh_arch="amd64"; lg_arch="x86_64" ;; \
+        aarch64) gh_arch="arm64"; lg_arch="arm64" ;; \
     esac && \
-    curl -sSL "https://github.com/cli/cli/releases/download/v${gh_install_version}/gh_${gh_install_version}_linux_${gh_arch}.tar.gz" | tar xz -C /tmp && \
-    mv /tmp/gh_${gh_install_version}_linux_${gh_arch}/bin/gh /usr/local/bin/ && \
-    rm -rf /tmp/gh_${gh_install_version}_linux_${gh_arch}
+    # Install GitHub CLI (gh)
+    gh_version="2.63.0" && \
+    gh_url="https://github.com/cli/cli/releases/download/v${gh_version}/gh_${gh_version}_linux_${gh_arch}.tar.gz" && \
+    (curl -sSL "${GITHUB_PROXY}${gh_url}" || curl -sSL "${gh_url}") | tar xz -C /tmp && \
+    mv /tmp/gh_${gh_version}_linux_${gh_arch}/bin/gh /usr/local/bin/ && \
+    rm -rf /tmp/gh_${gh_version}_linux_${gh_arch} && \
+    # Install lazygit
+    lg_version=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po "\"tag_name\": \"v\\K[^\"]*" || echo "0.60.0") && \
+    lg_url="https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${lg_version}_Linux_${lg_arch}.tar.gz" && \
+    (curl -sSL -o lazygit.tar.gz "${GITHUB_PROXY}${lg_url}" || curl -sSL -o lazygit.tar.gz "${lg_url}") && \
+    tar xf lazygit.tar.gz lazygit && \
+    install lazygit /usr/local/bin && \
+    rm lazygit.tar.gz lazygit'
     
 # Install uv (Python), bun & pnpm (Node)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -70,6 +82,10 @@ RUN pip3 install --break-system-packages "notebooklm-py" && \
 RUN useradd -m -u ${HOST_UID} -s /bin/bash hotplex && \
     mkdir -p /app /home/hotplex/.cache && \
     chown -R hotplex:hotplex /home/hotplex /app
+
+# Inject custom shell environment
+COPY docker/bashrc.hotplex /home/hotplex/.bashrc
+RUN chown hotplex:hotplex /home/hotplex/.bashrc
 
 # 3. Static Tool Injection
 COPY --from=tools-collector /usr/local/bin/websocat /usr/local/bin/websocat
