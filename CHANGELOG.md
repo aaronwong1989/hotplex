@@ -1,5 +1,17 @@
 # CHANGELOG.md
 
+## [v0.31.9] - 2026-03-21
+
+### Fixed
+- **ChatApps** - Eliminate race window in `resetIdleTimer` fallback trigger (#317):
+  - Fixed potential race condition where idle timer could fire during active sessions
+  - Improved timer state management in chatapps event handlers
+- **Config** - Infer platform from filename when platform field is missing (#316):
+  - Config loader now extracts platform from config filename (e.g., `slack-*.yaml` → `slack`)
+  - Eliminates need for explicit `platform` field in config files
+
+---
+
 ## [v0.31.8] - 2026-03-20
 
 ### Fixed
