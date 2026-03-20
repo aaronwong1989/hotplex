@@ -134,9 +134,16 @@ func (p *ClaudeCodeProvider) BuildCLIArgs(providerSessionID string, opts *Provid
 	}
 
 	// DangerouslySkipPermissions bypasses all permission checks
-	if opts.DangerouslySkipPermissions || BoolValue(p.opts.DangerouslySkipPermissions, false) {
+	skipPerms := opts.DangerouslySkipPermissions || BoolValue(p.opts.DangerouslySkipPermissions, false)
+	if skipPerms {
 		args = append(args, "--dangerously-skip-permissions")
 	}
+
+	p.logger.Debug("[PROVIDER] permission config",
+		"permission_mode", permMode,
+		"dangerously_skip_permissions", skipPerms,
+		"opts_dangerously_skip", opts.DangerouslySkipPermissions,
+		"provider_dangerously_skip", BoolValue(p.opts.DangerouslySkipPermissions, false))
 
 	// Tool restrictions (merge provider-level and session-level)
 	allowedTools := mergeStringSlices(p.opts.AllowedTools, opts.AllowedTools)
@@ -267,6 +274,21 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 			// Debug: log that usage is missing
 			p.logger.Warn("[PROVIDER] result event missing usage data", "line", line)
 		}
+
+		// Extract permission denials - each denied tool gets its own event
+		if len(msg.PermissionDenials) > 0 {
+			p.logger.Debug("[PROVIDER] found permission denials in result event",
+				"count", len(msg.PermissionDenials))
+			for _, denial := range msg.PermissionDenials {
+				denialEvent := newBaseEvent(EventTypePermissionDenied)
+				denialEvent.ToolName = denial.ToolName
+				denialEvent.ToolID = denial.ToolUseID
+				denialEvent.ToolInput = denial.ToolInput
+				denialEvent.Content = fmt.Sprintf("Tool '%s' permission denied", denial.ToolName)
+				events = append(events, denialEvent)
+			}
+		}
+
 		events = append(events, event)
 
 	case "error":

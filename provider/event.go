@@ -94,6 +94,11 @@ const (
 	// EventTypeUserMessageReceived indicates user message has been received.
 	// Sent immediately after user message is received to acknowledge receipt.
 	EventTypeUserMessageReceived ProviderEventType = "user_message_received"
+
+	// EventTypePermissionDenied indicates a tool permission was denied by user.
+	// Claude Code: type="result" with permission_denials array (stop_reason="tool_disallowed")
+	// This event is emitted when Claude Code tries to execute a tool but the user denies permission.
+	EventTypePermissionDenied ProviderEventType = "permission_denied"
 )
 
 // ProviderEvent represents a normalized event from any AI CLI provider.

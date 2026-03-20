@@ -455,6 +455,8 @@ func (c *StreamCallback) Handle(eventType string, data any) error {
 		return nil
 	case provider.EventTypePermissionRequest:
 		return c.handlePermissionRequest(data)
+	case provider.EventTypePermissionDenied:
+		return c.handlePermissionDenied(data)
 	default:
 		// Check for specific engine/extended events
 		if eventType == "danger_block" {
@@ -1774,6 +1776,52 @@ func (c *StreamCallback) handlePermissionRequest(data any) error {
 			"session_id": c.sessionID,
 			"decision":   req.Decision,
 			"reason":     req.GetDescription(),
+		},
+	}
+	msg.Metadata = c.mergeMetadata(msg.Metadata)
+	return c.sendMessageAndGetTS(c.convertToChatMessage(msg))
+}
+
+// handlePermissionDenied handles permission denied events
+// Triggered when Claude Code attempts to execute a tool but the user denies permission
+// (stop_reason="tool_disallowed" with permission_denials array in result event)
+func (c *StreamCallback) handlePermissionDenied(data any) error {
+	var toolName, toolID string
+	var toolInput map[string]any
+	var content string
+
+	switch v := data.(type) {
+	case *event.EventWithMeta:
+		if v.Meta != nil {
+			toolName = v.Meta.ToolName
+			toolID = v.Meta.ToolID
+		}
+		content = v.EventData
+	default:
+		c.logger.Debug("Unknown permission denied data type", "type", fmt.Sprintf("%T", data))
+		return nil
+	}
+
+	c.logger.Info("Permission denied",
+		"session_id", c.sessionID,
+		"tool_name", toolName,
+		"tool_id", toolID)
+
+	// Update status to indicate permission was denied
+	if err := c.updateStatusMessage(base.MessageTypePermissionRequest, "🚫 权限被拒绝"); err != nil {
+		c.logger.Warn("Failed to update status for permission_denied", "error", err)
+	}
+
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypePermissionRequest,
+		Content: content,
+		Metadata: map[string]any{
+			"event_type": string(provider.EventTypePermissionDenied),
+			"tool_name":  toolName,
+			"tool_id":    toolID,
+			"input":      toolInput,
+			"session_id": c.sessionID,
+			"status":     "denied",
 		},
 	}
 	msg.Metadata = c.mergeMetadata(msg.Metadata)

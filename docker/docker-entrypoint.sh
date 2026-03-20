@@ -3,7 +3,7 @@ set -e
 
 # ==============================================================================
 # HotPlex Docker Entrypoint
-# Handles permission fixes, config seeding, Git identity, PIP tools, and
+# Handles permission fixes, config env expansion, Git identity, PIP tools, and
 # privilege drop. Inspired by OpenClaw DevKit patterns.
 # ==============================================================================
 
@@ -78,7 +78,7 @@ if [[ "$(id -u)" = "0" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 2. HotPlex Bot Identity & Logging
+# 2. Bot Identity & Logging
 # ------------------------------------------------------------------------------
 echo "==> HotPlex Bot Instance: ${HOTPLEX_BOT_ID:-unknown}"
 
@@ -90,7 +90,7 @@ CONFIG_CHATAPPS_DIR="${HOTPLEX_HOME}/configs/chatapps"
 if [[ -d "${CONFIG_CHATAPPS_DIR}" ]]; then
     echo "--> Expanding environment variables in config files..."
 
-    # 1. Generate variable list for envsubst (only HOTPLEX, GIT, GITHUB variables)
+    # Generate variable list for envsubst (only HOTPLEX, GIT, GITHUB variables)
     # This prevents envsubst from clearing out non-environment placeholders like ${issue_id}
     VARS=$(compgen -A export | grep -E "^(HOTPLEX_|GIT_|GITHUB_|HOST_)" | sed 's/^/$/' | tr '\n' ' ')
 
@@ -110,13 +110,12 @@ if [[ -d "${CONFIG_CHATAPPS_DIR}" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 4. Claude Code Configuration - Seeding & Isolation
+# 4. Claude Code Runtime Files (named volume persists across restarts)
 # ------------------------------------------------------------------------------
 CLAUDE_DIR="${HOTPLEX_HOME}/.claude"
-CLAUDE_SEED="/home/hotplex/.claude_seed"
 CLAUDE_JSON="${HOTPLEX_HOME}/.claude.json"
 
-# Ensure container-private .claude directory exists
+# Ensure container-private .claude directory exists (named volume auto-creates)
 run_as_hotplex mkdir -p "${CLAUDE_DIR}"
 
 # Ensure .claude.json exists (Claude Code CLI requires this file)
@@ -132,34 +131,8 @@ if [[ ! -f "${CLAUDE_JSON}" ]]; then
     fi
 fi
 
-if [[ -d "${CLAUDE_SEED}" ]]; then
-    echo "--> Seeding Claude configurations from host..."
-
-    # 1. Sync critical capabilities (skills, teams) - Copy only if not exists to avoid overwriting instance-specific changes
-    for item in "skills" "teams"; do
-        if [[ -d "${CLAUDE_SEED}/${item}" ]]; then
-             echo "    - Syncing ${item}..."
-             run_as_hotplex cp -rn "${CLAUDE_SEED}/${item}" "${CLAUDE_DIR}/"
-        fi
-    done
-
-    # 2. Sync core configuration files
-    for cfg in "settings.json" "settings.local.json" "config.json"; do
-        if [[ -f "${CLAUDE_SEED}/${cfg}" ]] && [[ ! -f "${CLAUDE_DIR}/${cfg}" ]]; then
-            echo "    - Seeding ${cfg}..."
-            run_as_hotplex cp "${CLAUDE_SEED}/${cfg}" "${CLAUDE_DIR}/"
-
-            # 3. Dynamic Patching: Only replace 127.0.0.1 with host.docker.internal for Docker network compatibility
-            if [[ "${cfg}" = "settings.json" ]]; then
-                echo "    - Patching 127.0.0.1 -> host.docker.internal in ${cfg}"
-                run_as_hotplex sed -i 's/127.0.0.1/host.docker.internal/g' "${CLAUDE_DIR}/${cfg}"
-            fi
-        fi
-    done
-fi
-
 # ------------------------------------------------------------------------------
-# 5. Git Identity Injection (from environment variables)
+# 6. Git Identity Injection (from environment variables)
 #    Allows configuring Git identity via .env without host .gitconfig dependency
 # ------------------------------------------------------------------------------
 if [[ -n "${GIT_USER_NAME:-}" ]]; then
@@ -180,7 +153,7 @@ if [[ -d "${HOTPLEX_HOME}/projects" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 6. Auto-install pip tools (reinstalled on rebuild via entrypoint)
+# 7. Auto-install pip tools (reinstalled on rebuild via entrypoint)
 # Set PIP_TOOLS env var to install additional packages, e.g., PIP_TOOLS="notebooklm pandas"
 # Inspired by OpenClaw DevKit patterns.
 # ------------------------------------------------------------------------------
@@ -226,7 +199,7 @@ if [[ -n "${PIP_TOOLS:-}" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 7. Execute CMD (drop privileges if root)
+# 8. Execute CMD (drop privileges if root)
 #    Ensures all files created by the app belong to 'hotplex' user
 # ------------------------------------------------------------------------------
 echo "==> Starting HotPlex Engine..."

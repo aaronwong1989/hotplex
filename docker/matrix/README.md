@@ -12,9 +12,12 @@ HotPlex Matrix 是默认的容器编排方案，支持一个主机器人 (hotple
 - **实例定义**: 每个机器人服务仅声明其特有的端口映射与**物理隔离路径**。
 
 ### 2. 物理隔离 (Isolation)
-为了确保数据安全与状态一致性，每个机器人实例拥有完全独立的宿主机目录：
-- **路径格式**: `~/.hotplex/instances/${HOTPLEX_BOT_ID}/`
-- **隔离内容**: 包含 `storage` (数据库/会话)、`projects` (代码仓库) 与 `claude` (Agent 配置)。
+为了确保数据安全与状态一致性，每个机器人实例的数据存储在三个位置：
+- **Named Docker Volume** (`hotplex-matrix-claude-XX`): Claude 状态（会话缓存、模型上下文等），完全隔离。
+- **Named Docker Volume** (`hotplex-matrix-go-build-XX`): Per-instance Go 构建缓存，避免跨 bot 污染。
+- **宿主机目录** (`~/.hotplex/instances/${HOTPLEX_BOT_ID}/`): 包含 `.hotplex` (数据库/会话) 与 `projects` (代码仓库)。
+
+卷命名规范：`hotplex-matrix-claude-XX` 和 `hotplex-matrix-go-build-XX`（如 `hotplex-matrix-claude-01`）。
 
 ### 3. 安全隔离 (Security)
 每个机器人都运行在独立的安全上下文中：

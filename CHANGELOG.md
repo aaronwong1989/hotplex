@@ -1,5 +1,60 @@
 # CHANGELOG.md
 
+## [v0.31.7] - 2026-03-19
+
+### Fixed
+- **Docker Matrix** - Removed GitHub token env var references to prevent token leakage in docker-compose output:
+  - Token environment variables should be injected via env_file (.env-01/.env-02/.env-03)
+  - Avoids exposing tokens in docker-compose process listings
+
+---
+
+## [v0.31.6] - 2026-03-19
+
+### Added
+- **Skill: openclaw-config-fix** - New skill for OpenClaw configuration debugging and fixing:
+  - SKILL.md: Main skill definition with troubleshooting workflow
+  - references/: Configuration paths and known issues documentation
+  - scripts/: Helper scripts for health check, JSON fixing, and enum field fixing
+
+---
+
+## [v0.31.5] - 2026-03-19
+
+### Fixed
+- **Docker Matrix** - Added `TZ` environment variable for container timezone synchronization:
+  - Default timezone: Asia/Shanghai
+  - Configurable via `TZ` env var
+  - Ensures container logs and timestamps match host timezone
+
+---
+
+## [v0.31.4] - 2026-03-19
+
+### Added
+- **Docker Matrix** - Added `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable support:
+  - Enables authenticated GitHub API requests (higher rate limits)
+  - Supports private repository access
+  - Configured via `GITHUB_PERSONAL_ACCESS_TOKEN` env var in add-bot.sh
+
+---
+
+## [v0.31.3] - 2026-03-19
+
+### Fixed
+- **add-bot.sh** - Fixed macOS compatibility and heredoc variable expansion issues:
+  - Replaced macOS-incompatible `sed \n` insertion with `awk` approach
+  - Replaced heredoc with `printf %s` to fix variable expansion in Docker Compose output
+  - Fixed `cp` command redirect placement bug
+
+### Refactored
+- **Docker Matrix** - Renamed all volumes from `matrix-*` to `hotplex-matrix-*-*` naming convention
+- **Per-instance build cache** - Isolated `hotplex-matrix-go-build` cache per bot instance to avoid cross-contamination
+- **add-bot.sh** - Refactored to support new volume architecture with role auto-detection (primary/secondary)
+- **Documentation** - Updated all Docker Matrix docs to reflect new volume layout
+
+---
+
 ## [v0.31.2] - 2026-03-18
 
 ### Fixed
