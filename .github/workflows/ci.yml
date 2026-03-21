@@ -73,7 +73,6 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
-          comment: true  # Enable PR comment updates
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
