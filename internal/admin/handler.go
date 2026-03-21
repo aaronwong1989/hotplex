@@ -16,6 +16,7 @@ import (
 	"github.com/hrygo/hotplex/engine"
 	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/telemetry"
+	"github.com/hrygo/hotplex/provider"
 	"gopkg.in/yaml.v3"
 )
 
@@ -106,7 +107,7 @@ func (h *Handler) getSession(w http.ResponseWriter, r *http.Request) {
 		LastActive: sess.GetLastActive(),
 		Config: SessionConfig{
 			// Provider is not exposed on individual sessions; report engine-level provider.
-			Provider: "claude-code",
+			Provider: string(provider.ProviderTypeClaudeCode),
 			WorkDir:  sess.Config.WorkDir,
 		},
 	}
