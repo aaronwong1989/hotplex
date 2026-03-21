@@ -42,9 +42,9 @@ x-hotplex-common: &hotplex-common
     HOTPLEX_MESSAGE_STORE_SQLITE_PATH: /home/hotplex/.hotplex/chatapp_messages.db
     HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
     # ─────────────────────────────────────────────────────────────────
-    # Admin API (Default: port 8081)
+    # Admin API (Default: port 9080)
     # ─────────────────────────────────────────────────────────────────
-    HOTPLEX_ADMIN_PORT: ${HOTPLEX_ADMIN_PORT:-8081}
+    HOTPLEX_ADMIN_PORT: ${HOTPLEX_ADMIN_PORT:-9080}
     HOTPLEX_API_KEY: ${HOTPLEX_API_KEY:-}
     # ─────────────────────────────────────────────────────────────────
     # Engine Timeouts (Convention: sensible defaults)
@@ -95,6 +95,7 @@ x-hotplex-common: &hotplex-common
 services:
   hotplex-base:
     <<: *hotplex-common
+    command: ["hotplexd", "start"]
     volumes:
       # Claude config from host (read-only, hot-reload on host changes)
       - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro

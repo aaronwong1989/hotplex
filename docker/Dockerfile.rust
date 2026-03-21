@@ -43,5 +43,5 @@ COPY --from=binary-provider /hotplexd /usr/local/bin/hotplexd
 # ==============================================================================
 
 USER hotplex
-CMD ["/usr/local/bin/hotplexd"]
+CMD ["hotplexd", "start"]
 LABEL org.opencontainers.image.title="HotPlex Rust"

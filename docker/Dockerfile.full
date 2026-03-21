@@ -178,5 +178,5 @@ RUN python3 --version && node --version && uv --version && gh --version && \
 
 USER hotplex
 WORKDIR /app
-CMD ["/usr/local/bin/hotplexd"]
+CMD ["hotplexd", "start"]
 LABEL org.opencontainers.image.title="HotPlex Full (Optimized)"
