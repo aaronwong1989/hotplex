@@ -1,20 +1,18 @@
 package admin
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/hrygo/hotplex/engine"
 	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/internal/telemetry"
 	"github.com/hrygo/hotplex/provider"
 	"gopkg.in/yaml.v3"
@@ -48,7 +46,7 @@ func NewHandler(eng *engine.Engine, startTime time.Time, logger Logger) *Handler
 		engine:     eng,
 		startTime:  startTime,
 		logger:     logger,
-		cliVersion: getCliVersion(), // cache at construction
+		cliVersion: sys.CheckCliAvailable().Version, // cache at construction
 	}
 }
 
@@ -258,7 +256,7 @@ func (h *Handler) getHealthDetailed(w http.ResponseWriter, r *http.Request) {
 
 	dbPath := os.Getenv("HOTPLEX_MESSAGE_STORE_SQLITE_PATH")
 	if dbPath != "" {
-		latency, ok := checkDatabaseHealth(dbPath)
+		latency, ok := sys.CheckDatabaseHealth(dbPath)
 		if ok {
 			checks.Database = true
 			details.DatabaseLatencyMs = latency
@@ -299,34 +297,10 @@ func writeError(w http.ResponseWriter, status int, code ErrorCode, message strin
 	}
 }
 
-func getCliVersion() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "claude-code", "--version")
-	out, err := cmd.Output()
-	if err != nil {
-		return "unknown"
-	}
-	return strings.TrimSpace(string(out))
-}
-
 func countWebsocketConnections() int {
 	metrics := telemetry.GetMetrics()
 	snapshot := metrics.Snapshot()
 	return int(snapshot.SessionsActive)
-}
-
-func checkDatabaseHealth(dbPath string) (int, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	start := time.Now()
-
-	cmd := exec.CommandContext(ctx, "sqlite3", dbPath, "SELECT 1;")
-	if err := cmd.Run(); err != nil {
-		return 0, false
-	}
-
-	return int(time.Since(start).Milliseconds()), true
 }
 
 func validateConfigFile(path string) []string {

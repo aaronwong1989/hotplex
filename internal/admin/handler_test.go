@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/hrygo/hotplex/internal/sys"
 )
 
 type mockLogger struct{}
@@ -250,7 +251,7 @@ func TestDeleteSession_NilEngine(t *testing.T) {
 func TestGetCliVersion_Unknown(t *testing.T) {
 	// When claude-code is not installed, should return "unknown"
 	// (This is the expected behavior in test environment)
-	version := getCliVersion()
+	version := sys.CheckCliAvailable().Version
 	if version == "" {
 		t.Error("expected non-empty version string")
 	}
@@ -285,7 +286,7 @@ func TestCountWebsocketConnections(t *testing.T) {
 }
 
 func TestCheckDatabaseHealth_NoDB(t *testing.T) {
-	latency, ok := checkDatabaseHealth("/nonexistent/db.sqlite")
+	latency, ok := sys.CheckDatabaseHealth("/nonexistent/db.sqlite")
 	if latency != 0 {
 		t.Errorf("expected latency 0 for nonexistent db, got %d", latency)
 	}

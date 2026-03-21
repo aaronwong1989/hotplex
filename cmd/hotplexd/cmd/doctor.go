@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -64,17 +65,11 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 }
 
 func checkCliBinary() (bool, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "claude-code", "--version")
-	out, err := cmd.Output()
-	if err != nil {
+	result := sys.CheckCliAvailable()
+	if !result.Available {
 		return false, "claude-code not found in PATH"
 	}
-
-	version := strings.TrimSpace(string(out))
-	return true, "Version: " + version
+	return true, "Version: " + strings.TrimSpace(result.Version)
 }
 
 func checkConfigFiles() (bool, string) {
@@ -145,13 +140,9 @@ func checkDatabase() (bool, string) {
 		return true, "database not configured (optional)"
 	}
 
-	// Check if sqlite3 is available
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "sqlite3", dbPath, "SELECT 1;")
-	if err := cmd.Run(); err != nil {
-		return false, "database check failed: " + err.Error()
+	_, ok := sys.CheckDatabaseHealth(dbPath)
+	if !ok {
+		return false, "database check failed"
 	}
 
 	return true, "database accessible"
