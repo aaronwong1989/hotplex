@@ -36,7 +36,7 @@ cp .env.example .env
 
 #### 3. 启动引擎
 ```bash
-./dist/hotplexd --config configs/base
+./hotplexd start --config configs/base/server.yaml
 ```
 
 ---

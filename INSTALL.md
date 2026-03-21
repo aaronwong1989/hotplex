@@ -86,16 +86,16 @@ Download from [Releases](https://github.com/hrygo/hotplex/releases):
 
 ```bash
 # Linux amd64
-curl -LO https://github.com/hrygo/hotplex/releases/download/v0.22.0/hotplex_0.22.0_linux_amd64.tar.gz
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.30.0/hotplex_0.30.0_linux_amd64.tar.gz
 
 # macOS arm64 (Apple Silicon)
-curl -LO https://github.com/hrygo/hotplex/releases/download/v0.22.0/hotplex_0.22.0_darwin_arm64.tar.gz
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.30.0/hotplex_0.30.0_darwin_arm64.tar.gz
 ```
 
 ### 2. Extract and Install
 
 ```bash
-tar -xzf hotplex_0.22.0_linux_amd64.tar.gz
+tar -xzf hotplex_0.30.0_linux_amd64.tar.gz
 sudo mv hotplexd /usr/local/bin/
 sudo chmod +x /usr/local/bin/hotplexd
 ```
@@ -103,7 +103,7 @@ sudo chmod +x /usr/local/bin/hotplexd
 ### 3. Verify
 
 ```bash
-hotplexd -version
+hotplexd version
 ```
 
 ## Configuration
@@ -149,16 +149,13 @@ HotPlex follows the XDG specification and searches for config in this order:
 
 ```bash
 # Default config (auto-searches for .env and server.yaml)
-hotplexd
+hotplexd start
 
 # Specify config files explicitly
-hotplexd --env-file ~/.config/hotplex/.env --config ~/.config/hotplex/server.yaml
-
-# Specify ChatApps config directory
-hotplexd --config-dir ~/.config/hotplex/configs
+hotplexd start --env-file ~/.config/hotplex/.env --config ~/.config/hotplex/server.yaml
 
 # Show help
-hotplexd --help
+hotplexd start --help
 ```
 
 ## Docker Deployment

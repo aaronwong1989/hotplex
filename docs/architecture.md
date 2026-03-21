@@ -15,6 +15,7 @@ HotPlex follows a layered architecture with strict visibility rules, separating 
 ### 1.1 Directory Structure (Actual)
 
 - **Root (`/`)**: SDK entry points. Contains `hotplex.go` (public aliases) and `client.go`.
+- **`cmd/`**: Entry points for the daemon and the CLI. Contains sub-packages for various commands.
 - **`engine/`**: Public execution runner (`Engine`). Orchestrates prompt execution, security WAF, and event dispatching.
 - **`provider/`**: Abstraction layer for diverse AI CLI agents. Contains the `Provider` interface and concrete implementations for `claude-code` and `opencode`.
 - **`types/`**: Fundamental data structures (`Config`, `StreamMessage`, `UsageStats`).
@@ -80,14 +81,11 @@ configs/
 #### Configuration Loading
 
 ```bash
-# Single config
-./hotplexd --config configs/server.yaml
-
-# Multi-config with directory (loads all .yaml files)
-./hotplexd --config-dir configs/base
+# Start the daemon
+./hotplexd start --config configs/base/server.yaml
 
 # Override specific values
-./hotplexd --config configs/base/server.yaml --config configs/admin/server.yaml
+./hotplexd start --config configs/base/server.yaml --config configs/admin/server.yaml
 ```
 
 #### Migration from Legacy Paths

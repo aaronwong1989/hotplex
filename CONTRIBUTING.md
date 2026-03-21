@@ -75,6 +75,7 @@ To prevent accidental data loss in shared development, avoid these commands on t
 We follow a **"Docs-First"** mentality. Any PR modifying public APIs *must* update:
 - **API**: `docs/server/api.md`
 - **Features**: Relevant manual in `docs/`
+- **Cli Commands**: Sub-package READMEs in `cmd/hotplexd/`
 - **User-Facing**: Root `README.md`
 
 ---

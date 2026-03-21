@@ -20,7 +20,7 @@
 HotPlex 使用分层配置系统，优先级从高到低：
 
 ```
-1. 命令行参数     (--config, --port 等)
+1. 命令行参数     (--config, --env-file, --admin-port)
 2. 环境变量       (HOTPLEX_*)
 3. YAML 配置文件  (configs/base/*.yaml)
 4. 默认值         (内置默认值)

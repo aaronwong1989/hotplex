@@ -23,7 +23,7 @@
 HotPlex uses a layered configuration system with the following priority (highest to lowest):
 
 ```
-1. Command-line flags     (--config, --port, etc.)
+1. Command-line flags     (--config, --env-file, --admin-port)
 2. Environment variables  (HOTPLEX_*)
 3. YAML config files      (configs/base/*.yaml, configs/admin/*.yaml)
 4. Default values         (built-in defaults)

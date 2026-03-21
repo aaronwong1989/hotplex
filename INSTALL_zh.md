@@ -90,16 +90,16 @@ curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash 
 
 ```bash
 # Linux amd64
-curl -LO https://github.com/hrygo/hotplex/releases/download/v0.22.0/hotplex_0.22.0_linux_amd64.tar.gz
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.30.0/hotplex_0.30.0_linux_amd64.tar.gz
 
 # macOS arm64 (Apple Silicon)
-curl -LO https://github.com/hrygo/hotplex/releases/download/v0.22.0/hotplex_0.22.0_darwin_arm64.tar.gz
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.30.0/hotplex_0.30.0_darwin_arm64.tar.gz
 ```
 
 ### 2. 解压并安装
 
 ```bash
-tar -xzf hotplex_0.22.0_linux_amd64.tar.gz
+tar -xzf hotplex_0.30.0_linux_amd64.tar.gz
 sudo mv hotplexd /usr/local/bin/
 sudo chmod +x /usr/local/bin/hotplexd
 ```
@@ -107,7 +107,7 @@ sudo chmod +x /usr/local/bin/hotplexd
 ### 3. 验证安装
 
 ```bash
-hotplexd -version
+hotplexd version
 ```
 
 ## 配置
@@ -152,16 +152,13 @@ HotPlex 遵循 XDG 规范，按以下顺序查找配置文件：
 
 ```bash
 # 使用默认配置 (自动搜索 .env 和 server.yaml)
-hotplexd
+hotplexd start
 
 # 显式指定配置文件
-hotplexd --env-file ~/.config/hotplex/.env --config ~/.config/hotplex/server.yaml
-
-# 指定 ChatApps 配置目录
-hotplexd --config-dir ~/.config/hotplex/configs
+hotplexd start --env-file ~/.config/hotplex/.env --config ~/.config/hotplex/server.yaml
 
 # 查看帮助
-hotplexd --help
+hotplexd start --help
 ```
 
 ## Docker 部署

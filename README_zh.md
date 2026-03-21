@@ -64,14 +64,11 @@ curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash
 # 或源码构建
 make build
 
-# 启动 Slack 机器人
-export HOTPLEX_SLACK_BOT_USER_ID=B12345
-export HOTPLEX_SLACK_BOT_TOKEN=xoxb-...
-export HOTPLEX_SLACK_APP_TOKEN=xapp-...
-./hotplexd --config configs/server.yaml --config-dir configs/base
+# 启动守护进程
+./hotplexd start --config configs/server.yaml
 
-# 或仅启动 WebSocket 网关
-./hotplexd --config configs/server.yaml
+# 使用自定义环境文件启动
+./hotplexd start --config configs/server.yaml --env-file .env.local
 ```
 
 ### 前置要求
@@ -97,7 +94,7 @@ cp .env.example .env
 # 确保 Claude Code 或 OpenCode 在 PATH 中
 
 # 4. 运行守护进程
-./hotplexd --config configs/server.yaml
+./hotplexd start --config configs/server.yaml
 ```
 
 ---
@@ -182,8 +179,8 @@ type MessageOperations interface {
 
 ```
 hotplex/
-├── cmd/
-│   └── hotplexd/           # 守护进程入口
+├── [cmd/](./cmd)                  # CLI 与守护进程入口
+│   └── [hotplexd/](./cmd/hotplexd)  # 守护进程核心实现
 ├── internal/               # 核心实现（私有）
 │   ├── engine/             # 会话池与运行器
 │   ├── server/             # WebSocket 与 HTTP 网关
@@ -194,11 +191,11 @@ hotplex/
 │   └── ...
 ├── brain/                  # Native Brain 编排
 ├── cache/                  # 缓存层
-├── provider/               # AI 提供商适配器
-│   ├── claudecode/         # Claude Code 协议
-│   ├── opencode/           # OpenCode 协议
+├── [provider/](./provider)        # AI 提供商适配器
+│   ├── [claudecode/](./provider/claudecode) # Claude Code 协议
+│   ├── [opencode/](./provider/opencode)     # OpenCode 协议
 │   └── ...
-├── chatapps/               # 平台适配器
+├── [chatapps/](./chatapps)        # 平台适配器
 │   ├── slack/              # Slack 机器人
 │   ├── feishu/             # 飞书机器人
 │   └── base/               # 公共接口
@@ -239,6 +236,7 @@ hotplex/
 | 💬 **多平台** | Slack · 飞书 | 团队协作 |
 | 📦 **Go SDK** | 零开销直接嵌入 Go 应用 | 自定义集成 |
 | 🔌 **WebSocket 网关** | 通过 `hotplexd` 守护进程实现语言无关访问 | Web 前端 |
+| 🛠️ **CLI 工具集**    | `session`、`status`、`doctor`、`config` 等工具 | 管理与调试 |
 | 📊 **OpenTelemetry** | 内置指标和追踪支持 | 可观测性 |
 | 🐳 **Docker 1+n 架构** | 1 个基础镜像 + n 个语言栈 | 多语言支持 |
 

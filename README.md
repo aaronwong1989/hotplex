@@ -63,14 +63,11 @@ curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash
 # Or build from source
 make build
 
-# Start with Slack
-export HOTPLEX_SLACK_BOT_USER_ID=B12345
-export HOTPLEX_SLACK_BOT_TOKEN=xoxb-...
-export HOTPLEX_SLACK_APP_TOKEN=xapp-...
-./hotplexd --config configs/server.yaml --config-dir configs/base
+# Start the daemon
+./hotplexd start --config configs/server.yaml
 
-# Or start with WebSocket gateway only
-./hotplexd --config configs/server.yaml
+# Start with custom environment file
+./hotplexd start --config configs/server.yaml --env-file .env.local
 ```
 
 ### Requirements
@@ -96,7 +93,7 @@ cp .env.example .env
 # Ensure Claude Code or OpenCode is in PATH
 
 # 4. Run the daemon
-./hotplexd --config configs/server.yaml
+./hotplexd start --config configs/server.yaml
 ```
 
 ---
@@ -181,8 +178,8 @@ type MessageOperations interface {
 
 ```
 hotplex/
-├── cmd/
-│   └── hotplexd/           # Daemon entrypoint
+├── [cmd/](./cmd)                  # CLI & Daemon entrypoints
+│   └── [hotplexd/](./cmd/hotplexd)  # Main daemon implementation
 ├── internal/               # Core implementation (private)
 │   ├── engine/             # Session pool & runner
 │   ├── server/             # WebSocket & HTTP gateway
@@ -193,11 +190,11 @@ hotplex/
 │   └── ...
 ├── brain/                  # Native Brain orchestration
 ├── cache/                  # Caching layer
-├── provider/               # AI provider adapters
-│   ├── claudecode/         # Claude Code protocol
-│   ├── opencode/           # OpenCode protocol
+├── [provider/](./provider)        # AI provider adapters
+│   ├── [claudecode/](./provider/claudecode) # Claude Code protocol
+│   ├── [opencode/](./provider/opencode)     # OpenCode protocol
 │   └── ...
-├── chatapps/               # Platform adapters
+├── [chatapps/](./chatapps)        # Platform adapters
 │   ├── slack/              # Slack Bot
 │   ├── feishu/             # Feishu Bot
 │   └── base/               # Common interfaces
@@ -238,6 +235,7 @@ hotplex/
 | 💬 **Multi-Platform** | Slack · Feishu | Team communication |
 | 📦 **Go SDK** | Embed directly in your Go app with zero overhead | Custom integrations |
 | 🔌 **WebSocket Gateway** | Language-agnostic access via `hotplexd` daemon | Web frontend |
+| 🛠️ **CLI Toolset**    | `session`, `status`, `doctor`, `config` utilities | Management & Debug |
 | 📊 **OpenTelemetry** | Built-in metrics and tracing support | Observability |
 | 🐳 **Docker 1+n** | 1 Base + n Stacks (`node`, `python`, `java`, `rust`, `full`) | Multi-language |
 
