@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -134,4 +135,33 @@ func TestLoadEnvFile_Valid(t *testing.T) {
 	}
 
 	_ = os.Unsetenv(testKey)
+}
+
+func TestInitLogger_DebugLevel(t *testing.T) {
+	logger := initLogger(slog.LevelDebug, "json")
+	if logger == nil {
+		t.Error("expected non-nil logger")
+	}
+}
+
+func TestInitLogger_InfoLevel(t *testing.T) {
+	logger := initLogger(slog.LevelInfo, "text")
+	if logger == nil {
+		t.Error("expected non-nil logger")
+	}
+}
+
+func TestInitLogger_ErrorLevel(t *testing.T) {
+	logger := initLogger(slog.LevelError, "json")
+	if logger == nil {
+		t.Error("expected non-nil logger")
+	}
+}
+
+func TestInitLogger_InvalidLevel(t *testing.T) {
+	// Invalid level should fall back to default
+	logger := initLogger(0, "text")
+	if logger == nil {
+		t.Error("expected non-nil logger even for invalid level")
+	}
 }

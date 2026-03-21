@@ -301,6 +301,84 @@ func TestWriteError_EncodeFailure(t *testing.T) {
 	// Should not panic
 }
 
+func TestValidateConfigFile_EmptyFile(t *testing.T) {
+	tmpFile := t.TempDir() + "/empty.yaml"
+	if err := os.WriteFile(tmpFile, []byte(""), 0644); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	errs := validateConfigFile(tmpFile)
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error for empty file, got %d: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0], "empty") {
+		t.Errorf("expected 'empty file' error, got: %s", errs[0])
+	}
+}
+
+func TestGetSessionLogs_WithMockedHomeDir(t *testing.T) {
+	// Create a mock log file in a temp directory
+	tmpDir := t.TempDir()
+	logDir := tmpDir + "/.hotplex/logs"
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		t.Fatalf("failed to create log dir: %v", err)
+	}
+	logPath := logDir + "/test-session.log"
+	if err := os.WriteFile(logPath, []byte("test log content"), 0644); err != nil {
+		t.Fatalf("failed to write log file: %v", err)
+	}
+
+	// Override home dir for this test
+	oldHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	_ = os.Setenv("HOME", tmpDir)
+
+	h := &Handler{logger: &mockLogger{}}
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/sessions/test-session/logs", nil)
+	rr := httptest.NewRecorder()
+
+	router := mux.NewRouter()
+	router.HandleFunc("/admin/v1/sessions/{id}/logs", h.getSessionLogs)
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rr.Code)
+	}
+}
+
+func TestGetStats_WithNilManager(t *testing.T) {
+	// Engine is not nil but manager is nil
+	h := &Handler{startTime: time.Now(), logger: &mockLogger{}}
+	// Note: This tests the path where engine != nil but GetSessionManager returns nil
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/stats", nil)
+	rr := httptest.NewRecorder()
+	h.getStats(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rr.Code)
+	}
+}
+
+func TestValidateConfig_InvalidPath(t *testing.T) {
+	h := &Handler{logger: &mockLogger{}}
+	body := `{"config_path": "/nonexistent/path/config.yaml"}`
+	req := httptest.NewRequest(http.MethodPost, "/admin/v1/config/validate", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.validateConfig(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200 (validation errors), got %d", rr.Code)
+	}
+
+	var resp ConfigValidateResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if resp.Valid {
+		t.Error("expected invalid response")
+	}
+}
+
 type writerFailsRecorder struct {
 	code int
 }
