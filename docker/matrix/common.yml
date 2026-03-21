@@ -42,6 +42,11 @@ x-hotplex-common: &hotplex-common
     HOTPLEX_MESSAGE_STORE_SQLITE_PATH: /home/hotplex/.hotplex/chatapp_messages.db
     HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
     # ─────────────────────────────────────────────────────────────────
+    # Admin API (Default: port 8081)
+    # ─────────────────────────────────────────────────────────────────
+    HOTPLEX_ADMIN_PORT: ${HOTPLEX_ADMIN_PORT:-8081}
+    HOTPLEX_API_KEY: ${HOTPLEX_API_KEY:-}
+    # ─────────────────────────────────────────────────────────────────
     # Engine Timeouts (Convention: sensible defaults)
     # ─────────────────────────────────────────────────────────────────
     HOTPLEX_EXECUTION_TIMEOUT: ${HOTPLEX_EXECUTION_TIMEOUT:-30m}

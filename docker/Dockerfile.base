@@ -108,3 +108,8 @@ CMD ["bash"]
 
 LABEL org.opencontainers.image.vendor="HotPlex"
 LABEL org.opencontainers.image.title="HotPlex Foundation (Static)"
+
+# Main server port (WebSocket/HTTP)
+EXPOSE 8080
+# Admin API port
+EXPOSE 8081
