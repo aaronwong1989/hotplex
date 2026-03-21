@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -46,7 +47,7 @@ func runKill(cmd *cobra.Command, args []string) error {
 	if result.Success {
 		fmt.Println(result.Message)
 	} else {
-		return fmt.Errorf("%s", result.Message)
+		return errors.New(result.Message)
 	}
 
 	return nil

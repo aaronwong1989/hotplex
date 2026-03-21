@@ -73,10 +73,7 @@ func runDaemon() {
 	// Expand tilde in path environment variables
 	expandPathEnvVars()
 
-	// 2. Configure logging (env vars checked after config load for correct precedence)
-	configureLogging()
-
-	// 3. Load server configuration
+	// 2. Load server configuration
 	serverConfigPath := config.ResolveConfigPath(*serverConfig)
 	serverCfg, cfgLogLevel, cfgLogFormat := loadServerConfig(serverConfigPath)
 
@@ -213,10 +210,7 @@ func expandPathEnvVars() {
 	}
 }
 
-// configureLogging is a placeholder. Actual log level and format precedence
-// (env vars > config file > defaults) is handled in runDaemon().
-func configureLogging() {}
-
+// loadServerConfig loads the server configuration from the given path.
 func loadServerConfig(configPath string) (*config.ServerLoader, slog.Level, string) {
 	if configPath == "" {
 		configPath = config.ResolveConfigPath("")

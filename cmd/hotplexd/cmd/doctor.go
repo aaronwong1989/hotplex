@@ -97,7 +97,7 @@ func checkConfigFiles() (bool, string) {
 				continue
 			}
 
-			var m map[string]interface{}
+			var m map[string]any
 			if err := yaml.Unmarshal(data, &m); err != nil {
 				return false, fmt.Sprintf("invalid YAML in %s: %v", path, err)
 			}
@@ -111,7 +111,7 @@ func checkConfigFiles() (bool, string) {
 
 func checkEnvVars() (bool, string) {
 	required := []string{"HOTPLEX_PROJECTS_DIR"}
-	missing := []string{}
+	var missing []string
 
 	for _, env := range required {
 		if os.Getenv(env) == "" {
