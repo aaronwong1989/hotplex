@@ -222,17 +222,18 @@ func (s *BridgeServer) Close() {
 // via BridgeServer WebSocket. It translates between the Bridge Wire Protocol and
 // HotPlex's internal ChatMessage type.
 type BridgePlatform struct {
-	server     *BridgeServer
-	platform   string
-	conn       *websocket.Conn
-	caps       []string
-	handler    base.MessageHandler
-	msgChan    chan *base.ChatMessage
-	eventChan  chan *WireMessage
-	sessionMap map[string]string // sessionKey → sessionID
-	done       chan struct{}
-	mu         sync.RWMutex
-	logger     *slog.Logger
+	server        *BridgeServer
+	platform      string
+	conn          *websocket.Conn
+	caps          []string
+	handler       base.MessageHandler
+	msgChan       chan *base.ChatMessage
+	eventChan     chan *WireMessage
+	sessionMap    map[string]string // sessionKey → sessionID
+	done          chan struct{}
+	mu            sync.RWMutex
+	logger        *slog.Logger
+	testWriteJSON func(wm *WireMessage) error // test hook for writeJSON
 }
 
 var (
@@ -431,6 +432,11 @@ func (bp *BridgePlatform) handleUnknown(wm *WireMessage) error {
 
 // writeJSON sends a WireMessage to the WebSocket connection.
 func (bp *BridgePlatform) writeJSON(wm *WireMessage) error {
+	// Test hook for mocking WebSocket writes
+	if bp.testWriteJSON != nil {
+		return bp.testWriteJSON(wm)
+	}
+
 	bp.mu.RLock()
 	conn := bp.conn
 	bp.mu.RUnlock()
