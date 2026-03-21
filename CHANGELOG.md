@@ -1,5 +1,29 @@
 # CHANGELOG.md
 
+## [v0.32.2] - 2026-03-22
+
+### Features
+- **ChatApps** - Enhance Slack Assistant Status API with contextual information:
+  - Display file paths in tool status (e.g., "📄 正在读取文件 [Read]: cmd/main.go")
+  - Show command previews for Bash operations
+  - Display result summaries with line counts and durations
+  - Target ~50 character status messages for better UX
+
+### Bug Fixes
+- **ChatApps** - Fix idle timer incorrectly overwriting active tool execution:
+  - Check current real-time status instead of trigger-time status
+  - Prevent "深度推演分析中" from covering active tool states
+  - Only show fallback when session is truly idle (no active tools)
+
+### Documentation
+- **Admin** - Complete Admin API documentation and Slack App Manifest:
+  - Add comprehensive Slack App Manifest for HotPlex Admin Bot
+  - Configure assistant_view with 4 suggested operation prompts
+  - Add slash commands (/reset, /dc) for session management
+  - Enable Socket Mode and event subscriptions
+
+---
+
 ## [v0.32.1] - 2026-03-22
 
 ### Documentation
