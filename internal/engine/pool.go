@@ -21,11 +21,22 @@ import (
 	"github.com/hrygo/hotplex/provider"
 )
 
-// clearClaudeJSONUserID removes the userID field from ~/.claude.json.
-// This prevents Claude Code from attempting OAuth authentication, which fails in
-// containerized environments. When userID is absent, Claude Code respects the
-// ANTHROPIC_AUTH_TOKEN=PROXY_MANAGED setting and routes through the local proxy.
+// clearClaudeJSONUserID removes the userID field from ~/.claude.json when:
+//   - userID exists in ~/.claude.json
+//   - credentials.json does NOT exist (OAuth is not fully configured)
+//
+// This prevents Claude Code from attempting OAuth authentication in containerized
+// environments where OAuth cannot complete (no browser). In valid OAuth setups
+// (userID + credentials.json), userID is preserved.
+//
+// Controlled by HOTPLEX_CLAUDE_CLEAR_USERID=true (default) or false to disable.
 func clearClaudeJSONUserID(logger *slog.Logger) {
+	// Allow operators to disable this cleanup
+	if os.Getenv("HOTPLEX_CLAUDE_CLEAR_USERID") == "false" {
+		logger.Debug("HOTPLEX_CLAUDE_CLEAR_USERID=false, skipping userID cleanup")
+		return
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		logger.Warn("Failed to get home directory for Claude config cleanup", "error", err)
@@ -33,6 +44,7 @@ func clearClaudeJSONUserID(logger *slog.Logger) {
 	}
 
 	claudeJSONPath := filepath.Join(homeDir, ".claude.json")
+	credentialsPath := filepath.Join(homeDir, ".claude", "credentials.json")
 
 	// Read existing file
 	data, err := os.ReadFile(claudeJSONPath)
@@ -59,11 +71,17 @@ func clearClaudeJSONUserID(logger *slog.Logger) {
 		return
 	}
 
-	// Remove userID
+	// Check if credentials.json exists — if so, this is a valid OAuth setup; keep userID
+	if _, err := os.Stat(credentialsPath); err == nil {
+		logger.Debug("Valid OAuth setup detected (credentials.json exists), preserving userID",
+			"userID_path", claudeJSONPath,
+			"credentials_path", credentialsPath)
+		return
+	}
+
+	// credentials.json does not exist — userID is orphaned, clear it
 	delete(cfg, "userID")
 
-	// Serialize back (preserve original formatting as much as possible)
-	// We use indent to produce clean output
 	cleaned, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		logger.Warn("Failed to serialize cleaned Claude config", "error", err)
@@ -75,7 +93,8 @@ func clearClaudeJSONUserID(logger *slog.Logger) {
 		return
 	}
 
-	logger.Info("Cleared userID from Claude config (OAuth prevention)", "path", claudeJSONPath)
+	logger.Info("Cleared orphaned userID from Claude config (no credentials.json found)",
+		"path", claudeJSONPath)
 }
 
 // SessionPool implements the SessionManager as a thread-safe singleton.
