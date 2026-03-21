@@ -95,6 +95,7 @@ type BridgeServer struct {
 	upgrader   websocket.Upgrader
 	logger     *slog.Logger
 	handler    base.MessageHandler
+	adapterMgr any // *chatapps.AdapterManager (any to avoid import cycle)
 	mu         sync.RWMutex
 	server     *http.Server
 }
@@ -124,6 +125,13 @@ func NewBridgeServer(port int, token string, logger *slog.Logger) *BridgeServer 
 // This is called by main.go after the chatapps EngineMessageHandler is created.
 func (s *BridgeServer) SetHandler(h base.MessageHandler) {
 	s.handler = h
+}
+
+// InjectAdapterManager injects the chatapps AdapterManager for registering
+// bridge platforms so they can receive events via the standard event pipeline.
+// Pass nil to disable event routing for bridge platforms.
+func (s *BridgeServer) InjectAdapterManager(adapterMgr any) {
+	s.adapterMgr = adapterMgr
 }
 
 // GetPlatform returns the BridgePlatform for a registered platform, or nil.
@@ -189,11 +197,33 @@ func (s *BridgeServer) register(bp *BridgePlatform) {
 	s.platforms[bp.platform] = bp
 }
 
-// unregister removes a platform from the registry.
+// unregister removes a platform from the registry and AdapterManager.
 func (s *BridgeServer) unregister(platform string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.platforms, platform)
+	// Also remove from AdapterManager so events stop routing to this platform
+	if am := s.getAdapterManager(); am != nil {
+		am.Unregister(platform)
+	}
+}
+
+// getAdapterManager returns the injected AdapterManager, if available.
+func (s *BridgeServer) getAdapterManager() adapterManagerInterface {
+	if s.adapterMgr == nil {
+		return nil
+	}
+	if ami, ok := s.adapterMgr.(adapterManagerInterface); ok {
+		return ami
+	}
+	return nil
+}
+
+// adapterManagerInterface is the subset of *chatapps.AdapterManager needed by BridgeServer.
+// Defined as interface to avoid import cycle.
+type adapterManagerInterface interface {
+	RegisterOrReplace(any) // ChatAdapter
+	Unregister(platform string)
 }
 
 // Close gracefully shuts down all bridge connections.
@@ -315,6 +345,14 @@ func (bp *BridgePlatform) handleRegister(wm *WireMessage) error {
 	bp.server.platforms[wm.Platform] = bp
 	bp.server.mu.Unlock()
 
+	// Register with AdapterManager so events flow through the standard pipeline
+	if am := bp.getAdapterManager(); am != nil {
+		am.RegisterOrReplace(bp)
+		bp.logger.Info("BridgePlatform registered with AdapterManager",
+			"platform", wm.Platform,
+			"capabilities", bp.caps)
+	}
+
 	bp.logger.Info("Bridge platform registered",
 		"platform", wm.Platform,
 		"capabilities", bp.caps)
@@ -325,6 +363,18 @@ func (bp *BridgePlatform) handleRegister(wm *WireMessage) error {
 		Platform: "hotplex",
 		Content:  "registered",
 	})
+}
+
+// getAdapterManager returns the injected AdapterManager, if available.
+func (bp *BridgePlatform) getAdapterManager() adapterManagerInterface {
+	am := bp.server.adapterMgr
+	if am == nil {
+		return nil
+	}
+	if ami, ok := am.(adapterManagerInterface); ok {
+		return ami
+	}
+	return nil
 }
 
 // handleMessage converts an inbound WireMessage to ChatMessage and forwards to handler.

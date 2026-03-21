@@ -122,6 +122,59 @@ func runDaemon() {
 	// 7. Setup HTTP handlers
 	mainRouter, chatappsMgr := setupHTTPHandlers(engine, logger, serverCfg)
 
+	// 7.1 Initialize BridgeServer for external platform adapters
+	var bridgeServer *server.BridgeServer
+	bridgePort := ""
+	if serverCfg != nil {
+		bridgePort = serverCfg.GetBridgePort()
+	}
+	if bridgePort != "" {
+		bridgeToken := ""
+		if serverCfg != nil {
+			bridgeToken = serverCfg.GetBridgeToken()
+		}
+		bridgeServer = server.NewBridgeServer(0, bridgeToken, logger)
+		if chatappsMgr != nil {
+			bridgeServer.InjectAdapterManager(chatappsMgr)
+		}
+		bridgeAddr := ":" + bridgePort
+		bridgeMux := http.NewServeMux()
+		bridgeMux.Handle("/bridge/v1/", bridgeServer)
+		bridgeHTTPSrv := &http.Server{
+			Addr:    bridgeAddr,
+			Handler: bridgeMux,
+		}
+		go func() {
+			logger.Info("BridgeServer listening", "port", bridgePort)
+			if err := bridgeHTTPSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Error("BridgeServer failed", "error", err)
+			}
+		}()
+		logger.Info("BridgeServer initialized", "port", bridgePort)
+	}
+
+	// 7.2 Cleanup safety net (deferred before servers start)
+	defer func() {
+		logger.Info("Executing final cleanup safety net...")
+		if bridgeServer != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := bridgeServer.Shutdown(ctx); err != nil {
+				logger.Error("BridgeServer shutdown failed", "error", err)
+			}
+			cancel()
+		}
+		if chatappsMgr != nil {
+			if err := chatappsMgr.StopAll(); err != nil {
+				logger.Error("ChatApps cleanup failed", "error", err)
+			}
+		}
+		if engine != nil {
+			if err := engine.Close(); err != nil {
+				logger.Error("Core engine cleanup failed", "error", err)
+			}
+		}
+	}()
+
 	// 8. Start Admin Server (independent port)
 	adminServer := admin.NewServer(engine, resolvedAdminPort, adminToken, time.Now(), logger)
 	adminServer.Start()

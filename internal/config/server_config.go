@@ -33,9 +33,11 @@ type EngineConfig struct {
 
 // ServerSettings contains server-level settings.
 type ServerSettings struct {
-	Port      string `yaml:"port"`
-	LogLevel  string `yaml:"log_level"`
-	LogFormat string `yaml:"log_format"`
+	Port       string `yaml:"port"`
+	LogLevel   string `yaml:"log_level"`
+	LogFormat  string `yaml:"log_format"`
+	BridgePort string `yaml:"bridge_port"` // Port for BridgeServer (empty = disabled)
+	BridgeToken string `yaml:"bridge_token"` // Auth token for BridgeServer connections
 }
 
 // SecurityConfig contains security settings.
@@ -212,6 +214,20 @@ func (l *ServerLoader) GetPort() string {
 		return "8080"
 	}
 	return l.config.Server.Port
+}
+
+// GetBridgePort returns the BridgeServer port (empty = disabled).
+func (l *ServerLoader) GetBridgePort() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.config.Server.BridgePort
+}
+
+// GetBridgeToken returns the BridgeServer auth token.
+func (l *ServerLoader) GetBridgeToken() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.config.Server.BridgeToken
 }
 
 // ResolveConfigPath resolves the config file path from various sources.
