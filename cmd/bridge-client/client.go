@@ -40,60 +40,34 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/hrygo/hotplex/internal/bridgewire"
 )
 
-// =============================================================================
-// Capability Constants
-// =============================================================================
-
-// Capabilities that an adapter can declare when registering with BridgeServer.
+// Cap* aliases for the public API (mirrors bridgewire constants).
 const (
-	CapText    = "text"
-	CapImage   = "image"
-	CapCard    = "card"
-	CapButtons = "buttons"
-	CapTyping  = "typing"
-	CapEdit    = "edit"
-	CapDelete  = "delete"
-	CapReact   = "react"
-	CapThread  = "thread"
+	CapText    = bridgewire.CapText
+	CapImage   = bridgewire.CapImage
+	CapCard    = bridgewire.CapCard
+	CapButtons = bridgewire.CapButtons
+	CapTyping  = bridgewire.CapTyping
+	CapEdit    = bridgewire.CapEdit
+	CapDelete  = bridgewire.CapDelete
+	CapReact   = bridgewire.CapReact
+	CapThread  = bridgewire.CapThread
 )
 
-// =============================================================================
-// Wire Protocol Types
-// =============================================================================
-
-// msgType constants (matches internal/server/bridge.go).
+// msgType aliases (mirrors bridgewire constants, for internal use).
 const (
-	msgTypeRegister = "register"
-	msgTypeMessage  = "message"
-	msgTypeReply    = "reply"
-	msgTypeEvent    = "event"
-	msgTypeError    = "error"
+	msgTypeRegister = bridgewire.MsgTypeRegister
+	msgTypeMessage  = bridgewire.MsgTypeMessage
+	msgTypeReply    = bridgewire.MsgTypeReply
+	msgTypeEvent    = bridgewire.MsgTypeEvent
+	msgTypeError    = bridgewire.MsgTypeError
 )
 
-// wireMessage is the bidirectional JSON envelope for Bridge Wire Protocol.
-type wireMessage struct {
-	Type         string          `json:"type"`
-	Platform     string          `json:"platform,omitempty"`
-	Token        string          `json:"token,omitempty"`
-	SessionKey   string          `json:"session_key,omitempty"`
-	Content      string          `json:"content,omitempty"`
-	Metadata     json.RawMessage `json:"metadata,omitempty"`
-	Event        string          `json:"event,omitempty"`
-	Data         json.RawMessage `json:"data,omitempty"`
-	Code         int             `json:"code,omitempty"`
-	Message      string          `json:"message,omitempty"`
-	Capabilities []string        `json:"capabilities,omitempty"`
-}
-
-// metadata carries user/room/thread identity inside a WireMessage.
-type metadata struct {
-	UserID   string `json:"user_id,omitempty"`
-	RoomID   string `json:"room_id,omitempty"`
-	ThreadID string `json:"thread_id,omitempty"`
-	Platform string `json:"platform,omitempty"`
-}
+// wireMessage and metadata are type aliases to the shared bridgewire types.
+type wireMessage = bridgewire.WireMessage
+type metadata    = bridgewire.WireMetadata
 
 // =============================================================================
 // Public Types

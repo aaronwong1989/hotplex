@@ -275,9 +275,421 @@ func TestBridgeMsgTypes(t *testing.T) {
 	}
 }
 
-// wsRecorder wraps httptest.ResponseRecorder to satisfy gorilla/websocket Upgrader.
-type wsRecorder struct{ *httptest.ResponseRecorder }
+// ---------------------------------------------------------------------------
+// BridgePlatform handle* tests
+// ---------------------------------------------------------------------------
+func TestBridgePlatform_handleRegister_MissingPlatform(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("initial", nil)
+	bp.server = bs
 
-func (wsRecorder) Hijack() (interface{}, *websocket.Conn, error) {
-	return nil, nil, nil
+	err := bp.handleRegister(&WireMessage{Type: BridgeMsgTypeRegister})
+	if err == nil {
+		t.Error("handleRegister with empty platform: want error, got nil")
+	}
+}
+
+func TestBridgePlatform_handleRegister_OK(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("initial", nil)
+	bp.server = bs
+
+	// Mock writeJSON to avoid WebSocket
+	bp.testWriteJSON = func(wm *WireMessage) error { return nil }
+
+	err := bp.handleRegister(&WireMessage{
+		Type:         BridgeMsgTypeRegister,
+		Platform:     "dingtalk",
+		Capabilities: []string{CapText, CapCard},
+	})
+	if err != nil {
+		t.Errorf("handleRegister: unexpected error: %v", err)
+	}
+	if bp.platform != "dingtalk" {
+		t.Errorf("bp.platform = %q, want dingtalk", bp.platform)
+	}
+}
+
+func TestBridgePlatform_handleMessage_MissingSessionKey(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	err := bp.handleMessage(&WireMessage{Type: BridgeMsgTypeMessage})
+	if err == nil {
+		t.Error("handleMessage with empty session_key: want error, got nil")
+	}
+}
+
+func TestBridgePlatform_handleMessage_OK(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	var receivedMsg *base.ChatMessage
+	bp.handler = func(ctx context.Context, msg *base.ChatMessage) error {
+		receivedMsg = msg
+		return nil
+	}
+
+	err := bp.handleMessage(&WireMessage{
+		Type:       BridgeMsgTypeMessage,
+		SessionKey: "sess123",
+		Content:    "hello",
+		Metadata:   []byte(`{"user_id":"u1","room_id":"r1"}`),
+	})
+	if err != nil {
+		t.Errorf("handleMessage: unexpected error: %v", err)
+	}
+	if receivedMsg == nil {
+		t.Fatal("handler was not called")
+	}
+	if receivedMsg.Content != "hello" {
+		t.Errorf("Content = %q, want hello", receivedMsg.Content)
+	}
+	if receivedMsg.SessionID != "sess123" {
+		t.Errorf("SessionID = %q, want sess123", receivedMsg.SessionID)
+	}
+}
+
+func TestBridgePlatform_handleMessage_NoHandler(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+	bp.handler = nil // no handler set
+
+	err := bp.handleMessage(&WireMessage{
+		Type:       BridgeMsgTypeMessage,
+		SessionKey: "sess123",
+		Content:    "hello",
+	})
+	if err != nil {
+		t.Errorf("handleMessage with no handler: error = %v, want nil", err)
+	}
+}
+
+func TestBridgePlatform_handleEvent(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	err := bp.handleEvent(&WireMessage{
+		Type:       BridgeMsgTypeEvent,
+		Event:      "typing",
+		SessionKey: "sess123",
+	})
+	if err != nil {
+		t.Errorf("handleEvent: unexpected error: %v", err)
+	}
+}
+
+func TestBridgePlatform_handleUnknown(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	err := bp.handleUnknown(&WireMessage{Type: "unknown_type"})
+	if err == nil {
+		t.Error("handleUnknown: want error, got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// BridgePlatform writeJSON / writeError
+// ---------------------------------------------------------------------------
+
+func TestBridgePlatform_writeJSON_WithNilConnAndTestHook(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	// When testWriteJSON is set, it is called instead of the real writeJSON.
+	// This test verifies the hook mechanism works.
+	called := false
+	bp.testWriteJSON = func(wm *WireMessage) error {
+		called = true
+		return nil
+	}
+
+	err := bp.writeJSON(&WireMessage{Type: BridgeMsgTypeReply})
+	if err != nil {
+		t.Errorf("writeJSON with test hook: error = %v, want nil", err)
+	}
+	if !called {
+		t.Error("testWriteJSON hook was not called")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// BridgePlatform deliveryLoop
+// ---------------------------------------------------------------------------
+
+func TestBridgePlatform_deliveryLoop(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	delivered := make(chan struct{}, 1)
+	var captured *WireMessage
+	bp.testWriteJSON = func(wm *WireMessage) error {
+		captured = wm
+		delivered <- struct{}{}
+		return nil
+	}
+
+	go bp.deliveryLoop()
+
+	msg := &base.ChatMessage{
+		Platform:  "hotplex",
+		SessionID: "sess123",
+		Content:   "Hello from hotplex",
+		Metadata: map[string]any{
+			base.KeyRoomID:   "room1",
+			base.KeyThreadID: "thread1",
+			base.KeyUserID:   "user1",
+		},
+	}
+
+	select {
+	case bp.msgChan <- msg:
+	default:
+		t.Fatal("msgChan is full")
+	}
+
+	select {
+	case <-delivered:
+		// message delivered
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for message delivery")
+	}
+
+	if captured == nil {
+		t.Fatal("writeJSON was not called")
+	}
+	if captured.Type != BridgeMsgTypeMessage {
+		t.Errorf("Type = %q, want %q", captured.Type, BridgeMsgTypeMessage)
+	}
+	if captured.Content != "Hello from hotplex" {
+		t.Errorf("Content = %q, want Hello from hotplex", captured.Content)
+	}
+
+	bp.close()
+}
+
+func TestBridgePlatform_deliveryLoop_NilMessage(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	called := false
+	bp.testWriteJSON = func(wm *WireMessage) error {
+		called = true
+		return nil
+	}
+
+	go bp.deliveryLoop()
+
+	select {
+	case bp.msgChan <- nil:
+	default:
+		t.Fatal("msgChan is full")
+	}
+
+	// Wait for deliveryLoop to process and skip the nil message.
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	<-ctx.Done()
+
+	if called {
+		t.Error("writeJSON should not be called for nil message")
+	}
+	bp.close()
+}
+
+func TestBridgePlatform_deliveryLoop_SessionKeyMapping(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	delivered := make(chan struct{}, 1)
+	var captured *WireMessage
+	bp.testWriteJSON = func(wm *WireMessage) error {
+		captured = wm
+		delivered <- struct{}{}
+		return nil
+	}
+
+	bp.mu.Lock()
+	bp.sessionMap["hotplex-session-1"] = "bridge-session-key"
+	bp.mu.Unlock()
+
+	go bp.deliveryLoop()
+
+	msg := &base.ChatMessage{
+		Platform:  "hotplex",
+		SessionID: "hotplex-session-1",
+		Content:   "mapped",
+	}
+
+	select {
+	case bp.msgChan <- msg:
+	default:
+		t.Fatal("msgChan is full")
+	}
+
+	select {
+	case <-delivered:
+		// message delivered
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for message delivery")
+	}
+
+	if captured == nil {
+		t.Fatal("writeJSON was not called")
+	}
+	if captured.SessionKey != "bridge-session-key" {
+		t.Errorf("SessionKey = %q, want bridge-session-key", captured.SessionKey)
+	}
+	bp.close()
+}
+
+// ---------------------------------------------------------------------------
+// BridgeServer lifecycle
+// ---------------------------------------------------------------------------
+
+func TestBridgeServer_Shutdown(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+
+	ctx := context.Background()
+	if err := bs.Shutdown(ctx); err != nil {
+		t.Errorf("Shutdown(): error = %v, want nil", err)
+	}
+}
+
+func TestBridgeServer_InjectAdapterManager(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+
+	bs.InjectAdapterManager(nil) // nil should not panic
+
+	if bs.getAdapterManager() != nil {
+		t.Error("getAdapterManager() with nil injection: want nil")
+	}
+}
+
+func TestBridgeServer_SetHandler(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+
+	handler := func(ctx context.Context, msg *base.ChatMessage) error { return nil }
+	bs.SetHandler(handler)
+	if bs.handler == nil {
+		t.Error("SetHandler: handler is nil after set")
+	}
+}
+
+func TestBridgePlatform_SetHandler(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	handler := func(ctx context.Context, msg *base.ChatMessage) error { return nil }
+	bp.SetHandler(handler)
+	if bp.handler == nil {
+		t.Error("SetHandler: handler is nil after set")
+	}
+}
+
+func TestBridgePlatform_HandleMessage(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	// HandleMessage should return nil (not used for bridge platforms)
+	err := bp.HandleMessage(context.Background(), &base.ChatMessage{Content: "test"})
+	if err != nil {
+		t.Errorf("HandleMessage: error = %v, want nil", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// BridgeServer register/unregister
+// ---------------------------------------------------------------------------
+
+func TestBridgeServer_register_unregister(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+
+	bp1 := bs.newBridgePlatform("dingtalk", nil)
+	bp2 := bs.newBridgePlatform("wechat", nil)
+
+	bs.register(bp1)
+	bs.register(bp2)
+
+	if platforms := bs.ListPlatforms(); len(platforms) != 2 {
+		t.Errorf("ListPlatforms = %v, want 2 platforms", platforms)
+	}
+
+	if p := bs.GetPlatform("dingtalk"); p == nil {
+		t.Error("GetPlatform(dingtalk) = nil, want platform")
+	}
+
+	bs.unregister("dingtalk")
+	if platforms := bs.ListPlatforms(); len(platforms) != 1 {
+		t.Errorf("After unregister, ListPlatforms = %v, want 1", platforms)
+	}
+}
+
+func TestBridgePlatform_GetAdapterManager_NilServer(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	// server.adapterMgr is nil by default
+	if bp.getAdapterManager() != nil {
+		t.Error("getAdapterManager() with nil adapterMgr: want nil")
+	}
+}
+
+func TestBridgePlatform_close(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+	bp := bs.newBridgePlatform("dingtalk", nil)
+
+	// close should be safe to call multiple times
+	bp.close()
+	bp.close() // should not panic
+
+	select {
+	case <-bp.done:
+		// done is closed as expected
+	default:
+		t.Error("done channel should be closed after close()")
+	}
+}
+
+func TestBridgeServer_Close_WithPlatforms(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+
+	bp := bs.newBridgePlatform("dingtalk", nil)
+	bs.register(bp)
+
+	bs.Close()
+
+	if platforms := bs.ListPlatforms(); len(platforms) != 0 {
+		t.Errorf("After Close, ListPlatforms = %v, want empty", platforms)
+	}
+}
+
+func TestBridgeServer_GetPlatform_NotFound(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+	bs := NewBridgeServer(0, "", logger)
+
+	if p := bs.GetPlatform("nonexistent"); p != nil {
+		t.Errorf("GetPlatform(nonexistent) = %v, want nil", p)
+	}
 }
