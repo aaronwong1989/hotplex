@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
-	"github.com/hrygo/hotplex/types"
 	"github.com/slack-go/slack"
 )
 
@@ -35,11 +34,9 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 		return fmt.Errorf("channel_id not found in session")
 	}
 
-	threadTS := ""
-	if msg.Metadata != nil {
-		if ts, ok := msg.Metadata["thread_ts"].(string); ok {
-			threadTS = ts
-		}
+	threadTS := base.GetMetadataString(msg.Metadata, base.KeyThreadID)
+	if threadTS == "" {
+		threadTS = base.GetMetadataString(msg.Metadata, "thread_ts") // Backward compat
 	}
 
 	// Check if this is a message update (has message_ts in metadata)
@@ -88,7 +85,7 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 				err := a.UpdateMessageSDK(ctx, channelID, messageTS, blocks, fallbackText)
 				if err == nil {
 					// Store bot response for final responses
-					if types.MessageType(msg.Type).IsStorable() {
+					if msg.Type.IsStorable() {
 						a.storeBotResponse(ctx, sessionID, channelID, threadTS, fallbackText)
 					}
 					return nil
@@ -107,7 +104,7 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 			}
 
 			// Store bot response for final responses
-			if types.MessageType(msg.Type).IsStorable() {
+			if msg.Type.IsStorable() {
 				a.storeBotResponse(ctx, sessionID, channelID, threadTS, fallbackText)
 			}
 			return nil
@@ -116,7 +113,7 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 
 	// Store bot response for plain text messages
 	err := a.SendToChannelSDK(ctx, channelID, msg.Content, threadTS)
-	if err == nil && types.MessageType(msg.Type).IsStorable() {
+	if err == nil && msg.Type.IsStorable() {
 		// Only store if message type is storable (user_input or final_response)
 		a.storeBotResponse(ctx, sessionID, channelID, threadTS, msg.Content)
 	}

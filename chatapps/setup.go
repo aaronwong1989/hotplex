@@ -362,10 +362,10 @@ func setupPlatform(
 		logger.Info("Adapter does not implement EngineSupport", "platform", platform)
 	}
 
-	// 5. For Feishu adapters, also inject botID for permission management
-	if feishuSupport, ok := adapter.(base.FeishuEngineSupport); ok {
-		feishuSupport.SetEngineWithBotID(eng, pc.Security.Permission.BotUserID)
-		logger.Info("Feishu botID injected", "platform", platform, "bot_id", pc.Security.Permission.BotUserID)
+	// 5. For adapters that need botID for permission management
+	if botIDSupport, ok := adapter.(base.EngineSupportWithBotID); ok {
+		botIDSupport.SetBotID(pc.Security.Permission.BotUserID)
+		logger.Info("BotID injected for permission management", "platform", platform, "bot_id", pc.Security.Permission.BotUserID)
 	}
 
 	// 3. Create EngineMessageHandler

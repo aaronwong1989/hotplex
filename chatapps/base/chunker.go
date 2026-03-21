@@ -117,3 +117,33 @@ func ChunkMessageSimple(text string, maxLen int) []string {
 	}
 	return chunks
 }
+
+// Chunker 将消息分块以满足平台字符限制
+type Chunker interface {
+	// ChunkText 将文本分块，每块不超过平台限制
+	ChunkText(text string, limit int) []string
+
+	// MaxChars 返回平台单条消息的最大字符数
+	MaxChars() int
+}
+
+// DefaultChunker 使用标准 Markdown 感知的分块算法，默认使用 Slack 限制
+type DefaultChunker struct {
+	maxChars int
+}
+
+// NewDefaultChunker 创建默认分块器
+func NewDefaultChunker(maxChars int) *DefaultChunker {
+	if maxChars <= 0 {
+		maxChars = DefaultChunkLimit
+	}
+	return &DefaultChunker{maxChars: maxChars}
+}
+
+// ChunkText 使用标准算法分块
+func (c *DefaultChunker) ChunkText(text string, limit int) []string {
+	return ChunkMessage(text, ChunkerConfig{MaxLen: limit, PreserveWords: true, AddNumbering: true})
+}
+
+// MaxChars 返回配置的最大字符数
+func (c *DefaultChunker) MaxChars() int { return c.maxChars }

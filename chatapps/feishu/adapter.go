@@ -121,7 +121,15 @@ func (a *Adapter) SetEngine(eng *engine.Engine) {
 	a.SetEngineWithBotID(eng, "")
 }
 
-// SetEngineWithBotID implements base.FeishuEngineSupport.
+// SetBotID implements base.EngineSupportWithBotID.
+func (a *Adapter) SetBotID(botID string) {
+	if a.interactiveHandler != nil {
+		a.interactiveHandler.SetBotID(botID)
+	}
+}
+
+// SetEngineWithBotID is a convenience method that sets both engine and bot ID.
+// Kept for backward compatibility with existing setup code.
 func (a *Adapter) SetEngineWithBotID(eng *engine.Engine, botID string) {
 	if a.interactiveHandler != nil {
 		a.interactiveHandler.SetEngine(eng, botID)

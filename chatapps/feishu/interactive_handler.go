@@ -87,6 +87,11 @@ func (h *InteractiveHandler) SetEngine(eng *engine.Engine, botID string) {
 	h.botID = botID
 }
 
+// SetBotID injects the bot identity for permission management.
+func (h *InteractiveHandler) SetBotID(botID string) {
+	h.botID = botID
+}
+
 // HandleInteractive handles incoming interactive events
 func (h *InteractiveHandler) HandleInteractive(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {

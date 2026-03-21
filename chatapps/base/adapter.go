@@ -519,8 +519,9 @@ type EngineSupport interface {
 	SetEngine(eng *engine.Engine)
 }
 
-// FeishuEngineSupport defines optional interface for Feishu adapters that need
-// engine + botID injection for permission management.
-type FeishuEngineSupport interface {
-	SetEngineWithBotID(eng *engine.Engine, botID string)
+// EngineSupportWithBotID defines optional interface for adapters that need
+// both engine injection and bot identity for permission management.
+type EngineSupportWithBotID interface {
+	EngineSupport
+	SetBotID(botID string)
 }
