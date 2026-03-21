@@ -139,7 +139,33 @@ The edit tool tracks file state. Sequential edits without re-reading cause dupli
 4. **Validation**: `go build ./...` and `go test` must pass before task completion.
 5. **PR Creation**: **MANDATORY** to include `Resolves #<issue-id>` or `Refs #<issue-id>` in PR description body. This links the PR to the issue and enables automatic closure on merge.
 
+## 7.1 Diagnostic-First Debugging Protocol
+
+**Before diving into fixes, gather full context first.**
+
+When encountering Docker/config issues:
+1. Run `docker ps --format '{{.Names}}: {{.Status}}'` to check actual container state
+2. Run `docker logs <container>` to see real error output
+3. Do NOT assume root cause from symptoms alone
+
+**Common misdiagnosis patterns:**
+- Bind mount conflict → 实际是 health check 过早确认
+- Gateway runs as root → 需要实际检查进程用户
+- GitHub token 过期 → 实际是 host 环境变量覆盖了容器配置
+
+**Verify before fix:**
+- Docker 问题：先诊断，不要直接假设
+- Git 操作：先 `git status`，确认当前分支和未提交内容
+- Token 问题：确认是容器内还是 host 泄露
+
 ## 8. Gotchas & Lessons Learned
+
+### Docker Operations
+- **正确的 Makefile targets**：`docker-build-all`（不是 `build-docker-all`）、`docker-up`、`docker-down`、`docker-restart`
+- **Health check 前等待**：restart 后等待 ~15 秒再确认健康状态
+- **失败排查顺序**：(1) .env 文件是否存在，(2) health check grace period，(3) $$ 在 Makefile 宏中的转义
+- **Volume 命名**：使用 `hotplex-*` 前缀（如 `hotplex-matrix-standalone`）
+- **环境变量隔离**：host shell 变量（~/.zshrc/~/.zprofile）可能泄漏进 Docker Compose 变量替换，覆盖 token 设置
 
 ### Configuration Pitfalls
 - **Shell Default Syntax**: Go's `os.ExpandEnv` does NOT support shell-style defaults (`${VAR:-default}`). Use `${VAR}` only.
@@ -169,6 +195,18 @@ The edit tool tracks file state. Sequential edits without re-reading cause dupli
   ai:
     system_prompt: "Production prompt"  # Override parent
   ```
+
+### GitHub Token Configuration
+- Token 跨文件同步：更新所有文件（.env、common.yml、add-bot.sh、env_file 引用）
+- 容器环境隔离：验证容器使用独立环境，host shell 变量可能覆盖配置
+- 过期排查：检查 ~/.zshrc/~/.zprofile 是否存在泄漏的环境变量
+
+### Codebase Conventions
+- Go 文件使用 `fmt.Errorf` + 小写错误消息
+- **跨平台 shell 脚本**：避免 awk/sed GNU 特性，使用纯 shell 或 POSIX 兼容语法（macOS 不兼容 GNU awk）
+- 权限设置：`chmod 755` 用于目录，禁止 `chmod 1777`
+- **Defer 验证**：始终验证 deferred 函数是否执行，资源是否释放
+- Makefile 中 `$$` 是 `$` 的转义（用于 shell 变量）
 
 ---
 

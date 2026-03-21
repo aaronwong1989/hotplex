@@ -1,206 +1,177 @@
 ---
 name: hotplex-release
-description: HotPlex 版本发布工具 - 支持 patch/minor/major 版本发布，自动更新版本号、CHANGELOG，创建并推送 git tag，检查发布状态。当用户提到发布版本、创建 release、版本升级、打 tag、发布新版本时触发此 skill。
-version: 0.1.0
+description: Use when releasing a new version of HotPlex (any version bump: patch/minor/major, git tag, GitHub release, or CI verification)
+version: 0.2.0
 ---
 
-# HotPlex 版本发布 Skill
+# HotPlex Release Skill
 
-本 skill 提供完整的 HotPlex 版本发布流程，支持语义化版本控制（SemVer）的三种发布类型。
+Complete release automation: version bump → changelog → git commit → tag → push → CI verify → GitHub release.
 
-## 发布类型
+## When to Use
 
-| 类型 | 说明 | 示例 |
-|------|------|------|
-| **patch** | 补丁版本，修复 bug | 0.27.0 → 0.27.1 |
-| **minor** | 次版本，新增功能 | 0.27.0 → 0.28.0 |
-| **major** | 主版本，破坏性变更 | 0.27.0 → 1.0.0 |
+**Triggered by:** "发布版本", "创建 release", "版本升级", "打 tag", "发布新版本", "bump version"
 
-## 工作流程
+**NOT for:** Regular commits, non-release git operations
 
-### 1. 确定发布参数
+## Quick Reference
 
-当用户发起发布时，必须明确以下信息：
+| Operation | Command |
+|-----------|---------|
+| Current version | `grep 'Version = ' hotplex.go` |
+| Last tag | `git describe --tags --abbrev=0` |
+| Commits since last tag | `git log --oneline $(git describe --tags --abbrev=0)..HEAD` |
+| CI status | `gh run list --limit 3` |
+| Create release | `gh release create vX.Y.Z --title "vX.Y.Z" --notes-file CHANGELOG.md` |
 
-1. **发布类型**：`patch` / `minor` / `major`
-2. **发布说明**：新版本的更新内容（从 git log 或用户输入获取）
-3. **发布原因**：用户指定的发布原因（功能、修复、优化等）
+## Release Workflow
 
-如果用户没有明确指定发布类型，询问用户并确认。
+### Step 1: 确定发布参数
 
-### 2. 文档防腐检查（仅限 Minor/Major 发布）
+用户未指定发布类型时，明确询问：
+- **patch** (v0.31.9 → v0.32.0): Bug fixes
+- **minor** (v0.31.9 → v0.32.0): New features
+- **major** (v0.31.9 → v1.0.0): Breaking changes
 
-**触发条件**：发布类型为 `minor` 或 `major` 时必须执行
+### Step 2: 前置验证
 
-对于功能新增、较大功能优化、架构重构，必须检查并更新相关文档：
-
-1. **检查新增/修改的源码包 README**：
-   - 路径模式：`*/README.md`
-   - 检查是否有新模块添加
-
-2. **检查 API 文档**：
-   - 路径模式：`docs/**/*.md`
-   - 检查是否有 API 变更需要同步
-
-3. **检查 Docker 文档**：
-   - `docker/README.md`
-   - `docker/matrix/README.md`
-
-4. **检查配置文档**：
-   - `docs/*.md`
-
-如果发现文档未同步更新，提示用户并建议更新文档后再发布。
-
-### 3. NotebookLM 同步（仅限 Minor/Major 发布）
-
-**触发条件**：发布类型为 `minor` 或 `major` 时必须执行
-
-对于功能新增、较大功能优化、架构重构，需要同步更新 NotebookLM：
-
-1. **调用 NotebookLM Skill**：
-   ```bash
-   /hotplex-notebooklm
-   ```
-
-2. **同步内容**：
-   - 新增/修改的源码包 README
-   - API 文档变更
-   - 架构设计文档
-   - 配置说明
-
-3. **执行方式**：使用 `Skill` 工具调用 `hotplex-notebooklm` skill
-
-### 4. 版本号管理
-
-**⚠️ 必须更新所有 5 个位置，缺一不可！**
-
-| # | 文件 | 行号 | 字段 | 说明 |
-|---|------|------|------|------|
-| 1 | `hotplex.go` | 13 | `Version` | **Source of Truth** - 主版本号定义 |
-| 2 | `Makefile` | 64 | `VERSION` | 构建系统版本号 |
-| 3 | `CHANGELOG.md` | 顶部 | 版本标题 | 添加新版本条目 |
-| 4 | `CLAUDE.md` | 3 | `vX.Y.Z` | 项目状态版本号 |
-| 5 | `AGENT.md` | 3 | `vX.Y.Z` | 代理文档版本号 |
-
-**验证命令**（发布前必执行）：
+**必须通过后才继续**：
 ```bash
-# 检查所有版本号是否一致
-grep -rn "0\.30\.[0-9]" hotplex.go Makefile CHANGELOG.md CLAUDE.md AGENT.md
+# 确保工作区干净
+git status
+
+# 运行测试
+go test ./...
+go test -race ./...
+
+# Lint
+go vet ./...
 ```
 
-根据发布类型计算新版本号：
+### Step 3: 版本号递增
+
+**必须更新全部 5 个文件，缺一不可：**
+
+| # | File | Field |
+|---|------|-------|
+| 1 | `hotplex.go` | `Version = "vX.Y.Z"` |
+| 2 | `Makefile:64` | `VERSION = X.Y.Z` |
+| 3 | `CHANGELOG.md` | Header entry |
+| 4 | `CLAUDE.md:3` | `vX.Y.Z` |
+| 5 | `AGENT.md:3` | `vX.Y.Z` |
+
+**版本计算：**
 - **patch**: `x.y.Z+1`
 - **minor**: `x.y+1.0`
 - **major**: `x+1.0.0`
 
-### 5. CHANGELOG 更新
+### Step 4: 生成 CHANGELOG
 
-**CHANGELOG 位置**：`CHANGELOG.md`
+从 `git log` 自动获取自上次 tag 以来的所有提交：
 
-使用以下模板在文件顶部插入新版本条目：
+```bash
+git log --oneline $(git describe --tags --abbrev=0)..HEAD
+```
+
+按 Conventional Commits 归类到 `### Features` / `### Bug Fixes` / `### Maintenance`：
 
 ```markdown
-## [v{x.y.z}] - {日期}
+## [vX.Y.Z] - YYYY-MM-DD
 
-### Added
-- {更新内容}
+### Features
+- feat(scope): description (PR #)
 
-### Changed
-- {变更内容}
+### Bug Fixes
+- fix(scope): description (PR #)
 
-### Fixed
-- {修复内容}
-
----
-
-## [v{旧版本}] - {旧日期}
-...existing content...
+### Maintenance
+- chore(scope): description (PR #)
 ```
 
-日期格式：`YYYY-MM-DD`
+### Step 5: Git 操作
 
-### 6. Git 操作流程
-
-1. **检查 git 状态**：确保工作区干净
-2. **提交更改**：
-   - 提交版本号更新
-   - 提交 CHANGELOG 更新
-3. **创建 tag**：`git tag -a v{x.y.z} -m "Release v{x.y.z}"`
-4. **推送**：
-   - 先推送代码：`git push origin main`
-   - 再推送 tag：`git push origin v{x.y.z}`
-
-### 7. 检查发布状态
-
-Tag 推送后，检查以下内容：
-
-1. **GitHub Release**：
-   ```bash
-   gh release view v{x.y.z}
-   ```
-
-2. **CI/CD 状态**：
-   ```bash
-   gh run list --branch main --status success
-   ```
-
-3. **下载链接验证**：
-   - 检查是否生成了各平台的二进制文件
-   - 检查 checksums.txt 是否正确
-
-## 发布命令示例
-
-### Patch 发布
+```bash
+git add -A
+git commit -m "chore(release): bump version to vX.Y.Z"
+git push origin main
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
 ```
-发布 patch 版本：修复了 session 僵尸 marker 问题
+
+### Step 6: CI 验证
+
+**Tag push 后立即验证 CI：**
+
+```bash
+gh run list --limit 3
 ```
-执行：
-1. 计算版本号：0.27.0 → 0.27.1
-2. 更新 hotplex.go
-3. 更新 CHANGELOG.md
-4. 创建 tag v0.27.1
-5. 推送并检查发布状态
 
-### Minor 发布
+- **running**: 等待完成（轮询直到 success 或 failure）
+- **failure**: 诊断原因，修复后重新运行 CI
+- **success**: 继续发布
+
+**CI 失败常见原因：**
+- `go vet ./...` 或 `go test -race ./...` 失败
+- Linter 报错
+- 未更新的版本引用导致构建不一致
+
+### Step 7: GitHub Release（Minor/Major 推荐）
+
+```bash
+gh release create vX.Y.Z \
+  --title "Release vX.Y.Z" \
+  --notes-file CHANGELOG.md \
+  --target main
 ```
-发布 minor 版本：新增 AI 路由功能
+
+## Minor/Major 发布额外要求
+
+### 文档防腐检查
+
+发布 `minor` 或 `major` 时必须执行：
+
+1. **检查源码包 README**：`*/README.md` — 新模块是否已更新
+2. **检查 API 文档**：`docs-site/**/*.md` — API 变更是否同步
+3. **检查配置文档**：`docs/*.md` — 配置说明是否完整
+
+如发现文档未更新，提示用户后再继续。
+
+### NotebookLM 同步
+
+```bash
+Skill(tool="hotplex-notebooklm")
 ```
-执行：
-1. 计算版本号：0.27.0 → 0.28.0
-2. 更新 hotplex.go
-3. 更新 CHANGELOG.md
-4. 创建 tag v0.28.0
-5. 推送并检查发布状态
 
-## 重要约束
+同步内容：新增/修改的源码 README、API 文档、架构设计文档。
 
-1. **永远不要直接修改 main 分支的版本号而不创建 tag**
-2. **发布前确保所有测试通过**
-3. **CHANGELOG 必须包含有意义的更新内容**
-4. **推送 tag 后检查 GitHub Release 是否成功创建**
-5. **如果发布失败，明确告知用户问题所在**
-6. **Minor/Major 发布前必须进行文档防腐检查**
-7. **文档更新必须与代码变更同步提交**
+## Common Mistakes
 
-## 错误处理
+| Mistake | Fix |
+|---------|-----|
+| 版本号不一致 | 验证 5 个文件全部更新 |
+| 跳过 CI 验证 | Tag push 后必须等待 CI 通过 |
+| CHANGELOG 为空 | 从 `git log` 自动生成 |
+| 未 push 就 tag | 确保 `git push origin main` 先完成 |
+| 测试未跑就发布 | 必须 `go test ./...` 通过 |
 
-| 错误场景 | 处理方式 |
-|----------|----------|
-| 工作区不干净 | 提示用户 stash 或 commit 当前更改 |
-| GitHub Release 创建失败 | 检查 tag 是否已推送，尝试手动创建 |
-| CI/CD 失败 | 告知用户失败的 workflow 和原因 |
-| 版本号冲突 | 检查远程是否已有相同版本 tag |
+## Error Handling
 
-## 输出格式
+| Scenario | Action |
+|----------|--------|
+| 工作区不干净 | 提示用户 stash 或 commit |
+| CI 失败 | 诊断原因 → 修复 → 重新验证 |
+| GitHub Release 失败 | 检查 tag 是否已推送，尝试手动创建 |
+| 版本号冲突 | 检查远程是否有相同 tag |
+| CHANGELOG 生成失败 | 从 `git log` 手动归类 |
 
-发布完成后，向用户报告：
+## Output Template
+
+发布完成后报告：
 
 ```
 ✅ 版本发布完成！
-- 版本号: v{x.y.z}
-- Release: {release_url}
-- 下载:
-  - Linux: hotplex_{x.y.z}_linux_amd64.tar.gz
-  - macOS: hotplex_{x.y.z}_darwin_arm64.tar.gz
-  - Windows: hotplex_{x.y.z}_windows_amd64.zip
+- 版本号: vX.Y.Z
+- Commit: <sha>
+- Release: <url>
+- CI: ✅ passed
 ```
