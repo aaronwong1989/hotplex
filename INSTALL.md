@@ -168,17 +168,17 @@ docker pull ghcr.io/hrygo/hotplex:node
 docker run -d \
   --name hotplex \
   -p 8080:8080 \
-  -p 8081:8081 \
+  -p 9080:9080 \
   -v ~/.config/hotplex:/root/.hotplex \
   -v ~/projects:/root/projects \
-  -e HOTPLEX_ADMIN_PORT=8081 \
+  -e HOTPLEX_ADMIN_PORT=9080 \
   -e HOTPLEX_API_KEY=your-secure-api-key \
   ghcr.io/hrygo/hotplex:node
 ```
 
 **Ports**:
 - `8080`: Main WebSocket/HTTP API server
-- `8081`: Admin API for session management and diagnostics
+- `9080`: Admin API for session management and diagnostics
 
 ### CLI Commands
 

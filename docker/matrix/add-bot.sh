@@ -54,6 +54,9 @@ while grep -q ":$PORT:8080" docker-compose.yml 2>/dev/null; do
     ((PORT++))
 done
 
+# Admin port follows the pattern: 19080, 19081, 19082, ...
+ADMIN_PORT=$((PORT + 1000))
+
 # Named volume for Claude state
 CLAUDE_VOLUME="hotplex-matrix-claude-$BOT_PADDED_INDEX"
 # Named volume for per-instance Go build cache (isolated)
@@ -72,7 +75,8 @@ NEW_API_KEY=$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom | head -c 64)
 
 printf "  ${GREEN}✓${NC} Bot Index: ${BOLD}${BOT_INDEX}${NC}\n"
 printf "  ${GREEN}✓${NC} Role: ${BOLD}${BOT_ROLE}${NC}\n"
-printf "  ${GREEN}✓${NC} Target Port: ${BOLD}${PORT}${NC}\n"
+printf "  ${GREEN}✓${NC} Main Port: ${BOLD}${PORT}${NC}\n"
+printf "  ${GREEN}✓${NC} Admin Port: ${BOLD}${ADMIN_PORT}${NC}\n"
 printf "  ${GREEN}✓${NC} Claude Volume: ${BOLD}${CLAUDE_VOLUME}${NC}\n"
 printf "  ${GREEN}✓${NC} Build Cache Volume: ${BOLD}${BUILD_VOLUME}${NC}\n"
 printf "  ${GREEN}✓${NC} Generated API Key: ${BOLD}${NEW_API_KEY:0:8}...${NC}\n"
@@ -230,7 +234,7 @@ SERVICE_BLOCK=$(printf "\
       file: common.yml
       service: hotplex-base
     container_name: %s
-    ports: [ \"127.0.0.1:%s:8080\" ]
+    ports: [ \"127.0.0.1:%s:8080\", \"127.0.0.1:%s:9080\" ]
     env_file: [ %s ]
     volumes:
       # Claude state (named Docker volume for isolation)
@@ -245,7 +249,7 @@ SERVICE_BLOCK=$(printf "\
       - \"hotplex.bot.id=%s\"
       - \"hotplex.bot.role=%s\"
 " "$BOT_PADDED_INDEX" "$ROLE_DISPLAY" "$SERVICE_NAME" "$SERVICE_NAME" \
-  "$PORT" "$ENV_FILE" "$CLAUDE_VOLUME" "$BUILD_VOLUME" \
+  "$PORT" "$ADMIN_PORT" "$ENV_FILE" "$CLAUDE_VOLUME" "$BUILD_VOLUME" \
   "$HOTPLEX_BOT_ID" "$HOTPLEX_BOT_ID" "$HOTPLEX_BOT_ID" "$BOT_ROLE")
 
 printf "\n%s\n" "$SERVICE_BLOCK" >> docker-compose.yml
@@ -297,7 +301,8 @@ printf "\n${GREEN}${BOLD}✨ Success! Bot $BOT_INDEX is ready to roll.${NC}\n"
 printf "──────────────────────────────────────────────────────────────────\n"
 printf "  ${BOLD}Bot ID:${NC}        $HOTPLEX_BOT_ID\n"
 printf "  ${BOLD}Role:${NC}          $BOT_ROLE\n"
-printf "  ${BOLD}Port:${NC}          $PORT\n"
+printf "  ${BOLD}Main Port:${NC}      $PORT\n"
+printf "  ${BOLD}Admin Port:${NC}     $ADMIN_PORT\n"
 printf "  ${BOLD}Claude Volume:${NC}      $CLAUDE_VOLUME\n"
 printf "  ${BOLD}Build Cache Volume:${NC} $BUILD_VOLUME\n"
 printf "  ${BOLD}Env File:${NC}          $ENV_FILE\n"

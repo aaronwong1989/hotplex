@@ -36,7 +36,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		{"Configuration Files", checkConfigFiles},
 		{"Environment Variables", checkEnvVars},
 		{"Port Availability (8080)", checkPortAvailable("8080")},
-		{"Port Availability (8081)", checkPortAvailable("8081")},
+		{"Port Availability (9080)", checkPortAvailable("9080")},
 		{"Database (SQLite)", checkDatabase},
 	}
 

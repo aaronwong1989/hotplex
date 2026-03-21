@@ -21,13 +21,31 @@ COMPOSE_DIR="~/hotplex/docker/matrix"
 cd ~/hotplex/docker/matrix && docker compose ps
 ```
 
-## Container Reference
+## Container Discovery
 
-| Container | Port | Bot ID | Role | Env File |
-|:----------|:-----|:-------|:-----|:---------|
-| hotplex-01 | 18080 | U0AHRCL1KCM | Primary | .env-01 |
-| hotplex-02 | 18081 | U0AJVRH4YF6 | Secondary | .env-02 |
-| hotplex-03 | 18082 | U0AL7H8UU75 | Secondary | .env-03 |
+**IMPORTANT**: Do not hardcode container details. Always discover containers dynamically:
+
+```bash
+# List all running containers with their ports
+cd ~/hotplex/docker/matrix && docker compose ps
+
+# Get container port mappings
+docker ps --format "table {{.Names}}\t{{.Ports}}" | grep hotplex
+```
+
+### Port Mapping Convention
+
+HotPlex follows a predictable port numbering pattern:
+
+- **Main Port (WebSocket/HTTP)**: `18080 + (BOT_INDEX - 1)`
+- **Admin Port (Session Management)**: `19080 + (BOT_INDEX - 1)`
+
+Examples:
+- Bot 01: Main=18080, Admin=19080
+- Bot 02: Main=18081, Admin=19081
+- Bot 03: Main=18082, Admin=19082
+
+**However**, always verify actual ports using `docker compose ps` rather than assuming.
 
 ## Quick Operations
 
@@ -204,6 +222,51 @@ cd ~/hotplex/docker/matrix && docker compose ps
 ```
 
 Then use the container name (hotplex-01, hotplex-02, or hotplex-03) in subsequent commands.
+
+## Session Management via Admin API
+
+Each bot exposes an Admin API on port 9080 (internal) for session management and diagnostics.
+
+### Quick Status
+
+```bash
+# Check runtime status for specific bot
+cd ~/hotplex/docker/matrix && \
+admin_port=$(docker port hotplex-01_1 9080 2>/dev/null | grep -oP ':\K\d+') && \
+curl -s -H "Authorization: Bearer ${HOTPLEX_ADMIN_TOKEN}" \
+  http://localhost:$admin_port/admin/v1/stats | jq
+```
+
+### List Active Sessions
+
+```bash
+cd ~/hotplex/docker/matrix && \
+admin_port=$(docker port hotplex-01_1 9080 2>/dev/null | grep -oP ':\K\d+') && \
+curl -s -H "Authorization: Bearer ${HOTPLEX_ADMIN_TOKEN}" \
+  http://localhost:$admin_port/admin/v1/sessions | jq
+```
+
+### Terminate Hung Session
+
+```bash
+cd ~/hotplex/docker/matrix && \
+admin_port=$(docker port hotplex-01_1 9080 2>/dev/null | grep -oP ':\K\d+') && \
+curl -X DELETE -H "Authorization: Bearer ${HOTPLEX_ADMIN_TOKEN}" \
+  http://localhost:$admin_port/admin/v1/sessions/<session-id>
+```
+
+**Note**: Replace `<session-id>` with actual session ID from the list endpoint.
+
+### Health Check
+
+```bash
+cd ~/hotplex/docker/matrix && \
+admin_port=$(docker port hotplex-01_1 9080 2>/dev/null | grep -oP ':\K\d+') && \
+curl -s -H "Authorization: Bearer ${HOTPLEX_ADMIN_TOKEN}" \
+  http://localhost:$admin_port/admin/v1/health/detailed | jq
+```
+
+**For complete Admin API reference, see**: `hotplex-diagnostics/references/api-endpoints.md`
 
 ## Additional Resources
 

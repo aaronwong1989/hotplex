@@ -55,7 +55,7 @@ func runDaemon() {
 	// Parse command line flags
 	serverConfig := flag.String("config", "", "Server config YAML file")
 	envFileFlag := flag.String("env-file", "", "Path to .env file")
-	adminPort := flag.String("admin-port", "8081", "Admin API server port")
+	adminPort := flag.String("admin-port", "", "Admin API server port (default: 9080)")
 	flag.Parse()
 
 	// 0. Ensure HOME environment variable is set
@@ -64,6 +64,16 @@ func runDaemon() {
 		if h, err := os.UserHomeDir(); err == nil {
 			homeDir = h
 			_ = os.Setenv("HOME", homeDir)
+		}
+	}
+
+	// Resolve admin port: CLI flag > env var > default
+	resolvedAdminPort := *adminPort
+	if resolvedAdminPort == "" {
+		if envPort := os.Getenv("HOTPLEX_ADMIN_PORT"); envPort != "" {
+			resolvedAdminPort = envPort
+		} else {
+			resolvedAdminPort = "9080" // default
 		}
 	}
 
@@ -113,7 +123,7 @@ func runDaemon() {
 	mainRouter, chatappsMgr := setupHTTPHandlers(engine, logger, serverCfg)
 
 	// 8. Start Admin Server (independent port)
-	adminServer := admin.NewServer(engine, *adminPort, adminToken, time.Now(), logger)
+	adminServer := admin.NewServer(engine, resolvedAdminPort, adminToken, time.Now(), logger)
 	adminServer.Start()
 
 	// Monitor admin server startup

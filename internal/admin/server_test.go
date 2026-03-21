@@ -11,7 +11,7 @@ import (
 
 func TestNewServer_NilLogger(t *testing.T) {
 	// Should not panic when logger is nil
-	srv := NewServer(nil, "8081", "token", time.Now(), nil)
+	srv := NewServer(nil, "9080", "token", time.Now(), nil)
 	if srv == nil {
 		t.Fatal("expected non-nil server")
 	}
@@ -22,7 +22,7 @@ func TestNewServer_NilLogger(t *testing.T) {
 
 func TestNewServer_WithSlogLogger(t *testing.T) {
 	slogLogger := slog.Default()
-	srv := NewServer(nil, "8081", "token", time.Now(), slogLogger)
+	srv := NewServer(nil, "9080", "token", time.Now(), slogLogger)
 	if srv == nil {
 		t.Fatal("expected non-nil server")
 	}
@@ -79,10 +79,10 @@ func TestServer_RoutesRegistered(t *testing.T) {
 
 func TestServer_FieldsSet(t *testing.T) {
 	startTime := time.Now()
-	srv := NewServer(nil, "8081", "my-token", startTime, slog.Default())
+	srv := NewServer(nil, "9080", "my-token", startTime, slog.Default())
 
-	if srv.port != "8081" {
-		t.Errorf("expected port 8081, got %s", srv.port)
+	if srv.port != "9080" {
+		t.Errorf("expected port 9080, got %s", srv.port)
 	}
 	if srv.token != "my-token" {
 		t.Errorf("expected token 'my-token', got %s", srv.token)

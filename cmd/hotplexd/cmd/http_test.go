@@ -99,11 +99,11 @@ func TestRunStatus_Success(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_sessions":   5,
-			"active_sessions":  2,
-			"stopped_sessions": 3,
-			"uptime":           "2h30m",
-			"memory_usage_mb":  64.5,
+			"total_sessions":    5,
+			"active_sessions":   2,
+			"stopped_sessions":  3,
+			"uptime":            "2h30m",
+			"memory_usage_mb":   64.5,
 			"cpu_usage_percent": 12.3,
 		})
 	}))

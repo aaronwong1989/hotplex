@@ -216,13 +216,13 @@ OpenCode SSE 回显的消息格式为 `{"type": "message.part.updated", "propert
 
 ---
 
-## 5. Admin API (端口 8081)
+## 5. Admin API (端口 9080)
 
-Admin API 为 hotplexd 守护进程提供会话管理、诊断检查和配置验证功能。它运行在**独立端口 (8081)**，与主 WebSocket/HTTP 服务器 (8080) 分离。
+Admin API 为 hotplexd 守护进程提供会话管理、诊断检查和配置验证功能。它运行在**独立端口 (9080)**，与主 WebSocket/HTTP 服务器 (8080) 分离。
 
 ### 基础 URL
 ```
-http://localhost:8081/admin/v1
+http://localhost:9080/admin/v1
 ```
 
 ### 身份验证
@@ -375,7 +375,7 @@ Authorization: Bearer <token>
 ### 守护进程模式
 ```bash
 hotplexd start --config=/path/to/config.yaml --env-file=/path/to/.env
-hotplexd start --admin-port=8081  # 自定义 admin 端口
+hotplexd start --admin-port=9080  # 自定义 admin 端口 (默认: 9080)
 ```
 
 ### 会话管理
@@ -397,13 +397,13 @@ hotplexd version                         # 显示版本信息
 ### 全局 Flags
 ```bash
 --admin-token=<token>   # Admin API Token (或设置 HOTPLEX_ADMIN_TOKEN)
---server-url=<url>      # Admin API 基础 URL (默认: http://localhost:8081)
+--server-url=<url>      # Admin API 基础 URL (默认: http://localhost:9080)
 ```
 
 ### 使用示例
 ```bash
 # 指定服务器列出会话
-hotplexd --server-url=http://daemon:8081 session list
+hotplexd --server-url=http://daemon:9080 session list
 
 # 终止会话
 hotplexd --admin-token=secret123 session kill sess_abc123

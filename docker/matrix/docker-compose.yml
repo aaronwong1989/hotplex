@@ -29,7 +29,7 @@ services:
   hotplex-01:
     extends: { file: common.yml, service: hotplex-base }
     container_name: hotplex-01
-    ports: [ "127.0.0.1:18080:8080", "127.0.0.1:18081:8081" ]
+    ports: [ "127.0.0.1:18080:8080", "127.0.0.1:19080:9080" ]
     env_file: [ .env-01 ]
     volumes:
       - hotplex-matrix-claude-01:/home/hotplex/.claude:rw
@@ -45,7 +45,7 @@ services:
   hotplex-02:
     extends: { file: common.yml, service: hotplex-base }
     container_name: hotplex-02
-    ports: [ "127.0.0.1:18081:8080", "127.0.0.1:18083:8081" ]
+    ports: [ "127.0.0.1:18081:8080", "127.0.0.1:19081:9080" ]
     env_file: [ .env-02 ]
     volumes:
       - hotplex-matrix-claude-02:/home/hotplex/.claude:rw
@@ -61,7 +61,7 @@ services:
   hotplex-03:
     extends: { file: common.yml, service: hotplex-base }
     container_name: hotplex-03
-    ports: [ "127.0.0.1:18082:8080", "127.0.0.1:18084:8081" ]
+    ports: [ "127.0.0.1:18082:8080", "127.0.0.1:19082:9080" ]
     env_file: [ .env-03 ]
     volumes:
       - hotplex-matrix-claude-03:/home/hotplex/.claude:rw

@@ -24,13 +24,13 @@ type SessionListResponse struct {
 
 // SessionDetailResponse is the response for GET /admin/v1/sessions/:id.
 type SessionDetailResponse struct {
-	ID        string        `json:"id"`
-	Status    string        `json:"status"`
-	CreatedAt time.Time    `json:"created_at"`
-	LastActive time.Time   `json:"last_active"`
-	Provider  string       `json:"provider"`
-	Config    SessionConfig `json:"config,omitempty"`
-	Stats     SessionStats `json:"stats,omitempty"`
+	ID         string        `json:"id"`
+	Status     string        `json:"status"`
+	CreatedAt  time.Time     `json:"created_at"`
+	LastActive time.Time     `json:"last_active"`
+	Provider   string        `json:"provider"`
+	Config     SessionConfig `json:"config,omitempty"`
+	Stats      SessionStats  `json:"stats,omitempty"`
 }
 
 // SessionConfig contains session configuration details.
@@ -41,16 +41,16 @@ type SessionConfig struct {
 
 // SessionStats contains session statistics.
 type SessionStats struct {
-	InputTokens    int64 `json:"input_tokens"`
-	OutputTokens   int64 `json:"output_tokens"`
-	DurationSecs   int64 `json:"duration_seconds"`
+	InputTokens  int64 `json:"input_tokens"`
+	OutputTokens int64 `json:"output_tokens"`
+	DurationSecs int64 `json:"duration_seconds"`
 }
 
 // SessionLogsResponse is the response for GET /admin/v1/sessions/:id/logs.
 type SessionLogsResponse struct {
 	SessionID    string    `json:"session_id"`
 	LogPath      string    `json:"log_path"`
-	SizeBytes    int64    `json:"size_bytes"`
+	SizeBytes    int64     `json:"size_bytes"`
 	LastModified time.Time `json:"last_modified"`
 }
 
@@ -83,9 +83,9 @@ type ConfigValidateResponse struct {
 
 // HealthDetailedResponse is the response for GET /admin/v1/health/detailed.
 type HealthDetailedResponse struct {
-	Status   string           `json:"status"`
-	Checks   HealthChecks     `json:"checks"`
-	Details  HealthDetails    `json:"details"`
+	Status  string        `json:"status"`
+	Checks  HealthChecks  `json:"checks"`
+	Details HealthDetails `json:"details"`
 }
 
 // HealthChecks contains health check results.
@@ -93,14 +93,14 @@ type HealthChecks struct {
 	Database             bool `json:"database"`
 	Config               bool `json:"config"`
 	CliAvailable         bool `json:"cli_available"`
-	WebsocketConnections int `json:"websocket_connections"`
+	WebsocketConnections int  `json:"websocket_connections"`
 }
 
 // HealthDetails contains detailed health information.
 type HealthDetails struct {
 	DatabaseLatencyMs int    `json:"database_latency_ms"`
-	CliVersion       string `json:"cli_version"`
-	ConfigFile       string `json:"config_file"`
+	CliVersion        string `json:"cli_version"`
+	ConfigFile        string `json:"config_file"`
 }
 
 // ErrorCode represents admin API error codes.
@@ -122,6 +122,6 @@ type ErrorResponse struct {
 // ErrorDetail contains error details.
 type ErrorDetail struct {
 	Code    ErrorCode              `json:"code"`
-	Message string                `json:"message"`
+	Message string                 `json:"message"`
 	Details map[string]interface{} `json:"details,omitempty"`
 }

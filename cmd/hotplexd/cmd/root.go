@@ -36,5 +36,5 @@ func Execute() {
 
 func init() {
 	RootCmd.PersistentFlags().String("admin-token", "", "Admin API authentication token (also via HOTPLEX_ADMIN_TOKEN)")
-	RootCmd.PersistentFlags().String("server-url", "http://localhost:8081", "Admin server URL")
+	RootCmd.PersistentFlags().String("server-url", "http://localhost:9080", "Admin server URL")
 }

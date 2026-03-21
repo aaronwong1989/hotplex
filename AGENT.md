@@ -99,7 +99,7 @@ hotplexd version  # 显示版本
     - `internal/persistence/`: `marker.go` (Session durability).
     - `internal/secrets/`: Secrets provider (API key management).
     - `internal/telemetry/`: OpenTelemetry integration.
-    - `internal/admin/`: Admin API server (port 8081) with session management, diagnostics, and config validation.
+    - `internal/admin/`: Admin API server (port 9080) with session management, diagnostics, and config validation.
 - **Systems**: `internal/sys/` (OS Signals), `internal/config/` (Watchers), `internal/strutil/` (High-perf utils).
 - **Domain**: `types/` & `event/` (The "Universal Language" of the system).
 - **Plugins**: `plugins/storage/` (Message persistence backends: SQLite, PostgreSQL).

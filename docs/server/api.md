@@ -216,13 +216,13 @@ Access control via `HOTPLEX_API_KEYS` environment variable is recommended for pr
 
 ---
 
-## 5. Admin API (Port 8081)
+## 5. Admin API (Port 9080)
 
-The Admin API provides session management, diagnostics, and configuration validation for the hotplexd daemon. It runs on an **independent port (8081)** from the main WebSocket/HTTP server (8080).
+The Admin API provides session management, diagnostics, and configuration validation for the hotplexd daemon. It runs on an **independent port (9080)** from the main WebSocket/HTTP server (8080).
 
 ### Base URL
 ```
-http://localhost:8081/admin/v1
+http://localhost:9080/admin/v1
 ```
 
 ### Authentication
@@ -375,7 +375,7 @@ The `hotplexd` binary supports both daemon mode and CLI commands for administrat
 ### Daemon Mode
 ```bash
 hotplexd start --config=/path/to/config.yaml --env-file=/path/to/.env
-hotplexd start --admin-port=8081  # Custom admin port
+hotplexd start --admin-port=9080  # Custom admin port (default: 9080)
 ```
 
 ### Session Management
@@ -397,13 +397,13 @@ hotplexd version                         # Show version info
 ### Global Flags
 ```bash
 --admin-token=<token>   # Admin API token (or set HOTPLEX_ADMIN_TOKEN)
---server-url=<url>      # Admin API base URL (default: http://localhost:8081)
+--server-url=<url>      # Admin API base URL (default: http://localhost:9080)
 ```
 
 ### Examples
 ```bash
 # List sessions with custom server
-hotplexd --server-url=http://daemon:8081 session list
+hotplexd --server-url=http://daemon:9080 session list
 
 # Terminate a session
 hotplexd --admin-token=secret123 session kill sess_abc123

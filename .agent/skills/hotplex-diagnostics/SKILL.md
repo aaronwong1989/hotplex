@@ -123,34 +123,52 @@ done
 
 ## Layer 3: HotPlex Enhanced Diagnostics
 
-**HotPlex Container Reference:**
-
-| Container | Port | Bot ID | Role | Env File |
-|:----------|:-----|:-------|:-----|:---------|
-| hotplex-01 | 18080 | U0AHRCL1KCM | Primary | .env-01 |
-| hotplex-02 | 18081 | U0AJVRH4YF6 | Secondary | .env-02 |
-| hotplex-03 | 18082 | U0AL7H8UU75 | Secondary | .env-03 |
-
-**External Services:**
-
-| Service | Port | Role | Health Endpoint |
-|:--------|:-----|:-----|:----------------|
-| openclaw-gateway | 18789 | MCP Gateway | `curl http://localhost:18789/health` |
-
 **Working Directory**: `~/hotplex/docker/matrix`
+
+### Container Discovery
+
+**IMPORTANT**: Do not hardcode container details. Always discover containers dynamically:
+
+```bash
+# Discover HotPlex containers
+cd ~/hotplex/docker/matrix && docker compose ps
+
+# Get container names and ports
+docker ps --format "table {{.Names}}\t{{.Ports}}" | grep hotplex
+```
+
+### Port Mapping Convention
+
+HotPlex follows a predictable port numbering pattern:
+
+- **Main Port (WebSocket/HTTP)**: `18080 + (BOT_INDEX - 1)`
+- **Admin Port (Session Management)**: `19080 + (BOT_INDEX - 1)`
+
+Examples:
+- Bot 01: Main=18080, Admin=19080
+- Bot 02: Main=18081, Admin=19081
+- Bot 03: Main=18082, Admin=19082
+
+**However**, always verify actual ports using `docker compose ps` rather than assuming.
 
 ### HTTP Health Check
 
 ```bash
-# HotPlex bots
-for port in 18080 18081 18082; do
-  status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$port/health 2>/dev/null || echo "000")
-  echo "Port $port: HTTP $status"
+# Discover HotPlex containers and check health
+cd ~/hotplex/docker/matrix && \
+for container in $(docker compose ps --services); do
+  port=$(docker port "${container}_1" 8080 2>/dev/null | grep -oP ':\K\d+' || echo "N/A")
+  if [ "$port" != "N/A" ]; then
+    status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$port/health 2>/dev/null || echo "000")
+    echo "$container (port $port): HTTP $status"
+  fi
 done
 
-# OpenClaw Gateway (external service)
-echo "OpenClaw Gateway:"
-curl -s http://localhost:18789/health 2>/dev/null || echo "  FAILED or not running"
+# External services (example - only if running)
+if docker ps --format '{{.Names}}' | grep -q openclaw-gateway; then
+  echo "OpenClaw Gateway:"
+  curl -s http://localhost:18789/health 2>/dev/null || echo "  FAILED or not running"
+fi
 ```
 
 ### Socket Mode Status
@@ -163,28 +181,40 @@ docker compose logs --tail=100 2>&1 | grep -E "Socket Mode|invalid_auth|Connecte
 ### Session Diagnostics
 
 ```bash
-# Active sessions
-docker exec hotplex-01 ps aux | grep -E "claude|opencode" | wc -l
+# Discover containers and check active sessions
+cd ~/hotplex/docker/matrix && \
+for container in $(docker compose ps --services); do
+  instance="${container}_1"
+  active=$(docker exec "$instance" ps aux 2>/dev/null | grep -cE "claude|opencode" || echo "0")
+  echo "$container: $active active sessions"
+done
 
-# Session in specific container
-docker logs hotplex-01 --since 1h 2>&1 | grep -c "session_id"
+# Session count for specific container (example)
+# docker logs hotplex-01 --since 1h 2>&1 | grep -c "session_id"
 ```
 
 ### HotPlex-Specific Errors
 
 ```bash
 cd ~/hotplex/docker/matrix && \
-for bot in hotplex-01 hotplex-02 hotplex-03; do
-  echo "=== $bot ==="
-  docker logs "$bot" --since 1h 2>&1 | grep -iE "error|waf|blocked|timeout" | head -5
+for container in $(docker compose ps --services); do
+  instance="${container}_1"
+  echo "=== $container ==="
+  docker logs "$instance" --since 1h 2>&1 | grep -iE "error|waf|blocked|timeout" | head -5
 done
 ```
 
 ### Disk Usage (HotPlex)
 
 ```bash
-docker exec hotplex-01 du -sh /home/hotplex/.hotplex 2>/dev/null
-docker exec hotplex-01 du -sh /home/hotplex/.claude 2>/dev/null
+# Check disk usage for all HotPlex containers
+cd ~/hotplex/docker/matrix && \
+for container in $(docker compose ps --services); do
+  instance="${container}_1"
+  echo "=== $container ==="
+  docker exec "$instance" du -sh /home/hotplex/.hotplex 2>/dev/null || echo "  N/A"
+  docker exec "$instance" du -sh /home/hotplex/.claude 2>/dev/null || echo "  N/A"
+done
 ```
 
 ### OpenClaw Gateway Diagnostics
@@ -210,6 +240,49 @@ docker stats --no-stream openclaw-gateway --format "CPU: {{.CPUPerc}}, Memory: {
 # If container not found, check if it's supposed to be running
 echo "Note: openclaw-gateway is not managed by docker-compose."
 echo "It may be started by a separate compose file or manually."
+```
+
+---
+
+## Admin CLI Commands
+
+HotPlex provides admin CLI commands for quick diagnostics:
+
+### Quick Status Check
+
+```bash
+# Check daemon status (from any bot container)
+cd ~/hotplex/docker/matrix && \
+for container in $(docker compose ps --services | head -1); do
+  docker exec "${container}_1" hotplexd status
+done
+```
+
+### Diagnostic Checks
+
+```bash
+# Run doctor diagnostic (from any bot container)
+cd ~/hotplex/docker/matrix && \
+for container in $(docker compose ps --services | head -1); do
+  echo "=== Running doctor in $container ==="
+  docker exec "${container}_1" hotplexd doctor
+done
+```
+
+**Doctor checks**:
+- CLI binary availability (claude-code)
+- Configuration file validity
+- Required environment variables
+- Port availability (8080, 9080)
+- Database connectivity (if configured)
+
+### Config Validation
+
+```bash
+# Validate configuration file (from any bot container)
+cd ~/hotplex/docker/matrix && \
+container=$(docker compose ps --services | head -1) && \
+docker exec "${container}_1" hotplexd config validate /home/hotplex/.hotplex/config.yaml
 ```
 
 ---
@@ -267,12 +340,25 @@ echo ">>> Container Status" && \
 docker compose ps && \
 echo "" && \
 echo ">>> HTTP Health" && \
-for port in 18080 18081 18082; do
-  curl -s http://localhost:$port/health 2>/dev/null || echo "Port $port: FAILED"
+echo "Main servers:" && \
+for container in $(docker compose ps --services); do
+  port=$(docker port "${container}_1" 8080 2>/dev/null | grep -oP ':\K\d+')
+  if [ -n "$port" ]; then
+    status=$(curl -s http://localhost:$port/health 2>/dev/null || echo "FAILED")
+    echo "$container (port $port): $status"
+  fi
+done && \
+echo "Admin servers:" && \
+for container in $(docker compose ps --services); do
+  admin_port=$(docker port "${container}_1" 9080 2>/dev/null | grep -oP ':\K\d+')
+  if [ -n "$admin_port" ]; then
+    status=$(curl -s http://localhost:$admin_port/admin/v1/stats 2>/dev/null || echo "FAILED")
+    echo "$container (port $admin_port): $status"
+  fi
 done && \
 echo "" && \
 echo ">>> Resource Usage" && \
-docker stats --no-stream hotplex-01 hotplex-02 hotplex-03 --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null
+docker stats --no-stream $(docker compose ps -q) --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null
 ```
 
 ---

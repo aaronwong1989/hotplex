@@ -23,10 +23,10 @@ var _ Logger = (*slog.Logger)(nil)
 
 // Handler handles admin API requests.
 type Handler struct {
-	engine      *engine.Engine
-	startTime   time.Time
-	logger      Logger
-	cliVersion  string // cached CLI version, set once at construction
+	engine     *engine.Engine
+	startTime  time.Time
+	logger     Logger
+	cliVersion string // cached CLI version, set once at construction
 }
 
 // Logger interface for logging.

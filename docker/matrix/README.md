@@ -51,10 +51,15 @@ HotPlex Matrix 是默认的容器编排方案，支持一个主机器人 (hotple
 
 ## 📂 部署矩阵示例
 
-| 实例名称 | 外部端口 | 隔离路径 (宿主机) | 镜像版本 (示例) |
-| :--- | :--- | :--- | :--- |
-| **hotplex-01** | `18080` | `~/.hotplex/instances/ID_A/` | `hotplex:go` |
-| **hotplex-02** | `18081` | `~/.hotplex/instances/ID_B/` | `hotplex:python` |
+| 实例名称 | 主端口 | 管理端口 | 隔离路径 (宿主机) | 镜像版本 (示例) |
+| :--- | :--- | :--- | :--- | :--- |
+| **hotplex-01** | `18080` | `19080` | `~/.hotplex/instances/ID_A/` | `hotplex:go` |
+| **hotplex-02** | `18081` | `19081` | `~/.hotplex/instances/ID_B/` | `hotplex:python` |
+| **hotplex-03** | `18082` | `19082` | `~/.hotplex/instances/ID_C/` | `hotplex:go` |
+
+**端口编号规则**：
+- **主端口** (WebSocket Gateway): `18080 + (BOT_INDEX - 1)`
+- **管理端口** (Admin API): `19080 + (BOT_INDEX - 1)`
 
 ---
 

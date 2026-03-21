@@ -36,7 +36,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
 > "$LOG_FILE"
 
 echo "🔥 Starting NEW HotPlex Daemon..."
-nohup "$BIN_PATH" > "$LOG_FILE" 2>&1 & disown
+nohup "$BIN_PATH" start > "$LOG_FILE" 2>&1 & disown
 
 sleep 2
 

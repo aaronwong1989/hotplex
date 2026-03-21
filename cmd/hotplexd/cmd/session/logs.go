@@ -44,7 +44,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	var result struct {
 		SessionID    string `json:"session_id"`
 		LogPath      string `json:"log_path"`
-		SizeBytes   int64  `json:"size_bytes"`
+		SizeBytes    int64  `json:"size_bytes"`
 		LastModified string `json:"last_modified"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

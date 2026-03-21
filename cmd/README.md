@@ -25,7 +25,7 @@ hotplexd start [flags]
 **Flags:**
 - `--config <path>`: Path to the server configuration YAML file.
 - `--env-file <path>`: Path to a `.env` file for environment variables.
-- `--admin-port <port>`: Port for the Admin API server (default: 8081).
+- `--admin-port <port>`: Port for the Admin API server (default: 9080).
 
 #### CLI Commands
 

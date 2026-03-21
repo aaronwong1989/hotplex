@@ -170,7 +170,7 @@ func TestSession_BR005_DifferentPlatform(t *testing.T) {
 
 	// Create Discord adapter with platform="discord"
 	discordAdapter := base.NewAdapter("discord", base.Config{
-		ServerAddr:   ":8081",
+		ServerAddr:   ":9080",
 		SystemPrompt: "",
 	}, logger, base.WithoutServer())
 

@@ -159,9 +159,9 @@ thread_ownership:
 
 **Bot 1 Configuration** (`slack-01.yaml`):
 ```yaml
+platform: slack
 mode: socketmode
-server:
-  port: 8080
+server_addr: :8080
 slack:
   app_token: xapp-xxx-01
   bot_token: xoxb-xxx-01
@@ -174,9 +174,9 @@ thread_ownership:
 
 **Bot 2 Configuration** (`slack-02.yaml`):
 ```yaml
+platform: slack
 mode: socketmode
-server:
-  port: 8081
+server_addr: :8080
 slack:
   app_token: xapp-xxx-02
   bot_token: xoxb-xxx-02
