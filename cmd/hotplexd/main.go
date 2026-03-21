@@ -102,7 +102,16 @@ func runDaemon() {
 
 	// 8. Start Admin Server (independent port)
 	adminServer := admin.NewServer(engine, *adminPort, adminToken, time.Now(), logger)
-	adminServer.Start()
+	adminErrCh := make(chan error, 1)
+	adminServer.Start(adminErrCh)
+
+	// Monitor admin server startup
+	select {
+	case err := <-adminErrCh:
+		logger.Error("Admin server failed to start", "error", err)
+		os.Exit(1)
+	default:
+	}
 
 	// 9. Start Main HTTP Server
 	port := "8080"

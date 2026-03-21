@@ -4,16 +4,16 @@ import "time"
 
 // SessionInfo represents a session in admin API responses.
 type SessionInfo struct {
-	ID             string    `json:"id"`
-	Status         string    `json:"status"`
-	CreatedAt      time.Time `json:"created_at"`
-	LastActive     time.Time `json:"last_active"`
-	Provider       string    `json:"provider"`
-	CliVersion     string    `json:"cli_version,omitempty"`
-	WorkDir        string    `json:"work_dir,omitempty"`
-	InputTokens    int64     `json:"input_tokens,omitempty"`
-	OutputTokens   int64     `json:"output_tokens,omitempty"`
-	DurationSecs   int64     `json:"duration_seconds,omitempty"`
+	ID           string    `json:"id"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActive   time.Time `json:"last_active"`
+	Provider     string    `json:"provider"`
+	CliVersion   string    `json:"cli_version,omitempty"`
+	WorkDir      string    `json:"work_dir,omitempty"`
+	InputTokens  int64     `json:"input_tokens,omitempty"`
+	OutputTokens int64     `json:"output_tokens,omitempty"`
+	DurationSecs int64     `json:"duration_seconds,omitempty"`
 }
 
 // SessionListResponse is the response for GET /admin/v1/sessions.

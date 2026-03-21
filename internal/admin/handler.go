@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -13,8 +14,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/hrygo/hotplex/engine"
+	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/telemetry"
+	"gopkg.in/yaml.v3"
 )
+
+// Compile-time interface compliance: *slog.Logger satisfies Logger.
+var _ Logger = (*slog.Logger)(nil)
 
 // Handler handles admin API requests.
 type Handler struct {
@@ -99,6 +105,7 @@ func (h *Handler) getSession(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:  sess.CreatedAt,
 		LastActive: sess.GetLastActive(),
 		Config: SessionConfig{
+			// Provider is not exposed on individual sessions; report engine-level provider.
 			Provider: "claude-code",
 			WorkDir:  sess.Config.WorkDir,
 		},
@@ -136,7 +143,7 @@ func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := manager.TerminateSession(sessionID); err != nil {
+	if err := h.engine.StopSession(sessionID, "admin-terminated"); err != nil {
 		writeError(w, http.StatusInternalServerError, ErrCodeServerError, "Failed to terminate session: "+err.Error())
 		return
 	}
@@ -190,7 +197,9 @@ func (h *Handler) getStats(w http.ResponseWriter, r *http.Request) {
 			total = len(sessions)
 			active = 0
 			for _, sess := range sessions {
-				if sess.Status == "starting" || sess.Status == "ready" || sess.Status == "busy" {
+				if sess.Status == intengine.SessionStatusStarting ||
+					sess.Status == intengine.SessionStatusReady ||
+					sess.Status == intengine.SessionStatusBusy {
 					active++
 				}
 			}
@@ -266,7 +275,9 @@ func (h *Handler) getHealthDetailed(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		h.logger.Error("failed to encode JSON response", "error", err)
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, code ErrorCode, message string) {
@@ -278,7 +289,9 @@ func writeError(w http.ResponseWriter, status int, code ErrorCode, message strin
 			Message: message,
 		},
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("failed to encode error response", "error", err)
+	}
 }
 
 func checkCliAvailable() bool {
@@ -340,11 +353,17 @@ func validateConfigFile(path string) []string {
 		return []string{"failed to read config file: " + err.Error()}
 	}
 
-	content := string(data)
+	// Parse YAML to check structure
+	var m map[string]any
+	if err := yaml.Unmarshal(data, &m); err != nil {
+		return []string{"invalid YAML: " + err.Error()}
+	}
+
+	// Check required top-level fields
 	requiredFields := []string{"server", "engine"}
 	var errors []string
 	for _, field := range requiredFields {
-		if !strings.Contains(content, field+":") {
+		if _, ok := m[field]; !ok {
 			errors = append(errors, "missing required field: "+field)
 		}
 	}

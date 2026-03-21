@@ -31,18 +31,25 @@ var validateConfigCmd = &cobra.Command{
 
 func runValidateConfig(cmd *cobra.Command, args []string) error {
 	configPath := args[0]
-	serverURL, _ := cmd.Flags().GetString("server-url")
-	token, _ := cmd.Flags().GetString("admin-token")
+	serverURL, err := cmd.Flags().GetString("server-url")
+	if err != nil {
+		return fmt.Errorf("invalid server-url flag: %w", err)
+	}
+	token, err := cmd.Flags().GetString("admin-token")
+	if err != nil {
+		return fmt.Errorf("invalid admin-token flag: %w", err)
+	}
 	if token == "" {
 		token = os.Getenv("HOTPLEX_ADMIN_TOKEN")
 	}
 
 	// Local validation first
-	if err := validateConfigLocally(configPath); err != nil {
-		fmt.Printf("Local validation failed: %v\n", err)
-	} else {
-		fmt.Println("Local validation passed.")
+	localErr := validateConfigLocally(configPath)
+	if localErr != nil {
+		fmt.Printf("Local validation failed: %v\n", localErr)
+		return localErr
 	}
+	fmt.Println("Local validation passed.")
 
 	// Remote validation via admin API
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -60,8 +67,7 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Remote validation skipped: %v\n", err)
-		return nil
+		return fmt.Errorf("remote validation failed (server unreachable): %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -70,8 +76,7 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 		Errors []string `json:"errors"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		fmt.Printf("Remote validation skipped: failed to parse response\n")
-		return nil
+		return fmt.Errorf("remote validation failed (invalid response): %w", err)
 	}
 
 	fmt.Println("Remote validation result:")
@@ -79,9 +84,10 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 		fmt.Println("  Valid: true")
 	} else {
 		fmt.Println("  Valid: false")
-		for _, err := range result.Errors {
-			fmt.Printf("  - %s\n", err)
+		for _, e := range result.Errors {
+			fmt.Printf("  - %s\n", e)
 		}
+		return fmt.Errorf("config validation failed")
 	}
 
 	return nil
@@ -93,10 +99,16 @@ func validateConfigLocally(path string) error {
 		return fmt.Errorf("cannot read file: %w", err)
 	}
 
-	// Try to parse as YAML
-	var m map[string]interface{}
+	// Parse as YAML and check required top-level keys
+	var m map[string]any
 	if err := yaml.Unmarshal(data, &m); err != nil {
 		return fmt.Errorf("invalid YAML: %w", err)
+	}
+
+	for _, field := range []string{"server", "engine"} {
+		if _, ok := m[field]; !ok {
+			return fmt.Errorf("missing required field: %s", field)
+		}
 	}
 
 	return nil
