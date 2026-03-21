@@ -10,10 +10,10 @@ import (
 
 var (
 	// Version can be overridden via ldflags: -X github.com/hrygo/hotplex.Version=1.2.3
-	Version      = "0.31.9"
+	Version      = "0.32.0"
 	VersionMajor = 0
-	VersionMinor = 31
-	VersionPatch = 9
+	VersionMinor = 32
+	VersionPatch = 0
 )
 
 // Compile-time interface verification

@@ -1,5 +1,27 @@
 # CHANGELOG.md
 
+## [v0.32.0] - 2026-03-21
+
+### Features
+- **CLI** - `hotplexd` subcommand architecture with session management tools (#313):
+  - `hotplexd start`: Daemon startup with subcommand style
+  - `hotplexd session list|kill|logs`: Session management commands
+  - `hotplexd status`: Runtime status via Admin API
+  - `hotplexd doctor`: Comprehensive diagnostic checks
+  - `hotplexd config validate`: Configuration validation
+
+### Bug Fixes
+- **Engine** - Improve `clearClaudeJSONUserID` with credentials check:
+  - Check for `credentials.json` before clearing userID
+  - Add `HOTPLEX_CLAUDE_CLEAR_USERID=false` to disable
+  - Preserve userID when valid OAuth setup exists
+
+### Documentation
+- **Docs** - Update CLI commands to subcommand style (`./hotplexd start --config`)
+- **Cmd** - Add CLI command documentation structure for `cmd/` packages
+
+---
+
 ## [v0.31.9] - 2026-03-21
 
 ### Fixed
