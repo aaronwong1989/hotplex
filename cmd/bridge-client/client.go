@@ -469,8 +469,8 @@ func (c *Client) closeConn() error {
 	}
 
 	// Send close frame; don't block
-	conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
-	conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	_ = conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 
 	return conn.Close()
 }
