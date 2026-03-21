@@ -265,7 +265,7 @@ func TestClientNotConnected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	msg := &Message{SessionKey: "s1", Content: "test"}
