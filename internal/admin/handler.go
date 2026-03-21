@@ -240,14 +240,15 @@ func (h *Handler) validateConfig(w http.ResponseWriter, r *http.Request) {
 
 // getHealthDetailed handles GET /admin/v1/health/detailed.
 func (h *Handler) getHealthDetailed(w http.ResponseWriter, r *http.Request) {
+	cliVersion := getCliVersion()
 	checks := HealthChecks{
 		Config:               true,
-		CliAvailable:         checkCliAvailable(),
+		CliAvailable:         cliVersion != "unknown",
 		WebsocketConnections: countWebsocketConnections(),
 	}
 	details := HealthDetails{
 		DatabaseLatencyMs: 0,
-		CliVersion:        getCliVersion(),
+		CliVersion:        cliVersion,
 	}
 
 	dbPath := os.Getenv("HOTPLEX_MESSAGE_STORE_SQLITE_PATH")

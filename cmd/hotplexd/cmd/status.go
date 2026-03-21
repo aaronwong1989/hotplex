@@ -19,7 +19,7 @@ var statusCmd = &cobra.Command{
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	resp, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats")
+	resp, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats", nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %w (is the daemon running?)", err)
 	}

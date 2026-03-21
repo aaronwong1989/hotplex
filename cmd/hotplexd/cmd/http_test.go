@@ -12,7 +12,7 @@ func TestDoAdminAPI_InvalidServerURL(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().String("server-url", "http://localhost:99999", "")
 
-	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats")
+	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats", nil)
 	if err == nil {
 		t.Error("expected error for unreachable server")
 	}
@@ -23,7 +23,7 @@ func TestDoAdminAPI_InvalidAdminToken(t *testing.T) {
 	cmd.Flags().String("server-url", "http://localhost:99999", "")
 	cmd.Flags().String("admin-token", "", "")
 
-	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats")
+	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats", nil)
 	if err == nil {
 		t.Error("expected error for unreachable server")
 	}
@@ -34,7 +34,7 @@ func TestDoAdminAPI_ConnectionRefused(t *testing.T) {
 	cmd.Flags().String("server-url", "http://localhost:59999", "")
 	cmd.Flags().String("admin-token", "", "")
 
-	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats")
+	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats", nil)
 	if err == nil {
 		t.Error("expected connection refused error")
 	}
@@ -54,7 +54,7 @@ func TestDoAdminAPI_SetsAuthHeader(t *testing.T) {
 	cmd.Flags().String("server-url", server.URL, "")
 	cmd.Flags().String("admin-token", "test-token", "")
 
-	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats")
+	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestDoAdminAPI_NoToken(t *testing.T) {
 	cmd.Flags().String("server-url", server.URL, "")
 	cmd.Flags().String("admin-token", "", "")
 
-	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats")
+	_, err := DoAdminAPI(cmd, http.MethodGet, "/admin/v1/stats", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

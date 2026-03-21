@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -31,17 +30,6 @@ var validateConfigCmd = &cobra.Command{
 
 func runValidateConfig(cmd *cobra.Command, args []string) error {
 	configPath := args[0]
-	serverURL, err := cmd.Flags().GetString("server-url")
-	if err != nil {
-		return fmt.Errorf("invalid server-url flag: %w", err)
-	}
-	token, err := cmd.Flags().GetString("admin-token")
-	if err != nil {
-		return fmt.Errorf("invalid admin-token flag: %w", err)
-	}
-	if token == "" {
-		token = os.Getenv("HOTPLEX_ADMIN_TOKEN")
-	}
 
 	// Local validation first
 	localErr := validateConfigLocally(configPath)
@@ -52,20 +40,8 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 	fmt.Println("Local validation passed.")
 
 	// Remote validation via admin API
-	client := &http.Client{Timeout: 10 * time.Second}
-	url := serverURL + "/admin/v1/config/validate"
-
 	body := strings.NewReader(fmt.Sprintf(`{"config_path": "%s"}`, configPath))
-	req, err := http.NewRequest(http.MethodPost, url, body)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	resp, err := client.Do(req)
+	resp, err := DoAdminAPI(cmd, http.MethodPost, "/admin/v1/config/validate", body, "Content-Type", "application/json")
 	if err != nil {
 		return fmt.Errorf("remote validation failed (server unreachable): %w", err)
 	}

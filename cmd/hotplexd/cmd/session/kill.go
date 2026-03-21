@@ -24,7 +24,7 @@ func init() {
 func runKill(cmd *cobra.Command, args []string) error {
 	sessionID := args[0]
 
-	resp, err := cmdpkg.DoAdminAPI(cmd, http.MethodDelete, "/admin/v1/sessions/"+sessionID)
+	resp, err := cmdpkg.DoAdminAPI(cmd, http.MethodDelete, "/admin/v1/sessions/"+sessionID, nil)
 	if err != nil {
 		return err
 	}

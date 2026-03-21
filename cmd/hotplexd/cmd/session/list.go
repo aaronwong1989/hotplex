@@ -23,7 +23,7 @@ func init() {
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	resp, err := cmdpkg.DoAdminAPI(cmd, http.MethodGet, "/admin/v1/sessions")
+	resp, err := cmdpkg.DoAdminAPI(cmd, http.MethodGet, "/admin/v1/sessions", nil)
 	if err != nil {
 		return err
 	}

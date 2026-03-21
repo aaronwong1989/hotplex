@@ -27,7 +27,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	sessionID := args[0]
 	stream, _ := cmd.Flags().GetBool("stream")
 
-	resp, err := cmdpkg.DoAdminAPI(cmd, http.MethodGet, "/admin/v1/sessions/"+sessionID+"/logs")
+	resp, err := cmdpkg.DoAdminAPI(cmd, http.MethodGet, "/admin/v1/sessions/"+sessionID+"/logs", nil)
 	if err != nil {
 		return err
 	}
