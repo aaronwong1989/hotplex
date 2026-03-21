@@ -63,9 +63,9 @@ func NewServer(eng *engine.Engine, port, token string, startTime time.Time, logg
 }
 
 // Start starts the admin server in a goroutine.
-// The server reports startup errors (e.g., port already in use) via ErrCh.
+// Server errors (e.g., port already in use) are sent to ErrCh.
 // Callers should monitor ErrCh after Start() to detect startup failures.
-func (s *Server) Start(errCh chan<- error) {
+func (s *Server) Start() {
 	go func() {
 		s.logger.Info("Admin server starting", "port", s.port)
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

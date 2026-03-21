@@ -25,9 +25,10 @@ var _ Logger = (*slog.Logger)(nil)
 
 // Handler handles admin API requests.
 type Handler struct {
-	engine    *engine.Engine
-	startTime time.Time
-	logger    Logger
+	engine      *engine.Engine
+	startTime   time.Time
+	logger      Logger
+	cliVersion  string // cached CLI version, set once at construction
 }
 
 // Logger interface for logging.
@@ -40,10 +41,14 @@ type Logger interface {
 
 // NewHandler creates a new admin handler.
 func NewHandler(eng *engine.Engine, startTime time.Time, logger Logger) *Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Handler{
-		engine:    eng,
-		startTime: startTime,
-		logger:    logger,
+		engine:     eng,
+		startTime:  startTime,
+		logger:     logger,
+		cliVersion: getCliVersion(), // cache at construction
 	}
 }
 
@@ -241,15 +246,14 @@ func (h *Handler) validateConfig(w http.ResponseWriter, r *http.Request) {
 
 // getHealthDetailed handles GET /admin/v1/health/detailed.
 func (h *Handler) getHealthDetailed(w http.ResponseWriter, r *http.Request) {
-	cliVersion := getCliVersion()
 	checks := HealthChecks{
 		Config:               true,
-		CliAvailable:         cliVersion != "unknown",
+		CliAvailable:         h.cliVersion != "unknown",
 		WebsocketConnections: countWebsocketConnections(),
 	}
 	details := HealthDetails{
 		DatabaseLatencyMs: 0,
-		CliVersion:        cliVersion,
+		CliVersion:        h.cliVersion,
 	}
 
 	dbPath := os.Getenv("HOTPLEX_MESSAGE_STORE_SQLITE_PATH")

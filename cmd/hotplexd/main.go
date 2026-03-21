@@ -114,12 +114,11 @@ func runDaemon() {
 
 	// 8. Start Admin Server (independent port)
 	adminServer := admin.NewServer(engine, *adminPort, adminToken, time.Now(), logger)
-	adminErrCh := make(chan error, 1)
-	adminServer.Start(adminErrCh)
+	adminServer.Start()
 
 	// Monitor admin server startup
 	select {
-	case err := <-adminErrCh:
+	case err := <-adminServer.ErrChan():
 		logger.Error("Admin server failed to start", "error", err)
 		os.Exit(1)
 	default:
