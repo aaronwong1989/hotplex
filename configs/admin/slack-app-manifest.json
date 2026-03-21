@@ -1,0 +1,97 @@
+{
+  "_metadata": {
+    "major_version": 2,
+    "minor_version": 1
+  },
+  "display_information": {
+    "name": "HotPlex Admin",
+    "long_description": "HotPlex 管理助手（HotPlex Admin Bot）是针对 HotPlex 多机器人高度集成系统的专用 O&M（运维）控制平面。它深度专注于系统多维健康诊断、Docker 容器全生命周期管理、会话状态与过期数据清理以及高效率的版本发布自动化流程。该助手严格遵循「只读代码」的安全准则，所有识别到的代码缺陷均会通过其内置的 GitHub 集成以 Issues 形式由机器人自动汇报，从而在本质上确保了生产环境操作的安全边界、合规性与执行透明度，是 HotPlex 矩阵化部署中不可或缺的安全运营底座。",
+    "description": "HotPlex 管理助手 - 专注于系统运维、诊断与发布管理",
+    "background_color": "#0f172a"
+  },
+  "features": {
+    "assistant_view": {
+      "assistant_description": "HotPlex 管理助手是一个专注于 DevOps 和 O&M 的 AI 运行时。它通过集成 docker-container-ops、hotplex-diagnostics 和 hotplex-data-mgmt 等专业技能，为管理员提供实时的系统监控与自动化运维能力。它遵循\"只观察，不修改代码\"的安全准则。",
+      "suggested_prompts": [
+        {
+          "title": "🩺 系统诊断",
+          "message": "运行全面诊断，检查各模块健康状态并总结潜在问题（使用 hotplex-diagnostics）"
+        },
+        {
+          "title": "📦 容器管理",
+          "message": "列出当前所有 HotPlex 相关容器的状态，并检查是否有异常重启（使用 docker-container-ops）"
+        },
+        {
+          "title": "🧪 会话清理",
+          "message": "清理所有已过期的会话和临时标记，释放系统资源（使用 hotplex-data-mgmt）"
+        },
+        {
+          "title": "📚 知识库同步",
+          "message": "扫描项目高价值文档并同步至 NotebookLM，确保 AI 知识库是最新的（使用 hotplex-notebooklm）"
+        }
+      ]
+    },
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "HotPlex Admin",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/reset",
+        "description": "彻底销毁当前 Session 的 PGID 及上下文",
+        "should_escape": false
+      },
+      {
+        "command": "/dc",
+        "description": "当 AI 陷入异常或不可知状态时，立即终止当前执行进程",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "assistant:write",
+        "app_mentions:read",
+        "chat:write",
+        "chat:write.public",
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "im:write",
+        "reactions:write",
+        "im:history",
+        "channels:history",
+        "groups:history",
+        "mpim:history",
+        "commands",
+        "files:read",
+        "files:write",
+        "users:read",
+        "team:read"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "app_mention",
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "app_home_opened",
+        "assistant_thread_started",
+        "assistant_thread_context_changed"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true
+    },
+    "socket_mode_enabled": true
+  }
+}
