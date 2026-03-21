@@ -65,7 +65,9 @@ func (m *AdapterManager) RegisterOrReplace(adapter ChatAdapter) {
 	platform := adapter.Platform()
 	if existing, ok := m.adapters[platform]; ok {
 		if existing != adapter {
-			existing.Stop()
+			if err := existing.Stop(); err != nil {
+				m.logger.Warn("Failed to stop existing adapter", "platform", platform, "error", err)
+			}
 			m.logger.Info("Adapter replaced", "platform", platform)
 		}
 	}

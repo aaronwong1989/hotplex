@@ -274,7 +274,7 @@ func (bp *BridgePlatform) readLoop() {
 
 		var wm WireMessage
 		if err := json.Unmarshal(p, &wm); err != nil {
-			bp.writeError(400, "invalid JSON: "+err.Error())
+			_ = bp.writeError(400, "invalid JSON: "+err.Error())
 			continue
 		}
 
@@ -283,11 +283,31 @@ func (bp *BridgePlatform) readLoop() {
 				"platform", bp.platform,
 				"type", wm.Type,
 				"error", err)
-			bp.writeError(500, err.Error())
+			_ = bp.writeError(500, err.Error())
 		}
 	}
 }
 
+// deliveryLoop drains msgChan and writes each ChatMessage to the WebSocket.
+func (bp *BridgePlatform) deliveryLoop() {
+	for {
+		select {
+		case <-bp.done:
+			return
+		case msg := <-bp.msgChan:
+			if msg == nil {
+				continue
+			}
+			wm, _ := bp.buildWireMessage(msg)
+			if err := bp.writeJSON(wm); err != nil {
+				bp.logger.Debug("Bridge delivery failed, message dropped",
+					"platform", bp.platform,
+					"session_id", msg.SessionID,
+					"error", err)
+			}
+		}
+	}
+}
 // handleWireMessage dispatches a WireMessage to the appropriate handler.
 func (bp *BridgePlatform) handleWireMessage(wm *WireMessage) error {
 	switch wm.Type {
@@ -449,7 +469,7 @@ func (bp *BridgePlatform) close() {
 	}
 
 	if bp.conn != nil {
-		bp.conn.Close()
+		_ = bp.conn.Close()
 		bp.conn = nil
 	}
 }

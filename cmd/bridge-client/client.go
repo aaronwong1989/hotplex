@@ -181,7 +181,9 @@ func (c *Client) Connect(ctx context.Context) error {
 	c.mu.Unlock()
 
 	if err := c.register(); err != nil {
-		c.closeConn()
+		if closeErr := c.closeConn(); closeErr != nil {
+			c.logger.Warn("Failed to close connection after register error", "error", closeErr)
+		}
 		return fmt.Errorf("bridgeclient register: %w", err)
 	}
 
@@ -436,7 +438,7 @@ func (c *Client) sendReply(reply *Reply) {
 }
 
 func (c *Client) cleanup() {
-	c.Close()
+	_ = c.Close()
 }
 
 func (c *Client) closeConn() error {

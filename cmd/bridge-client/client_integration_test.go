@@ -29,12 +29,12 @@ func wsEchoServer(t *testing.T) (*httptest.Server, *sync.Mutex, map[string]int, 
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		// Send inbound messages
 		go func() {
 			for wm := range inbound {
-				conn.WriteJSON(wm)
+				_ = conn.WriteJSON(wm)
 			}
 		}()
 
@@ -50,9 +50,9 @@ func wsEchoServer(t *testing.T) (*httptest.Server, *sync.Mutex, map[string]int, 
 			// Echo back as reply
 			switch wm.Type {
 			case msgTypeRegister:
-				conn.WriteJSON(wireMessage{Type: msgTypeReply, Content: "registered"})
+				_ = conn.WriteJSON(wireMessage{Type: msgTypeReply, Content: "registered"})
 			case msgTypeMessage:
-				conn.WriteJSON(wireMessage{
+				_ = conn.WriteJSON(wireMessage{
 					Type:       msgTypeMessage,
 					SessionKey: wm.SessionKey,
 					Content:    "echo: " + wm.Content,
@@ -93,7 +93,7 @@ func TestClientConnectAndRegister(t *testing.T) {
 	cancel()
 	time.Sleep(50 * time.Millisecond)
 
-	client.Close()
+	_ = client.Close()
 }
 
 func TestClientSendMessage(t *testing.T) {
