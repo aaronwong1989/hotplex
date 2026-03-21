@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -211,4 +212,107 @@ func TestHandler_WriteJSONEncodeError(t *testing.T) {
 	rr := httptest.NewRecorder()
 	// This should not panic
 	h.writeJSON(rr, http.StatusOK, "plain string")
+}
+
+func TestListSessions_NilEngine(t *testing.T) {
+	h := &Handler{logger: &mockLogger{}}
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/sessions", nil)
+	rr := httptest.NewRecorder()
+	h.listSessions(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503, got %d", rr.Code)
+	}
+}
+
+func TestGetSession_NilEngine(t *testing.T) {
+	h := &Handler{logger: &mockLogger{}}
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/sessions/sess-001", nil)
+	rr := httptest.NewRecorder()
+	h.getSession(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503, got %d", rr.Code)
+	}
+}
+
+func TestDeleteSession_NilEngine(t *testing.T) {
+	h := &Handler{logger: &mockLogger{}}
+	req := httptest.NewRequest(http.MethodDelete, "/admin/v1/sessions/sess-001", nil)
+	rr := httptest.NewRecorder()
+	h.deleteSession(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503, got %d", rr.Code)
+	}
+}
+
+func TestGetCliVersion_Unknown(t *testing.T) {
+	// When claude-code is not installed, should return "unknown"
+	// (This is the expected behavior in test environment)
+	version := getCliVersion()
+	if version == "" {
+		t.Error("expected non-empty version string")
+	}
+}
+
+func TestGetHealthDetailed_NilEngine(t *testing.T) {
+	h := &Handler{logger: &mockLogger{}, startTime: time.Now()}
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/health/detailed", nil)
+	rr := httptest.NewRecorder()
+	h.getHealthDetailed(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200 (partial health), got %d", rr.Code)
+	}
+
+	var resp HealthDetailedResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	// When engine is nil, checks should still return (partial health)
+	if resp.Status == "" {
+		t.Error("expected non-empty status")
+	}
+}
+
+func TestCountWebsocketConnections(t *testing.T) {
+	// Should not panic and return a non-negative integer
+	count := countWebsocketConnections()
+	if count < 0 {
+		t.Errorf("expected non-negative count, got %d", count)
+	}
+}
+
+func TestCheckDatabaseHealth_NoDB(t *testing.T) {
+	latency, ok := checkDatabaseHealth("/nonexistent/db.sqlite")
+	if latency != 0 {
+		t.Errorf("expected latency 0 for nonexistent db, got %d", latency)
+	}
+	if ok {
+		t.Error("expected ok=false for nonexistent db")
+	}
+}
+
+func TestWriteError_EncodeFailure(t *testing.T) {
+	// Test that writeError handles encoding failures gracefully
+	rr := &writerFailsRecorder{}
+	writeError(rr, http.StatusInternalServerError, ErrCodeServerError, "test error")
+	// Should not panic
+}
+
+type writerFailsRecorder struct {
+	code int
+}
+
+func (w *writerFailsRecorder) Header() http.Header {
+	return http.Header{}
+}
+
+func (w *writerFailsRecorder) WriteHeader(code int) {
+	w.code = code
+}
+
+func (w *writerFailsRecorder) Write([]byte) (int, error) {
+	return 0, errors.New("write error")
 }
