@@ -110,7 +110,7 @@ func runDaemon() {
 	engine, adminToken := createEngine(logger, serverCfg)
 
 	// 7. Setup HTTP handlers
-	mainRouter := setupHTTPHandlers(engine, logger, serverCfg)
+	mainRouter, chatappsMgr := setupHTTPHandlers(engine, logger, serverCfg)
 
 	// 8. Start Admin Server (independent port)
 	adminServer := admin.NewServer(engine, *adminPort, adminToken, time.Now(), logger)
@@ -160,6 +160,11 @@ func runDaemon() {
 	}
 	if err := engine.Close(); err != nil {
 		logger.Error("Engine cleanup failed", "error", err)
+	}
+	if chatappsMgr != nil {
+		if err := chatappsMgr.StopAll(); err != nil {
+			logger.Error("ChatApps cleanup failed", "error", err)
+		}
 	}
 }
 
@@ -324,7 +329,7 @@ func createEngine(logger *slog.Logger, serverCfg *config.ServerLoader) (*hotplex
 	return engine, adminToken
 }
 
-func setupHTTPHandlers(engine *hotplex.Engine, logger *slog.Logger, serverCfg *config.ServerLoader) *mux.Router {
+func setupHTTPHandlers(engine *hotplex.Engine, logger *slog.Logger, serverCfg *config.ServerLoader) (*mux.Router, *chatapps.AdapterManager) {
 	r := mux.NewRouter()
 
 	// WebSocket handler
@@ -361,24 +366,17 @@ func setupHTTPHandlers(engine *hotplex.Engine, logger *slog.Logger, serverCfg *c
 
 	// ChatApps adapters
 	configDir := os.Getenv("HOTPLEX_CHATAPPS_CONFIG_DIR")
+	var chatappsMgr *chatapps.AdapterManager
 	if chatapps.IsEnabled(configDir) {
-		chatappsHandler, chatappsMgr, err := chatapps.Setup(context.Background(), logger, configDir)
+		chatappsHandler, mgr, err := chatapps.Setup(context.Background(), logger, configDir)
 		if err != nil {
 			logger.Error("Failed to setup chatapps", "error", err)
 		} else {
 			r.Handle("/webhook/", chatappsHandler)
 			logger.Info("ChatApps adapters initialized")
 		}
-
-		// Cleanup on shutdown
-		if chatappsMgr != nil {
-			defer func() {
-				if err := chatappsMgr.StopAll(); err != nil {
-					logger.Error("ChatApps cleanup failed", "error", err)
-				}
-			}()
-		}
+		chatappsMgr = mgr
 	}
 
-	return r
+	return r, chatappsMgr
 }
