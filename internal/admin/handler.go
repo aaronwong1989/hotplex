@@ -294,13 +294,6 @@ func writeError(w http.ResponseWriter, status int, code ErrorCode, message strin
 	}
 }
 
-func checkCliAvailable() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "claude-code", "--version")
-	return cmd.Run() == nil
-}
-
 func getCliVersion() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

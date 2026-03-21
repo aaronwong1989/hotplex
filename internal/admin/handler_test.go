@@ -187,7 +187,6 @@ func TestGetSessionLogs_NotFound(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc("/admin/v1/sessions/{id}/logs", h.getSessionLogs)
 	rr := httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/admin/v1/sessions/nonexistent/logs", nil)
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
