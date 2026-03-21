@@ -1,5 +1,26 @@
 # CHANGELOG.md
 
+## [v0.32.1] - 2026-03-22
+
+### Documentation
+- **Admin** - Complete Admin API documentation with dynamic discovery patterns:
+  - Add comprehensive Admin API reference (7 endpoints with examples)
+  - Document Admin CLI commands (`status`, `doctor`, `config validate`)
+  - Remove hardcoded container names and ports from diagnostic workflows
+  - Add dynamic port discovery patterns for multi-bot deployments
+  - Update skill documentation with Admin API usage examples
+  - Fix port numbering convention documentation (19080 + BOT_INDEX - 1)
+
+### Bug Fixes
+- **Docker** - Correct default CMD to `hotplexd start`:
+  - Fix Dockerfile ENTRYPOINT/CMD configuration
+  - Ensure container starts with proper daemon command
+- **Docker** - Mount scripts and statusline for PostToolUse hooks:
+  - Add volume mounts for Claude Code hooks support
+  - Enable PostToolUse hook execution in containerized environment
+
+---
+
 ## [v0.32.0] - 2026-03-21
 
 ### Features
