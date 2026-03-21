@@ -61,7 +61,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		fmt.Fprintf(os.Stderr, "\n--- Log Content ---\n")
 		if _, err := io.Copy(os.Stdout, file); err != nil {

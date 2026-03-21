@@ -47,14 +47,14 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(w, "SESSION ID\tSTATUS\tCREATED\tLAST ACTIVE\n")
+	_, _ = fmt.Fprintf(w, "SESSION ID\tSTATUS\tCREATED\tLAST ACTIVE\n")
 	for _, s := range result.Sessions {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			s.ID, s.Status,
 			s.CreatedAt.Format("2006-01-02 15:04"),
 			s.LastActive.Format("2006-01-02 15:04"))
 	}
-	w.Flush()
+	_ = w.Flush()
 	fmt.Fprintf(os.Stderr, "\nTotal: %d sessions\n", result.Total)
 
 	return nil

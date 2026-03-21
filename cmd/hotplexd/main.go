@@ -73,15 +73,30 @@ func runDaemon() {
 	// Expand tilde in path environment variables
 	expandPathEnvVars()
 
-	// 2. Configure logging
-	logLevel, logFormat := configureLogging()
+	// 2. Configure logging (env vars checked after config load for correct precedence)
+	configureLogging()
 
 	// 3. Load server configuration
 	serverConfigPath := config.ResolveConfigPath(*serverConfig)
-	serverCfg := loadServerConfig(serverConfigPath, logLevel, logFormat)
+	serverCfg, cfgLogLevel, cfgLogFormat := loadServerConfig(serverConfigPath)
+
+	// Apply precedence: env vars > config file > defaults
+	if envLogLevel := strings.ToUpper(os.Getenv("HOTPLEX_LOG_LEVEL")); envLogLevel != "" {
+		switch envLogLevel {
+		case "DEBUG":
+			cfgLogLevel = slog.LevelDebug
+		case "WARN":
+			cfgLogLevel = slog.LevelWarn
+		case "ERROR":
+			cfgLogLevel = slog.LevelError
+		}
+	}
+	if envLogFormat := os.Getenv("HOTPLEX_LOG_FORMAT"); envLogFormat == "json" {
+		cfgLogFormat = "json"
+	}
 
 	// 4. Initialize logger
-	logger := initLogger(logLevel, logFormat)
+	logger := initLogger(cfgLogLevel, cfgLogFormat)
 	slog.SetDefault(logger)
 
 	logger.Info("🔥 HotPlex Daemon starting...",
@@ -198,35 +213,26 @@ func expandPathEnvVars() {
 	}
 }
 
-func configureLogging() (slog.Level, string) {
-	logLevel := slog.LevelInfo
-	if strings.ToLower(os.Getenv("HOTPLEX_LOG_LEVEL")) == "debug" {
-		logLevel = slog.LevelDebug
-	}
+// configureLogging is a placeholder. Actual log level and format precedence
+// (env vars > config file > defaults) is handled in runDaemon().
+func configureLogging() {}
 
-	logFormat := "text"
-	if os.Getenv("HOTPLEX_LOG_FORMAT") == "json" {
-		logFormat = "json"
-	}
-
-	return logLevel, logFormat
-}
-
-func loadServerConfig(configPath string, logLevel slog.Level, logFormat string) *config.ServerLoader {
+func loadServerConfig(configPath string) (*config.ServerLoader, slog.Level, string) {
 	if configPath == "" {
 		configPath = config.ResolveConfigPath("")
 	}
 	if configPath == "" {
-		return nil
+		return nil, slog.LevelInfo, "text"
 	}
 
 	serverCfg, err := config.NewServerLoader(configPath, nil)
 	if err != nil {
 		slog.Warn("Failed to load server config", "error", err)
-		return nil
+		return nil, slog.LevelInfo, "text"
 	}
 
 	cfg := serverCfg.Get()
+	logLevel := slog.LevelInfo
 	switch strings.ToUpper(cfg.Server.LogLevel) {
 	case "DEBUG":
 		logLevel = slog.LevelDebug
@@ -235,9 +241,9 @@ func loadServerConfig(configPath string, logLevel slog.Level, logFormat string) 
 	case "ERROR":
 		logLevel = slog.LevelError
 	}
-	logFormat = strings.ToLower(cfg.Server.LogFormat)
+	logFormat := strings.ToLower(cfg.Server.LogFormat)
 
-	return serverCfg
+	return serverCfg, logLevel, logFormat
 }
 
 func initLogger(logLevel slog.Level, logFormat string) *slog.Logger {

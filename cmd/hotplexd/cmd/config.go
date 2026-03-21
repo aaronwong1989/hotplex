@@ -69,7 +69,7 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("remote validation failed (server unreachable): %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Valid  bool     `json:"valid"`
