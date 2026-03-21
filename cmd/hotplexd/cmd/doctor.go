@@ -90,20 +90,18 @@ func checkConfigFiles() (bool, string) {
 	}
 
 	for _, path := range candidates {
-		if _, err := os.Stat(path); err == nil {
-			// Try to parse YAML
-			data, err := os.ReadFile(path)
-			if err != nil {
-				continue
-			}
-
-			var m map[string]any
-			if err := yaml.Unmarshal(data, &m); err != nil {
-				return false, fmt.Sprintf("invalid YAML in %s: %v", path, err)
-			}
-
-			return true, "Found: " + path
+		// Try to read and parse YAML directly; skip if file inaccessible or invalid
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
 		}
+
+		var m map[string]any
+		if err := yaml.Unmarshal(data, &m); err != nil {
+			return false, fmt.Sprintf("invalid YAML in %s: %v", path, err)
+		}
+
+		return true, "Found: " + path
 	}
 
 	return false, "no configuration file found"
@@ -133,9 +131,11 @@ func checkPortAvailable(port string) func() (bool, string) {
 
 		cmd := exec.CommandContext(ctx, "nc", "-z", "localhost", port)
 		if err := cmd.Run(); err != nil {
+			// Connection refused → port is available
 			return true, "port " + port + " is available"
 		}
-		return true, "port " + port + " is in use (daemon running?)"
+		// Connection succeeded → port is in use
+		return false, "port " + port + " is in use (daemon running?)"
 	}
 }
 

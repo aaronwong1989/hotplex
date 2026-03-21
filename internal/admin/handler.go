@@ -195,7 +195,6 @@ func (h *Handler) getStats(w http.ResponseWriter, r *http.Request) {
 		if manager != nil {
 			sessions := manager.ListActiveSessions()
 			total = len(sessions)
-			active = 0
 			for _, sess := range sessions {
 				if sess.Status == intengine.SessionStatusStarting ||
 					sess.Status == intengine.SessionStatusReady ||
@@ -336,21 +335,16 @@ func validateConfigFile(path string) []string {
 		return []string{"config_path is required"}
 	}
 
-	info, err := os.Stat(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []string{"config file not found: " + path}
 		}
-		return []string{"failed to stat config file: " + err.Error()}
-	}
-
-	if info.IsDir() {
-		return []string{"config_path must be a file, not a directory"}
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
 		return []string{"failed to read config file: " + err.Error()}
+	}
+
+	if len(data) == 0 {
+		return []string{"config file is empty"}
 	}
 
 	// Parse YAML to check structure

@@ -78,7 +78,8 @@ func TestValidateConfigFile_IsDirectory(t *testing.T) {
 	if len(errs) != 1 {
 		t.Fatalf("expected 1 error, got %d", len(errs))
 	}
-	if !strings.Contains(errs[0], "file, not a directory") {
+	// os.ReadFile returns "read /tmp/xxx: is a directory" on Linux
+	if !strings.Contains(errs[0], "read") && !strings.Contains(errs[0], "directory") {
 		t.Errorf("unexpected error: %s", errs[0])
 	}
 }
