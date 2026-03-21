@@ -450,7 +450,7 @@ func (bp *BridgePlatform) writeJSON(wm *WireMessage) error {
 		return err
 	}
 
-	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	return conn.WriteMessage(websocket.TextMessage, data)
 }
 
