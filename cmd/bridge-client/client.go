@@ -176,6 +176,10 @@ func (c *Client) Connect(ctx context.Context) error {
 		return fmt.Errorf("bridgeclient dial: %w", err)
 	}
 
+	c.mu.Lock()
+	c.done = make(chan struct{})
+	c.mu.Unlock()
+
 	if err := c.register(); err != nil {
 		c.closeConn()
 		return fmt.Errorf("bridgeclient register: %w", err)
@@ -230,7 +234,9 @@ func (c *Client) Close() error {
 		return nil
 	}
 	c.closed = true
-	close(c.done)
+	if c.done != nil {
+		close(c.done)
+	}
 	c.mu.Unlock()
 
 	return c.closeConn()
