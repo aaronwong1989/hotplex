@@ -7,9 +7,9 @@ import (
 
 func TestCheckEnvVars_AllSet(t *testing.T) {
 	original := os.Getenv("HOTPLEX_PROJECTS_DIR")
-	defer os.Setenv("HOTPLEX_PROJECTS_DIR", original)
+	defer func() { _ = os.Setenv("HOTPLEX_PROJECTS_DIR", original) }()
 
-	os.Setenv("HOTPLEX_PROJECTS_DIR", "/projects")
+	_ = os.Setenv("HOTPLEX_PROJECTS_DIR", "/projects")
 	passed, detail := checkEnvVars()
 	if !passed {
 		t.Errorf("expected checkEnvVars to pass, got: %s", detail)
@@ -18,9 +18,9 @@ func TestCheckEnvVars_AllSet(t *testing.T) {
 
 func TestCheckEnvVars_Missing(t *testing.T) {
 	original := os.Getenv("HOTPLEX_PROJECTS_DIR")
-	defer os.Setenv("HOTPLEX_PROJECTS_DIR", original)
+	defer func() { _ = os.Setenv("HOTPLEX_PROJECTS_DIR", original) }()
 
-	os.Unsetenv("HOTPLEX_PROJECTS_DIR")
+	_ = os.Unsetenv("HOTPLEX_PROJECTS_DIR")
 	passed, detail := checkEnvVars()
 	if passed {
 		t.Error("expected checkEnvVars to fail when env var is missing")

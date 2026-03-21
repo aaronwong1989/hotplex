@@ -17,7 +17,7 @@ func captureStdout(f func()) string {
 	old := os.Stdout
 	os.Stdout = w
 	f()
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 	out, _ := io.ReadAll(r)
 	return string(out)

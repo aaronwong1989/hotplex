@@ -119,7 +119,7 @@ func TestRunStatus_Success(t *testing.T) {
 
 	err := runStatus(cmd, nil)
 
-	os.Stdout.Close()
+	_ = os.Stdout.Close()
 	os.Stdout = old
 	out, _ := io.ReadAll(r)
 	outStr := string(out)
