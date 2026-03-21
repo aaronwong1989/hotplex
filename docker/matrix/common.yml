@@ -99,6 +99,8 @@ services:
       # Claude config from host (read-only, hot-reload on host changes)
       - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro
       - ${HOME}/.claude/skills:/home/hotplex/.claude/skills:ro
+      - ${HOME}/.claude/scripts:/home/hotplex/.claude/scripts:ro
+      - ${HOME}/.claude/statusline.sh:/home/hotplex/.claude/statusline.sh:ro
       # Shared Go module cache (safe to share across instances)
       - hotplex-matrix-go-mod:/home/hotplex/go/pkg/mod:rw
       # Note: Per-instance build cache is mounted in docker-compose.yml per service
