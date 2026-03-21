@@ -25,9 +25,13 @@ import (
 //   - userID exists in ~/.claude.json
 //   - credentials.json does NOT exist (OAuth is not fully configured)
 //
-// This prevents Claude Code from attempting OAuth authentication in containerized
-// environments where OAuth cannot complete (no browser). In valid OAuth setups
-// (userID + credentials.json), userID is preserved.
+// Background: Claude Code 2.1.81 introduced a behavior change where userID in
+// ~/.claude.json triggers OAuth authentication. In containerized environments,
+// OAuth cannot complete (no browser), causing "Not logged in · Please run /login".
+// Removing orphaned userID forces Claude Code to use ANTHROPIC_AUTH_TOKEN=PROXY_MANAGED
+// from settings.json, which routes correctly through the local proxy.
+//
+// In valid OAuth setups (userID + credentials.json), userID is preserved.
 //
 // Controlled by HOTPLEX_CLAUDE_CLEAR_USERID=true (default) or false to disable.
 func clearClaudeJSONUserID(logger *slog.Logger) {
