@@ -373,13 +373,24 @@ func (c *StreamCallback) idleTimerFired(triggerStatus base.MessageType) bool {
 		return false
 	}
 
-	// Don't send fallback thinking if trigger was tool execution state
-	if triggerStatus == base.MessageTypeToolUse || triggerStatus == base.MessageTypeToolResult {
-		c.logger.Debug("Skipping fallback thinking - tool execution in progress", "session_id", c.sessionID, "trigger_status", triggerStatus)
+	// Check CURRENT status (not trigger status) to avoid overwriting active states
+	c.mu.Lock()
+	currentStatus := c.currentStatus
+	c.mu.Unlock()
+
+	// Don't send fallback thinking if session is actively executing tools
+	if currentStatus == base.MessageTypeToolUse || currentStatus == base.MessageTypeToolResult {
+		c.logger.Debug("Skipping fallback thinking - tool execution in progress",
+			"session_id", c.sessionID,
+			"current_status", currentStatus,
+			"trigger_status", triggerStatus)
 		return false
 	}
 
-	c.logger.Debug("Session idle for 3s, sending fallback thinking status", "session_id", c.sessionID, "previous_status", triggerStatus)
+	c.logger.Debug("Session idle for 3s, sending fallback thinking status",
+		"session_id", c.sessionID,
+		"current_status", currentStatus,
+		"trigger_status", triggerStatus)
 	if err := c.updateStatusMessage(base.MessageTypeThinking, StatusThinkingLabel); err != nil {
 		c.logger.Warn("Failed to update status for idle thinking fallback", "error", err)
 	}
@@ -708,6 +719,7 @@ func (c *StreamCallback) convertToChatMessage(msg *base.ChatMessage) *ChatMessag
 
 func (c *StreamCallback) handleToolUse(data any) error {
 	toolName := string(provider.EventTypeToolUse)
+	var inputSummary, filePath string
 	if m, ok := data.(*event.EventWithMeta); ok {
 		if m.Meta != nil && m.Meta.ToolName != "" {
 			toolName = m.Meta.ToolName
@@ -715,11 +727,31 @@ func (c *StreamCallback) handleToolUse(data any) error {
 			c.lastToolName = toolName
 			c.mu.Unlock()
 		}
+		// Extract context for enhanced status display
+		if m.Meta != nil {
+			inputSummary = m.Meta.InputSummary
+			filePath = m.Meta.FilePath
+		}
 	}
 
 	// UI Native: tool_use is now status-only with categorized emoji
 	category := base.CategorizeTool(toolName)
-	statusText := fmt.Sprintf(base.CategoryStatusLabel(category), toolName)
+	baseLabel := fmt.Sprintf(base.CategoryStatusLabel(category), toolName)
+
+	// Enhance status with context (target: ~50 chars)
+	var statusText string
+	if filePath != "" {
+		// Truncate file path to avoid excessive length
+		displayPath := strutil.Truncate(filePath, 30)
+		statusText = fmt.Sprintf("%s: %s", baseLabel, displayPath)
+	} else if inputSummary != "" {
+		// Truncate input summary to ~25 chars
+		displaySummary := strutil.Truncate(inputSummary, 25)
+		statusText = fmt.Sprintf("%s: %s", baseLabel, displaySummary)
+	} else {
+		statusText = baseLabel
+	}
+
 	c.logger.Debug("Tool use status generated", "tool_name", toolName, "category", category, "status_text", statusText)
 	if err := c.updateStatusMessage(base.MessageTypeToolUse, statusText); err != nil {
 		c.logger.Warn("Failed to update status for tool_use", "error", err)
@@ -736,6 +768,9 @@ func (c *StreamCallback) handleToolResult(data any) error {
 	var durationMs int64
 	var toolName string
 	var contentLength int64
+	var outputSummary string
+	var lineCount int32
+	var filePath string
 
 	if m, ok := data.(*event.EventWithMeta); ok {
 		// Safe access to Meta fields - check nil first
@@ -750,6 +785,9 @@ func (c *StreamCallback) handleToolResult(data any) error {
 			}
 			durationMs = m.Meta.DurationMs
 			toolName = m.Meta.ToolName
+			outputSummary = m.Meta.OutputSummary
+			lineCount = m.Meta.LineCount
+			filePath = m.Meta.FilePath
 		} else {
 			c.logger.Debug("Tool result event with nil metadata", "event_data_len", len(m.EventData))
 		}
@@ -768,15 +806,35 @@ func (c *StreamCallback) handleToolResult(data any) error {
 		toolName = "未知工具"
 	}
 
-	// Update status indicator with categorized emoji and result info
+	// Update status indicator with categorized emoji and enhanced result info
 	category := base.CategorizeTool(toolName)
 	emoji := base.CategoryEmoji(category)
 	var statusText string
+
 	if success {
-		statusText = fmt.Sprintf("%s 完成执行 [%s] (%dms)", emoji, toolName, durationMs)
+		// Build base success message
+		baseMsg := fmt.Sprintf("%s 完成执行 [%s]", emoji, toolName)
+
+		// Add context info (target: ~50 chars total)
+		var contextInfo string
+		if lineCount > 0 && filePath != "" {
+			// File edit context: show line count
+			displayPath := strutil.Truncate(filePath, 20)
+			contextInfo = fmt.Sprintf(" (%d行, %s)", lineCount, displayPath)
+		} else if outputSummary != "" {
+			// Output summary context: truncate to ~25 chars
+			displaySummary := strutil.Truncate(outputSummary, 25)
+			contextInfo = fmt.Sprintf(": %s", displaySummary)
+		} else if durationMs > 0 {
+			// Duration context
+			contextInfo = fmt.Sprintf(" (%dms)", durationMs)
+		}
+
+		statusText = baseMsg + contextInfo
 	} else {
 		statusText = fmt.Sprintf("⚠️ 执行失败 [%s] (%dms)", toolName, durationMs)
 	}
+
 	if err := c.updateStatusMessage(base.MessageTypeToolResult, statusText); err != nil {
 		c.logger.Warn("Failed to update status for tool_result", "error", err)
 	}

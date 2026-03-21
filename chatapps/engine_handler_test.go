@@ -265,34 +265,40 @@ func TestInferToolFromOperation(t *testing.T) {
 	}
 }
 
-// TestIdleTimerFired_SkipsFallbackForToolStatus verifies that the race condition
-// fix correctly skips fallback when trigger status is ToolUse or ToolResult.
+// TestIdleTimerFired_SkipsFallbackForToolStatus verifies that the idle timer
+// correctly skips fallback when the session is actively executing tools.
+// Updated to check current real-time status instead of trigger-time status.
 func TestIdleTimerFired_SkipsFallbackForToolStatus(t *testing.T) {
 	tests := []struct {
 		name           string
-		triggerStatus  base.MessageType
+		currentStatus  base.MessageType // Current real-time status
+		triggerStatus  base.MessageType // Status when timer was set (3s ago)
 		expectFallback bool
 	}{
-		{"ToolUse status skips fallback", base.MessageTypeToolUse, false},
-		{"ToolResult status skips fallback", base.MessageTypeToolResult, false},
+		{"ToolUse in progress skips fallback", base.MessageTypeToolUse, base.MessageTypeToolUse, false},
+		{"ToolResult in progress skips fallback", base.MessageTypeToolResult, base.MessageTypeToolResult, false},
+		{"ToolUse completed allows fallback", "", base.MessageTypeToolUse, true},
+		{"ToolResult completed allows fallback", "", base.MessageTypeToolResult, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 			callback := &StreamCallback{
-				ctx:        context.Background(),
-				sessionID:  "test-session",
-				logger:     logger,
-				metadata:   map[string]any{"channel_id": "test", "thread_ts": "123"},
-				isFinished: false,
+				ctx:           context.Background(),
+				sessionID:     "test-session",
+				logger:        logger,
+				metadata:      map[string]any{"channel_id": "test", "thread_ts": "123"},
+				isFinished:    false,
+				currentStatus: tt.currentStatus, // Set current real-time status
 			}
 
-			// Call idleTimerFired directly - this executes the callback logic
+			// Call idleTimerFired with trigger status (captured 3s ago)
 			sent := callback.idleTimerFired(tt.triggerStatus)
 
 			if sent != tt.expectFallback {
-				t.Errorf("expected fallback=%v, got %v", tt.expectFallback, sent)
+				t.Errorf("expected fallback=%v, got %v (current=%s, trigger=%s)",
+					tt.expectFallback, sent, tt.currentStatus, tt.triggerStatus)
 			}
 		})
 	}
