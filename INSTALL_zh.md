@@ -174,9 +174,37 @@ docker pull ghcr.io/hrygo/hotplex:node
 docker run -d \
   --name hotplex \
   -p 8080:8080 \
+  -p 8081:8081 \
   -v ~/.config/hotplex:/root/.hotplex \
   -v ~/projects:/root/projects \
+  -e HOTPLEX_ADMIN_PORT=8081 \
+  -e HOTPLEX_API_KEY=your-secure-api-key \
   ghcr.io/hrygo/hotplex:node
+```
+
+**端口说明**:
+- `8080`: 主 WebSocket/HTTP API 服务器
+- `8081`: Admin API，用于会话管理和诊断
+
+### CLI 命令
+
+容器启动后，使用 `docker exec` 运行 CLI 命令：
+
+```bash
+# 查看版本
+docker exec hotplex hotplexd version
+
+# 列出活跃会话
+docker exec hotplex hotplexd session list
+
+# 运行诊断
+docker exec hotplex hotplexd doctor
+
+# 验证配置
+docker exec hotplex hotplexd config validate /root/.hotplex/config.yaml
+
+# 终止会话
+docker exec hotplex hotplexd --admin-token=your-token session kill <session-id>
 ```
 
 ## 卸载

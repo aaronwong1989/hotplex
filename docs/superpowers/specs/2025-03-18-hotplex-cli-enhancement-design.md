@@ -1,7 +1,7 @@
 # HotPlex CLI 增强设计文档
 
 **Date**: 2025-03-18
-**Status**: Draft
+**Status**: Implemented
 **Version**: 1.0
 
 ---

@@ -1,3 +1,4 @@
+// Package main is the entry point for the hotplexd daemon.
 package main
 
 import (
@@ -16,6 +17,9 @@ import (
 	"github.com/hrygo/hotplex"
 	"github.com/hrygo/hotplex/brain"
 	"github.com/hrygo/hotplex/chatapps"
+	"github.com/hrygo/hotplex/cmd/hotplexd/cmd"
+	"github.com/hrygo/hotplex/cmd/hotplexd/cmd/session"
+	"github.com/hrygo/hotplex/internal/admin"
 	"github.com/hrygo/hotplex/internal/config"
 	"github.com/hrygo/hotplex/internal/server"
 	"github.com/hrygo/hotplex/internal/sys"
@@ -30,13 +34,31 @@ var (
 )
 
 func main() {
+	// Set version info for cobra commands
+	cmd.Version = version
+	cmd.Commit = commit
+
+	// Register session subcommands
+	cmd.RootCmd.AddCommand(session.SessionCmd)
+
+	// Handle start command specially
+	if len(os.Args) > 1 && os.Args[1] == "start" {
+		runDaemon()
+		return
+	}
+
+	// For other commands, use Cobra
+	cmd.Execute()
+}
+
+func runDaemon() {
 	// Parse command line flags
-	configDir := flag.String("config-dir", "", "ChatApps config directory (takes priority over HOTPLEX_CHATAPPS_CONFIG_DIR env var)")
-	serverConfig := flag.String("config", "", "Server config YAML file (takes priority over HOTPLEX_SERVER_CONFIG env var)")
+	serverConfig := flag.String("config", "", "Server config YAML file")
 	envFileFlag := flag.String("env-file", "", "Path to .env file")
+	adminPort := flag.String("admin-port", "8081", "Admin API server port")
 	flag.Parse()
 
-	// 0. Ensure HOME environment variable is set (critical for path expansion)
+	// 0. Ensure HOME environment variable is set
 	homeDir := os.Getenv("HOME")
 	if homeDir == "" {
 		if h, err := os.UserHomeDir(); err == nil {
@@ -45,8 +67,110 @@ func main() {
 		}
 	}
 
-	// 1. Load .env file with robust discovery
-	// Priority: 1. Flag > 2. ENV_FILE env > 3. .env in CWD > 4. .env in XDG config
+	// 1. Load .env file
+	loadEnvFile(envFileFlag)
+
+	// Expand tilde in path environment variables
+	expandPathEnvVars()
+
+	// 2. Load server configuration
+	serverConfigPath := config.ResolveConfigPath(*serverConfig)
+	serverCfg, cfgLogLevel, cfgLogFormat := loadServerConfig(serverConfigPath)
+
+	// Apply precedence: env vars > config file > defaults
+	if envLogLevel := strings.ToUpper(os.Getenv("HOTPLEX_LOG_LEVEL")); envLogLevel != "" {
+		switch envLogLevel {
+		case "DEBUG":
+			cfgLogLevel = slog.LevelDebug
+		case "WARN":
+			cfgLogLevel = slog.LevelWarn
+		case "ERROR":
+			cfgLogLevel = slog.LevelError
+		}
+	}
+	if envLogFormat := os.Getenv("HOTPLEX_LOG_FORMAT"); envLogFormat == "json" {
+		cfgLogFormat = "json"
+	}
+
+	// 4. Initialize logger
+	logger := initLogger(cfgLogLevel, cfgLogFormat)
+	slog.SetDefault(logger)
+
+	logger.Info("🔥 HotPlex Daemon starting...",
+		"version", version,
+		"commit", commit,
+		"built_by", builtBy)
+
+	// 5. Initialize Native Brain
+	if err := brain.Init(logger); err != nil {
+		logger.Warn("Native Brain initialization error (fail-open)", "error", err)
+	}
+
+	// 6. Create Engine
+	engine, adminToken := createEngine(logger, serverCfg)
+
+	// 7. Setup HTTP handlers
+	mainRouter, chatappsMgr := setupHTTPHandlers(engine, logger, serverCfg)
+
+	// 8. Start Admin Server (independent port)
+	adminServer := admin.NewServer(engine, *adminPort, adminToken, time.Now(), logger)
+	adminServer.Start()
+
+	// Monitor admin server startup
+	select {
+	case err := <-adminServer.ErrChan():
+		logger.Error("Admin server failed to start", "error", err)
+		os.Exit(1)
+	default:
+	}
+
+	// 9. Start Main HTTP Server
+	port := "8080"
+	if serverCfg != nil {
+		port = serverCfg.GetPort()
+	}
+
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: mainRouter,
+	}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		logger.Info("Main server listening", "port", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Server failed", "error", err)
+			stop <- syscall.SIGTERM
+		}
+	}()
+
+	<-stop
+	logger.Info("Shutting down gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := adminServer.Stop(shutdownCtx); err != nil {
+		logger.Error("Admin server shutdown failed", "error", err)
+	}
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("HTTP server shutdown failed", "error", err)
+	}
+	if err := engine.Close(); err != nil {
+		logger.Error("Engine cleanup failed", "error", err)
+	}
+	if chatappsMgr != nil {
+		if err := chatappsMgr.StopAll(); err != nil {
+			logger.Error("ChatApps cleanup failed", "error", err)
+		}
+	}
+}
+
+// Helper functions
+
+func loadEnvFile(envFileFlag *string) {
 	envPath := *envFileFlag
 	if envPath == "" {
 		envPath = os.Getenv("ENV_FILE")
@@ -59,12 +183,11 @@ func main() {
 			_ = os.Setenv("ENV_FILE", envPath)
 		}
 	} else {
-		// Default discovery: prefer ~/.hotplex/.env for admin bot
 		homeDir, _ := os.UserHomeDir()
 		candidates := []string{
-			filepath.Join(homeDir, ".hotplex", ".env"), // Admin bot (preferred)
-			".env",                                 // Current directory (fallback)
-			filepath.Join(sys.ConfigDir(), ".env"), // XDG fallback
+			filepath.Join(homeDir, ".hotplex", ".env"),
+			".env",
+			filepath.Join(sys.ConfigDir(), ".env"),
 		}
 		for _, c := range candidates {
 			if _, err := os.Stat(c); err == nil {
@@ -75,9 +198,9 @@ func main() {
 			}
 		}
 	}
+}
 
-	// Expand tilde (~) in path environment variables after loading .env
-	// godotenv.Load does not expand ~, so we use sys.ExpandPath
+func expandPathEnvVars() {
 	pathEnvVars := []string{
 		"HOTPLEX_PROJECTS_DIR",
 		"HOTPLEX_DATA_ROOT",
@@ -86,103 +209,69 @@ func main() {
 	}
 	for _, envVar := range pathEnvVars {
 		if val := os.Getenv(envVar); val != "" {
-			_ = os.Setenv(envVar, sys.ExpandPath(val)) // errcheck: ignore error
+			_ = os.Setenv(envVar, sys.ExpandPath(val))
 		}
 	}
+}
 
-	// 2. Configure logging level (pre-init for system info)
+// loadServerConfig loads the server configuration from the given path.
+func loadServerConfig(configPath string) (*config.ServerLoader, slog.Level, string) {
+	if configPath == "" {
+		configPath = config.ResolveConfigPath("")
+	}
+	if configPath == "" {
+		return nil, slog.LevelInfo, "text"
+	}
+
+	serverCfg, err := config.NewServerLoader(configPath, nil)
+	if err != nil {
+		slog.Warn("Failed to load server config", "error", err)
+		return nil, slog.LevelInfo, "text"
+	}
+
+	cfg := serverCfg.Get()
 	logLevel := slog.LevelInfo
-	if strings.ToLower(os.Getenv("HOTPLEX_LOG_LEVEL")) == "debug" {
+	switch strings.ToUpper(cfg.Server.LogLevel) {
+	case "DEBUG":
 		logLevel = slog.LevelDebug
+	case "WARN":
+		logLevel = slog.LevelWarn
+	case "ERROR":
+		logLevel = slog.LevelError
 	}
+	logFormat := strings.ToLower(cfg.Server.LogFormat)
 
-	logFormat := "text"
-	if os.Getenv("HOTPLEX_LOG_FORMAT") == "json" {
-		logFormat = "json"
-	}
+	return serverCfg, logLevel, logFormat
+}
 
-	// 1.2 Load server configuration from YAML
-	serverConfigPath := config.ResolveConfigPath(*serverConfig)
-	var serverCfg *config.ServerLoader
-	if serverConfigPath != "" {
-		var err error
-		serverCfg, err = config.NewServerLoader(serverConfigPath, nil) // Logging still using default slog
-		if err != nil {
-			slog.Warn("Failed to load server config", "error", err)
-		}
-	}
-
-	if serverCfg != nil {
-		cfg := serverCfg.Get()
-		// Log Level
-		switch strings.ToUpper(cfg.Server.LogLevel) {
-		case "DEBUG":
-			logLevel = slog.LevelDebug
-		case "WARN":
-			logLevel = slog.LevelWarn
-		case "ERROR":
-			logLevel = slog.LevelError
-		}
-		// Log Format
-		logFormat = strings.ToLower(cfg.Server.LogFormat)
-	}
-
-	var handler slog.Handler
+func initLogger(logLevel slog.Level, logFormat string) *slog.Logger {
 	logOpts := &slog.HandlerOptions{
 		Level:     logLevel,
-		AddSource: true, // Enable file:line for better error localization
+		AddSource: true,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			// Customize source path format to be more concise
 			if a.Key == slog.SourceKey {
 				if source, ok := a.Value.Any().(*slog.Source); ok {
 					file := source.File
-					// 1. Strip the module prefix
 					file = strings.TrimPrefix(file, "github.com/hrygo/hotplex/")
-					// 2. Strip leading ./ if any
 					file = strings.TrimPrefix(file, "./")
-
-					return slog.String("source", file) // Simplified for pre-commit compliance
+					return slog.String("source", file)
 				}
 			}
 			return a
 		},
 	}
 
+	var handler slog.Handler
 	if logFormat == "json" {
 		handler = slog.NewJSONHandler(os.Stdout, logOpts)
 	} else {
-		// Default to Text logs for better readability during local development
 		handler = slog.NewTextHandler(os.Stdout, logOpts)
 	}
 
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
+	return slog.New(handler)
+}
 
-	// Print System Info (grouped for clarity)
-	logger.Info("🔥 HotPlex Daemon starting...",
-		"version", version,
-		"commit", commit,
-		"built_by", builtBy)
-	logger.Info("📂 Configuration loaded",
-		"home_dir", homeDir,
-		"env_file", os.Getenv("ENV_FILE"),
-		"server_config", serverConfigPath)
-	logger.Info("🌐 Server listening",
-		"port", os.Getenv("HOTPLEX_PORT"),
-		"log_level", logLevel)
-
-	// 1.1 Initialize Native Brain (System 1)
-	if err := brain.Init(logger); err != nil {
-		logger.Warn("Native Brain initialization error (fail-open)", "error", err)
-	}
-
-	// Update loader with initialized logger
-	if serverCfg != nil {
-		// Re-initialize with proper logger
-		serverCfg, _ = config.NewServerLoader(serverConfigPath, logger)
-	}
-
-	// 2. Initialize HotPlex Core Engine
+func createEngine(logger *slog.Logger, serverCfg *config.ServerLoader) (*hotplex.Engine, string) {
 	idleTimeout := 1 * time.Hour
 	executionTimeout := 30 * time.Minute
 	var baseSystemPrompt string
@@ -193,7 +282,6 @@ func main() {
 		baseSystemPrompt = serverCfg.GetSystemPrompt()
 	}
 
-	// 2.1 Decide Provider
 	providerType := provider.ProviderType(os.Getenv("HOTPLEX_PROVIDER_TYPE"))
 	if providerType == "" {
 		providerType = provider.ProviderTypeClaudeCode
@@ -213,19 +301,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load API key for admin operations
 	var adminToken string
 	if serverCfg != nil {
 		adminToken = serverCfg.Get().Security.APIKey
 	}
 
-	// Warn if admin token is not configured
 	if adminToken == "" {
 		logger.Warn("SECURITY WARNING: No admin token configured. " +
-			"Bypass mode will be unavailable. " +
-			"Set HOTPLEX_API_KEY or HOTPLEX_API_KEYS environment variable for production use.")
-	} else {
-		logger.Info("Admin token configured", "token_length", len(adminToken))
+			"Set HOTPLEX_API_KEY or HOTPLEX_API_KEYS for production use.")
 	}
 
 	opts := hotplex.EngineOptions{
@@ -243,97 +326,57 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. Initialize CORS configuration and WebSocket handler
+	return engine, adminToken
+}
+
+func setupHTTPHandlers(engine *hotplex.Engine, logger *slog.Logger, serverCfg *config.ServerLoader) (*mux.Router, *chatapps.AdapterManager) {
+	r := mux.NewRouter()
+
+	// WebSocket handler
 	var securityKeys []string
 	if serverCfg != nil {
 		securityKeys = append(securityKeys, serverCfg.Get().Security.APIKey)
 	}
 	corsConfig := server.NewSecurityConfig(logger, securityKeys...)
 	wsHandler := server.NewHotPlexWSHandler(engine, logger, corsConfig)
-	http.Handle("/ws/v1/agent", wsHandler)
+	r.Handle("/ws/v1/agent", wsHandler)
 
-	// 2.1 Initialize OpenCode compatibility server
+	// OpenCode compatibility
 	if os.Getenv("HOTPLEX_OPENCODE_COMPAT_ENABLED") != "false" {
 		openCodeSrv := server.NewOpenCodeHTTPHandler(engine, logger, corsConfig)
 		ocRouter := mux.NewRouter()
 		openCodeSrv.RegisterRoutes(ocRouter)
-		http.Handle("/global/", ocRouter)
-		http.Handle("/session", ocRouter)
-		http.Handle("/session/", ocRouter)
-		http.Handle("/config", ocRouter)
+		r.Handle("/global/", ocRouter)
+		r.Handle("/session", ocRouter)
+		r.Handle("/session/", ocRouter)
+		r.Handle("/config", ocRouter)
 		logger.Info("OpenCode compatibility server initialized")
 	}
 
-	// 2.2 Initialize Observability handlers
+	// Observability handlers
 	healthHandler := server.NewHealthHandler()
 	metricsHandler := server.NewMetricsHandler()
 	readyHandler := server.NewReadyHandler(func() bool { return engine != nil })
 	liveHandler := server.NewLiveHandler()
 
-	http.Handle("/health", healthHandler)
-	http.Handle("/health/ready", readyHandler)
-	http.Handle("/health/live", liveHandler)
-	http.Handle("/metrics", metricsHandler)
+	r.Handle("/health", healthHandler)
+	r.Handle("/health/ready", readyHandler)
+	r.Handle("/health/live", liveHandler)
+	r.Handle("/metrics", metricsHandler)
 
-	// 3. Initialize ChatApps adapters
+	// ChatApps adapters
+	configDir := os.Getenv("HOTPLEX_CHATAPPS_CONFIG_DIR")
 	var chatappsMgr *chatapps.AdapterManager
-	if chatapps.IsEnabled(*configDir) {
-		var chatappsHandler http.Handler
-		var err error
-		// configDir from --config flag takes priority over env var
-		chatappsHandler, chatappsMgr, err = chatapps.Setup(context.Background(), logger, *configDir)
+	if chatapps.IsEnabled(configDir) {
+		chatappsHandler, mgr, err := chatapps.Setup(context.Background(), logger, configDir)
 		if err != nil {
 			logger.Error("Failed to setup chatapps", "error", err)
 		} else {
-			http.Handle("/webhook/", chatappsHandler)
-			logger.Info("ChatApps adapters initialized and webhooks registered")
+			r.Handle("/webhook/", chatappsHandler)
+			logger.Info("ChatApps adapters initialized")
 		}
+		chatappsMgr = mgr
 	}
 
-	// Cleanup safety net (deferred immediately after engines/mgrs are ready)
-	defer func() {
-		logger.Info("Executing final cleanup safety net...")
-		if chatappsMgr != nil {
-			if err := chatappsMgr.StopAll(); err != nil {
-				logger.Error("ChatApps cleanup failed", "error", err)
-			}
-		}
-		if engine != nil {
-			if err := engine.Close(); err != nil {
-				logger.Error("Core engine cleanup failed", "error", err)
-			}
-		}
-	}()
-
-	// 4. Start HTTP server
-	port := "8080"
-	if serverCfg != nil {
-		port = serverCfg.GetPort()
-	}
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: http.DefaultServeMux,
-	}
-
-	go func() {
-		logger.Info("Listening on", "port", port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Server failed", "error", err)
-			stop <- syscall.SIGTERM
-		}
-	}()
-
-	<-stop
-	logger.Info("Shutting down gracefully...")
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		logger.Error("HTTP server shutdown failed", "error", err)
-	}
+	return r, chatappsMgr
 }

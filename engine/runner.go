@@ -114,6 +114,11 @@ func (r *Engine) Close() error {
 	return nil
 }
 
+// GetSessionManager returns the underlying session manager for admin operations.
+func (r *Engine) GetSessionManager() intengine.SessionManager {
+	return r.manager
+}
+
 // Execute runs Claude Code CLI with the given configuration and streams
 func (r *Engine) Execute(ctx context.Context, cfg *types.Config, prompt string, callback event.Callback) error {
 	// Security check: Detect dangerous operations before execution
