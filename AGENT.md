@@ -210,23 +210,9 @@ When encountering Docker/config issues:
 
 ---
 
-## 9. Release Checklist
+## 9. Release Workflow
 
-发布新版本时，必须更新以下 **5 个位置**：
-
-| # | 文件 | 字段 | 说明 |
-|---|------|------|------|
-| 1 | `hotplex.go:13` | `Version` | **Source of Truth** - 主版本号定义 |
-| 2 | `Makefile:64` | `VERSION` | 构建系统版本号 |
-| 3 | `CHANGELOG.md` | 顶部 | 添加新版本条目 |
-| 4 | `CLAUDE.md:3` | `vX.Y.Z` | 项目状态版本号 |
-| 5 | `AGENT.md:3` | `vX.Y.Z` | 代理文档版本号 |
-
-**验证命令**:
-```bash
-# 检查所有版本号是否一致
-grep -rn "0\.30\.[0-9]" hotplex.go Makefile CHANGELOG.md CLAUDE.md AGENT.md
-```
+Use `Skill(hotplex-release)` for complete release workflow (version bump → changelog → git commit → tag → CI verify → GitHub release).
 
 ---
 
