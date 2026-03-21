@@ -213,3 +213,204 @@ Access control via `HOTPLEX_API_KEYS` environment variable is recommended for pr
 ### Performance
 - **Streaming**: Always use the event stream for real-time UI updates instead of polling.
 - **Sandbox**: Keep `work_dir` consistent within a session to allow the agent to manage project state correctly.
+
+---
+
+## 5. Admin API (Port 8081)
+
+The Admin API provides session management, diagnostics, and configuration validation for the hotplexd daemon. It runs on an **independent port (8081)** from the main WebSocket/HTTP server (8080).
+
+### Base URL
+```
+http://localhost:8081/admin/v1
+```
+
+### Authentication
+Set the `Authorization` header with a Bearer token:
+```
+Authorization: Bearer <token>
+```
+Configure the token via `HOTPLEX_API_KEY` / `HOTPLEX_ADMIN_TOKEN` environment variable. If no token is configured, authentication is bypassed (not recommended for production).
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/sessions` | List all active sessions |
+| `GET` | `/sessions/:id` | Get session details |
+| `DELETE` | `/sessions/:id` | Terminate a session |
+| `GET` | `/sessions/:id/logs` | Get session log metadata |
+| `GET` | `/stats` | Runtime statistics |
+| `POST` | `/config/validate` | Validate a config file |
+| `GET` | `/health/detailed` | Detailed health checks |
+
+### GET /sessions
+Lists all active sessions.
+```json
+{
+  "sessions": [
+    {
+      "id": "sess_abc123",
+      "status": "ready",
+      "created_at": "2025-01-15T10:30:00Z",
+      "last_active": "2025-01-15T10:35:00Z",
+      "provider": "claude-code"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Session Status Values**: `starting`, `ready`, `busy`, `dead`
+
+### GET /sessions/:id
+Returns detailed information about a specific session.
+```json
+{
+  "id": "sess_abc123",
+  "status": "ready",
+  "created_at": "2025-01-15T10:30:00Z",
+  "last_active": "2025-01-15T10:35:00Z",
+  "config": {
+    "provider": "claude-code",
+    "work_dir": "/tmp/hotplex/sessions/sess_abc123"
+  },
+  "stats": {
+    "input_tokens": 1500,
+    "output_tokens": 3200,
+    "duration_seconds": 300
+  }
+}
+```
+
+### DELETE /sessions/:id
+Terminates an active session.
+```json
+{
+  "success": true,
+  "message": "Session sess_abc123 terminated"
+}
+```
+
+### GET /sessions/:id/logs
+Returns metadata about the session log file.
+```json
+{
+  "session_id": "sess_abc123",
+  "log_path": "/home/user/.hotplex/logs/sess_abc123.log",
+  "size_bytes": 102400,
+  "last_modified": "2025-01-15T10:35:00Z"
+}
+```
+
+### GET /stats
+Returns runtime statistics for the daemon.
+```json
+{
+  "total_sessions": 5,
+  "active_sessions": 2,
+  "stopped_sessions": 3,
+  "uptime": "24h30m",
+  "memory_usage_mb": 128.5,
+  "cpu_usage_percent": 12.5
+}
+```
+
+### POST /config/validate
+Validates a configuration file against the HotPlex schema.
+```json
+// Request
+{ "config_path": "/etc/hotplex/config.yaml" }
+
+// Response (valid)
+{ "valid": true, "errors": [] }
+
+// Response (invalid)
+{ "valid": false, "errors": ["missing required field: server", "missing required field: engine"] }
+```
+
+### GET /health/detailed
+Returns detailed health check results.
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "database": true,
+    "config": true,
+    "cli_available": true,
+    "websocket_connections": 2
+  },
+  "details": {
+    "database_latency_ms": 5,
+    "cli_version": "1.0.12",
+    "config_file": "/etc/hotplex/config.yaml"
+  }
+}
+```
+
+### Error Response Format
+```json
+{
+  "error": {
+    "code": "AUTH_FAILED | FORBIDDEN | NOT_FOUND | INVALID_REQUEST | SERVER_ERROR",
+    "message": "Human readable error message"
+  }
+}
+```
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `AUTH_FAILED` | 401 | Token missing or invalid |
+| `FORBIDDEN` | 403 | Token lacks permission |
+| `NOT_FOUND` | 404 | Resource not found |
+| `INVALID_REQUEST` | 400 | Invalid request parameters |
+| `SERVER_ERROR` | 500 | Server-side error |
+
+---
+
+## 6. CLI Commands (hotplexd)
+
+The `hotplexd` binary supports both daemon mode and CLI commands for administration.
+
+### Daemon Mode
+```bash
+hotplexd start --config=/path/to/config.yaml --env-file=/path/to/.env
+hotplexd start --admin-port=8081  # Custom admin port
+```
+
+### Session Management
+```bash
+hotplexd session list                    # List all sessions
+hotplexd session kill <session-id>       # Terminate a session
+hotplexd session logs <session-id>       # Show session log metadata
+hotplexd session logs <session-id> --stream  # Stream log content
+```
+
+### Diagnostics
+```bash
+hotplexd status                          # Runtime status (via Admin API)
+hotplexd doctor                          # Diagnostic health checks
+hotplexd config validate <path>          # Validate config file
+hotplexd version                         # Show version info
+```
+
+### Global Flags
+```bash
+--admin-token=<token>   # Admin API token (or set HOTPLEX_ADMIN_TOKEN)
+--server-url=<url>      # Admin API base URL (default: http://localhost:8081)
+```
+
+### Examples
+```bash
+# List sessions with custom server
+hotplexd --server-url=http://daemon:8081 session list
+
+# Terminate a session
+hotplexd --admin-token=secret123 session kill sess_abc123
+
+# Validate config locally and remotely
+hotplexd config validate /etc/hotplex/config.yaml
+
+# Run diagnostics
+hotplexd doctor
+```

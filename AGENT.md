@@ -39,6 +39,23 @@ make coverage      # 生成覆盖率报告
 make coverage-html # 生成 HTML 覆盖率报告
 ```
 
+**CLI 命令** (hotplexd):
+```bash
+# 启动守护进程
+hotplexd start --config=/path/to/config.yaml
+
+# 会话管理
+hotplexd session list              # 列出所有会话
+hotplexd session kill <session-id> # 终止会话
+hotplexd session logs <session-id> # 查看会话日志
+
+# 诊断
+hotplexd status   # 运行时状态 (Admin API)
+hotplexd doctor   # 全面诊断检查
+hotplexd config validate <path>  # 验证配置
+hotplexd version  # 显示版本
+```
+
 环境配置：复制 `.env.example` 到 `.env` 并填写凭证。
 
 ---
@@ -69,10 +86,10 @@ make coverage-html # 生成 HTML 覆盖率报告
 
 ## 4. Architectural Map (Navigation for Agents)
 
-- **Entrypoints**: `hotplex.go` (Public SDK), `client.go` (Interface), `cmd/hotplexd/` (Daemon).
+- **Entrypoints**: `hotplex.go` (Public SDK), `client.go` (Interface), `cmd/hotplexd/` (Daemon + CLI).
 - **Orchestration**: `engine/runner.go` (I/O Multiplexer & Singleton).
 - **Intelligence**: `brain/` (Native Brain - orchestration, routing, memory compression).
-- **Adapters (ACL Layer)**: 
+- **Adapters (ACL Layer)**:
     - `provider/`: Translates CLI protocols (Claude/OpenCode).
     - `chatapps/`: Translates social platforms (Slack/TG/Ding). `engine_handler.go` is the bridge.
 - **Internal Core (Stability)**:
@@ -82,6 +99,7 @@ make coverage-html # 生成 HTML 覆盖率报告
     - `internal/persistence/`: `marker.go` (Session durability).
     - `internal/secrets/`: Secrets provider (API key management).
     - `internal/telemetry/`: OpenTelemetry integration.
+    - `internal/admin/`: Admin API server (port 8081) with session management, diagnostics, and config validation.
 - **Systems**: `internal/sys/` (OS Signals), `internal/config/` (Watchers), `internal/strutil/` (High-perf utils).
 - **Domain**: `types/` & `event/` (The "Universal Language" of the system).
 - **Plugins**: `plugins/storage/` (Message persistence backends: SQLite, PostgreSQL).

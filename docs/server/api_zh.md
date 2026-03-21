@@ -213,3 +213,204 @@ OpenCode SSE 回显的消息格式为 `{"type": "message.part.updated", "propert
 ### 性能建议
 - **流式输出**：务必使用事件流（Event Stream）进行实时 UI 更新，避免使用轮询方式。
 - **沙箱环境**：在一个会话内保持 `work_dir` 的一致性，以便智能体能正确管理项目状态。
+
+---
+
+## 5. Admin API (端口 8081)
+
+Admin API 为 hotplexd 守护进程提供会话管理、诊断检查和配置验证功能。它运行在**独立端口 (8081)**，与主 WebSocket/HTTP 服务器 (8080) 分离。
+
+### 基础 URL
+```
+http://localhost:8081/admin/v1
+```
+
+### 身份验证
+设置 `Authorization` 头，使用 Bearer Token：
+```
+Authorization: Bearer <token>
+```
+通过 `HOTPLEX_API_KEY` / `HOTPLEX_ADMIN_TOKEN` 环境变量配置 Token。若未配置 Token，则跳过认证（生产环境不推荐）。
+
+### 端点
+
+| Method | 端点 | 描述 |
+|--------|------|------|
+| `GET` | `/sessions` | 列出所有活跃会话 |
+| `GET` | `/sessions/:id` | 获取会话详情 |
+| `DELETE` | `/sessions/:id` | 终止会话 |
+| `GET` | `/sessions/:id/logs` | 获取会话日志元数据 |
+| `GET` | `/stats` | 运行时统计信息 |
+| `POST` | `/config/validate` | 验证配置文件 |
+| `GET` | `/health/detailed` | 详细健康检查 |
+
+### GET /sessions
+列出所有活跃会话。
+```json
+{
+  "sessions": [
+    {
+      "id": "sess_abc123",
+      "status": "ready",
+      "created_at": "2025-01-15T10:30:00Z",
+      "last_active": "2025-01-15T10:35:00Z",
+      "provider": "claude-code"
+    }
+  ],
+  "total": 1
+}
+```
+
+**会话状态值**: `starting`, `ready`, `busy`, `dead`
+
+### GET /sessions/:id
+返回特定会话的详细信息。
+```json
+{
+  "id": "sess_abc123",
+  "status": "ready",
+  "created_at": "2025-01-15T10:30:00Z",
+  "last_active": "2025-01-15T10:35:00Z",
+  "config": {
+    "provider": "claude-code",
+    "work_dir": "/tmp/hotplex/sessions/sess_abc123"
+  },
+  "stats": {
+    "input_tokens": 1500,
+    "output_tokens": 3200,
+    "duration_seconds": 300
+  }
+}
+```
+
+### DELETE /sessions/:id
+终止一个活跃会话。
+```json
+{
+  "success": true,
+  "message": "Session sess_abc123 terminated"
+}
+```
+
+### GET /sessions/:id/logs
+返回会话日志文件的元数据。
+```json
+{
+  "session_id": "sess_abc123",
+  "log_path": "/home/user/.hotplex/logs/sess_abc123.log",
+  "size_bytes": 102400,
+  "last_modified": "2025-01-15T10:35:00Z"
+}
+```
+
+### GET /stats
+返回守护进程的运行时统计信息。
+```json
+{
+  "total_sessions": 5,
+  "active_sessions": 2,
+  "stopped_sessions": 3,
+  "uptime": "24h30m",
+  "memory_usage_mb": 128.5,
+  "cpu_usage_percent": 12.5
+}
+```
+
+### POST /config/validate
+验证配置文件是否符合 HotPlex schema。
+```json
+// 请求
+{ "config_path": "/etc/hotplex/config.yaml" }
+
+// 响应 (有效)
+{ "valid": true, "errors": [] }
+
+// 响应 (无效)
+{ "valid": false, "errors": ["missing required field: server", "missing required field: engine"] }
+```
+
+### GET /health/detailed
+返回详细的健康检查结果。
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "database": true,
+    "config": true,
+    "cli_available": true,
+    "websocket_connections": 2
+  },
+  "details": {
+    "database_latency_ms": 5,
+    "cli_version": "1.0.12",
+    "config_file": "/etc/hotplex/config.yaml"
+  }
+}
+```
+
+### 错误响应格式
+```json
+{
+  "error": {
+    "code": "AUTH_FAILED | FORBIDDEN | NOT_FOUND | INVALID_REQUEST | SERVER_ERROR",
+    "message": "错误描述"
+  }
+}
+```
+
+| Code | HTTP 状态码 | 描述 |
+|------|-------------|------|
+| `AUTH_FAILED` | 401 | Token 缺失或无效 |
+| `FORBIDDEN` | 403 | Token 无权限 |
+| `NOT_FOUND` | 404 | 资源不存在 |
+| `INVALID_REQUEST` | 400 | 请求参数错误 |
+| `SERVER_ERROR` | 500 | 服务器内部错误 |
+
+---
+
+## 6. CLI 命令 (hotplexd)
+
+`hotplexd` 二进制文件支持守护进程模式和 CLI 管理命令。
+
+### 守护进程模式
+```bash
+hotplexd start --config=/path/to/config.yaml --env-file=/path/to/.env
+hotplexd start --admin-port=8081  # 自定义 admin 端口
+```
+
+### 会话管理
+```bash
+hotplexd session list                    # 列出所有会话
+hotplexd session kill <session-id>       # 终止会话
+hotplexd session logs <session-id>       # 查看会话日志元数据
+hotplexd session logs <session-id> --stream  # 流式输出日志内容
+```
+
+### 诊断命令
+```bash
+hotplexd status                          # 运行时状态 (通过 Admin API)
+hotplexd doctor                          # 全面诊断检查
+hotplexd config validate <path>          # 验证配置文件
+hotplexd version                         # 显示版本信息
+```
+
+### 全局 Flags
+```bash
+--admin-token=<token>   # Admin API Token (或设置 HOTPLEX_ADMIN_TOKEN)
+--server-url=<url>      # Admin API 基础 URL (默认: http://localhost:8081)
+```
+
+### 使用示例
+```bash
+# 指定服务器列出会话
+hotplexd --server-url=http://daemon:8081 session list
+
+# 终止会话
+hotplexd --admin-token=secret123 session kill sess_abc123
+
+# 验证配置文件 (本地 + 远程)
+hotplexd config validate /etc/hotplex/config.yaml
+
+# 运行诊断
+hotplexd doctor
+```
