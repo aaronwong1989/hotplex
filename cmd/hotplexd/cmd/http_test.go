@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -84,5 +88,73 @@ func TestDoAdminAPI_NoToken(t *testing.T) {
 	}
 	if capturedToken != "" {
 		t.Errorf("expected empty Authorization header, got '%s'", capturedToken)
+	}
+}
+
+func TestRunStatus_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/admin/v1/stats" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_sessions":   5,
+			"active_sessions":  2,
+			"stopped_sessions": 3,
+			"uptime":           "2h30m",
+			"memory_usage_mb":  64.5,
+			"cpu_usage_percent": 12.3,
+		})
+	}))
+	defer server.Close()
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("server-url", server.URL, "")
+	cmd.Flags().String("admin-token", "test-token", "")
+
+	r, w, _ := os.Pipe()
+	old := os.Stdout
+	os.Stdout = w
+
+	err := runStatus(cmd, nil)
+
+	os.Stdout.Close()
+	os.Stdout = old
+	out, _ := io.ReadAll(r)
+	outStr := string(out)
+
+	if err != nil {
+		t.Fatalf("runStatus() error = %v", err)
+	}
+	if !strings.Contains(outStr, "Total Sessions") {
+		t.Errorf("expected output to contain 'Total Sessions', got: %s", outStr)
+	}
+}
+
+func TestRunStatus_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("server-url", server.URL, "")
+	cmd.Flags().String("admin-token", "test-token", "")
+
+	err := runStatus(cmd, nil)
+	if err == nil {
+		t.Error("expected error for server error response")
+	}
+}
+
+func TestRunStatus_ConnectionFailure(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("server-url", "http://localhost:59999", "")
+	cmd.Flags().String("admin-token", "test-token", "")
+
+	err := runStatus(cmd, nil)
+	if err == nil {
+		t.Error("expected error for connection refused")
 	}
 }
