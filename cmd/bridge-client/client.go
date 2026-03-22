@@ -67,7 +67,7 @@ const (
 
 // wireMessage and metadata are type aliases to the shared bridgewire types.
 type wireMessage = bridgewire.WireMessage
-type metadata    = bridgewire.WireMetadata
+type metadata = bridgewire.WireMetadata
 
 // =============================================================================
 // Public Types
@@ -99,9 +99,9 @@ type Reply struct {
 // Event represents an inbound event from HotPlex (server → client).
 // Common events: "stream_start", "stream_chunk", "stream_end", "typing_start", "typing_end".
 type Event struct {
-	Event   string
-	Data    json.RawMessage
-	raw     *wireMessage
+	Event string
+	Data  json.RawMessage
+	raw   *wireMessage
 }
 
 // Error represents an error message from HotPlex (server → client).
@@ -129,7 +129,7 @@ type Client struct {
 	logger     *slog.Logger
 	httpClient *http.Client
 
-	msgHandler  MessageHandler
+	msgHandler   MessageHandler
 	eventHandler EventHandler
 
 	conn   *websocket.Conn
@@ -219,11 +219,11 @@ func (c *Client) SendMessage(ctx context.Context, msg *Message) error {
 func (c *Client) Typing(ctx context.Context, sessionKey string) error {
 	metaBytes, _ := json.Marshal(metadata{Platform: c.platform})
 	evt := wireMessage{
-		Type:     msgTypeEvent,
-		Platform: c.platform,
-		Event:    "typing",
+		Type:       msgTypeEvent,
+		Platform:   c.platform,
+		Event:      "typing",
 		SessionKey: sessionKey,
-		Data:     metaBytes,
+		Data:       metaBytes,
 	}
 	return c.writeJSON(ctx, evt)
 }

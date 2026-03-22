@@ -33,10 +33,10 @@ type EngineConfig struct {
 
 // ServerSettings contains server-level settings.
 type ServerSettings struct {
-	Port       string `yaml:"port"`
-	LogLevel   string `yaml:"log_level"`
-	LogFormat  string `yaml:"log_format"`
-	BridgePort string `yaml:"bridge_port"` // Port for BridgeServer (empty = disabled)
+	Port        string `yaml:"port"`
+	LogLevel    string `yaml:"log_level"`
+	LogFormat   string `yaml:"log_format"`
+	BridgePort  string `yaml:"bridge_port"`  // Port for BridgeServer (empty = disabled)
 	BridgeToken string `yaml:"bridge_token"` // Auth token for BridgeServer connections
 }
 

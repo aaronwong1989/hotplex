@@ -126,7 +126,7 @@ const (
 // ProcessorChainOptions holds optional dependencies for the processor chain.
 type ProcessorChainOptions struct {
 	FormatConverter base.ContentConverter // Platform-specific content converter
-	Chunker        base.Chunker        // Platform-specific text chunker
+	Chunker         base.Chunker          // Platform-specific text chunker
 }
 
 // NewDefaultProcessorChain creates a default processor chain with all standard processors.

@@ -130,23 +130,23 @@ func TestReplyRoundTrip(t *testing.T) {
 
 func TestNewClientValidation(t *testing.T) {
 	tests := []struct {
-		name   string
-		opts   []Option
+		name    string
+		opts    []Option
 		wantErr string
 	}{
 		{
-			name:   "missing URL",
-			opts:   []Option{Platform("dingtalk")},
+			name:    "missing URL",
+			opts:    []Option{Platform("dingtalk")},
 			wantErr: "bridgeclient: URL is required",
 		},
 		{
-			name:   "missing platform",
-			opts:   []Option{URL("ws://localhost:8080/bridge")},
+			name:    "missing platform",
+			opts:    []Option{URL("ws://localhost:8080/bridge")},
 			wantErr: "bridgeclient: platform name is required",
 		},
 		{
-			name:   "valid",
-			opts:   []Option{URL("ws://localhost:8080/bridge"), Platform("dingtalk")},
+			name:    "valid",
+			opts:    []Option{URL("ws://localhost:8080/bridge"), Platform("dingtalk")},
 			wantErr: "",
 		},
 	}

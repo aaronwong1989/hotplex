@@ -59,11 +59,11 @@ type WireMessage struct {
 	SessionKey   string          `json:"session_key,omitempty"`
 	Content      string          `json:"content,omitempty"`
 	Metadata     json.RawMessage `json:"metadata,omitempty"`
-	Event       string          `json:"event,omitempty"`
-	Data        json.RawMessage `json:"data,omitempty"`
-	Code        int             `json:"code,omitempty"`
-	Message     string          `json:"message,omitempty"`
-	Capabilities []string       `json:"capabilities,omitempty"`
+	Event        string          `json:"event,omitempty"`
+	Data         json.RawMessage `json:"data,omitempty"`
+	Code         int             `json:"code,omitempty"`
+	Message      string          `json:"message,omitempty"`
+	Capabilities []string        `json:"capabilities,omitempty"`
 }
 
 // WireMetadata is the metadata carried inside WireMessage.Metadata.

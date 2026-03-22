@@ -349,6 +349,7 @@ func (bp *BridgePlatform) deliveryLoop() {
 		}
 	}
 }
+
 // handleWireMessage dispatches a WireMessage to the appropriate handler.
 func (bp *BridgePlatform) handleWireMessage(wm *WireMessage) error {
 	switch wm.Type {
@@ -456,7 +457,7 @@ func (bp *BridgePlatform) handleMessage(wm *WireMessage) error {
 			base.KeyRoomID:   meta.RoomID,
 			base.KeyThreadID: meta.ThreadID,
 			base.KeyUserID:   meta.UserID,
-			"platform":      bp.platform,
+			"platform":       bp.platform,
 		},
 		Timestamp: time.Now(),
 	}

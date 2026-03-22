@@ -14,25 +14,25 @@ import (
 // Defined here to allow platform factories in subpackages to reference it
 // without import cycles.
 type PlatformConfig struct {
-	Inherits         string                      `yaml:"inherits"`
-	Platform         string                      `yaml:"platform"`
-	Mode             string                      `yaml:"mode"`
-	SystemPrompt     string                      `yaml:"system_prompt"`
-	TaskInstructions string                      `yaml:"task_instructions"`
-	Engine           EngineConfig                `yaml:"engine"`
-	Provider         provider.ProviderConfig     `yaml:"provider"`
-	Security         SecurityConfig              `yaml:"security"`
-	Features         FeaturesConfig              `yaml:"features"`
-	Session          SessionConfig               `yaml:"session"`
-	MessageStore     MessageStoreConfig          `yaml:"message_store,omitempty"`
-	Options          map[string]any             `yaml:"options,omitempty"`
-	SourceFile       string                      `yaml:"-"`
+	Inherits         string                  `yaml:"inherits"`
+	Platform         string                  `yaml:"platform"`
+	Mode             string                  `yaml:"mode"`
+	SystemPrompt     string                  `yaml:"system_prompt"`
+	TaskInstructions string                  `yaml:"task_instructions"`
+	Engine           EngineConfig            `yaml:"engine"`
+	Provider         provider.ProviderConfig `yaml:"provider"`
+	Security         SecurityConfig          `yaml:"security"`
+	Features         FeaturesConfig          `yaml:"features"`
+	Session          SessionConfig           `yaml:"session"`
+	MessageStore     MessageStoreConfig      `yaml:"message_store,omitempty"`
+	Options          map[string]any          `yaml:"options,omitempty"`
+	SourceFile       string                  `yaml:"-"`
 }
 
 type SecurityConfig struct {
-	VerifySignature *bool             `yaml:"verify_signature"`
-	Permission      PermissionConfig  `yaml:"permission"`
-	Owner          *OwnerConfig      `yaml:"owner,omitempty"`
+	VerifySignature *bool            `yaml:"verify_signature"`
+	Permission      PermissionConfig `yaml:"permission"`
+	Owner           *OwnerConfig     `yaml:"owner,omitempty"`
 }
 
 type PermissionConfig struct {
@@ -80,9 +80,9 @@ type OwnerConfig struct {
 }
 
 type ThreadOwnershipConfig struct {
-	Enabled *bool        `yaml:"enabled"`
+	Enabled *bool         `yaml:"enabled"`
 	TTL     time.Duration `yaml:"ttl"`
-	Persist *bool        `yaml:"persist"`
+	Persist *bool         `yaml:"persist"`
 }
 
 type SessionConfig struct {
@@ -99,11 +99,11 @@ type EngineConfig struct {
 }
 
 type MessageStoreConfig struct {
-	Enabled   *bool          `yaml:"enabled"`
-	Type      string         `yaml:"type"`
-	SQLite    SQLiteConfig   `yaml:"sqlite"`
-	Postgres  PostgresConfig `yaml:"postgres"`
-	Strategy  string         `yaml:"strategy"`
+	Enabled   *bool           `yaml:"enabled"`
+	Type      string          `yaml:"type"`
+	SQLite    SQLiteConfig    `yaml:"sqlite"`
+	Postgres  PostgresConfig  `yaml:"postgres"`
+	Strategy  string          `yaml:"strategy"`
 	Streaming StreamingConfig `yaml:"streaming"`
 }
 
@@ -119,10 +119,10 @@ type PostgresConfig struct {
 }
 
 type StreamingConfig struct {
-	Enabled       *bool        `yaml:"enabled"`
-	BufferSize    int          `yaml:"buffer_size"`
+	Enabled       *bool         `yaml:"enabled"`
+	BufferSize    int           `yaml:"buffer_size"`
 	Timeout       time.Duration `yaml:"timeout"`
-	StoragePolicy string       `yaml:"storage_policy"`
+	StoragePolicy string        `yaml:"storage_policy"`
 }
 
 // BoolValue returns the bool value if ptr is non-nil, otherwise returns defaultVal.

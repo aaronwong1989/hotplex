@@ -253,12 +253,12 @@ func setupPlatform(
 
 	// 9. Call factory PostSetup hook (e.g., AppHome for Slack)
 	setupCtx := &base.SetupContext{
-		Manager:  manager,
-		Loader:   loader,
-		Engine:   eng,
-		PermDir:  permBaseDir,
-		Logger:   logger,
-		Platform: platform,
+		Manager:        manager,
+		Loader:         loader,
+		Engine:         eng,
+		PermDir:        permBaseDir,
+		Logger:         logger,
+		Platform:       platform,
 		PlatformConfig: pc,
 		WorkDirFn: func(sessionID string) string {
 			if workDirResult.ResolvedPath != "" {

@@ -11,7 +11,7 @@ import (
 func TestProcessorChain_Process(t *testing.T) {
 	slackOpts := ProcessorChainOptions{
 		FormatConverter: slack.NewContentConverter(),
-		Chunker:        slack.NewSlackChunker(),
+		Chunker:         slack.NewSlackChunker(),
 	}
 	chain := NewDefaultProcessorChain(context.Background(), nil, slackOpts)
 
@@ -45,7 +45,7 @@ func TestProcessorChain_Process(t *testing.T) {
 func TestProcessorChain_ProcessNilMessage(t *testing.T) {
 	slackOpts := ProcessorChainOptions{
 		FormatConverter: slack.NewContentConverter(),
-		Chunker:        slack.NewSlackChunker(),
+		Chunker:         slack.NewSlackChunker(),
 	}
 	chain := NewDefaultProcessorChain(context.Background(), nil, slackOpts)
 
@@ -62,7 +62,7 @@ func TestProcessorChain_ProcessNilMessage(t *testing.T) {
 func TestDefaultProcessorChain_Creation(t *testing.T) {
 	slackOpts := ProcessorChainOptions{
 		FormatConverter: slack.NewContentConverter(),
-		Chunker:        slack.NewSlackChunker(),
+		Chunker:         slack.NewSlackChunker(),
 	}
 	chain := NewDefaultProcessorChain(context.Background(), nil, slackOpts)
 

@@ -16,8 +16,8 @@ import (
 func TestWireMessageRegister(t *testing.T) {
 	wm := WireMessage{
 		Type:         BridgeMsgTypeRegister,
-		Platform:    "dingtalk",
-		Token:       "secret",
+		Platform:     "dingtalk",
+		Token:        "secret",
 		Capabilities: []string{CapText, CapCard},
 	}
 	data, err := json.Marshal(wm)
