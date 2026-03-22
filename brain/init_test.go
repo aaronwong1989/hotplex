@@ -198,7 +198,8 @@ func TestEnhancedBrainWrapper_ApplyTimeout_WithConfig(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	modifiedCtx := wrapper.applyTimeout(ctx)
+	modifiedCtx, cancel := wrapper.applyTimeout(ctx)
+	defer cancel()
 
 	// The context should have a deadline
 	deadline, ok := modifiedCtx.Deadline()
@@ -212,7 +213,8 @@ func TestEnhancedBrainWrapper_ApplyTimeout_NoConfig(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	modifiedCtx := wrapper.applyTimeout(ctx)
+	modifiedCtx, cancel := wrapper.applyTimeout(ctx)
+	defer cancel()
 
 	// The context should NOT have a deadline
 	_, ok := modifiedCtx.Deadline()

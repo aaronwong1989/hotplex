@@ -205,8 +205,11 @@ fi
 echo "==> Starting HotPlex Engine..."
 if [[ "$(id -u)" = "0" ]]; then
     # Ensure HOME is correctly set for hotplex before execution
+    # Note: -m is NOT used because it preserves PID 1's HOME=/root from the base image,
+    # which would make ClaudeCodeExtractor read ~/.claude/settings.json from /root instead
+    # of /home/hotplex/.claude/ where the named volume is mounted.
     export HOME="${HOTPLEX_HOME}"
-    exec runuser -u hotplex -m -- "$@"
+    exec runuser -u hotplex -- "$@"
 else
     exec "$@"
 fi

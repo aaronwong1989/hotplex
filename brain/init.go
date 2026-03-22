@@ -205,7 +205,8 @@ func (w *enhancedBrainWrapper) Analyze(ctx context.Context, prompt string, targe
 }
 
 func (w *enhancedBrainWrapper) ChatWithModel(ctx context.Context, model string, prompt string) (string, error) {
-	ctx = w.applyTimeout(ctx)
+	ctx, cancel := w.applyTimeout(ctx)
+	defer cancel()
 
 	model = w.selectModel(ctx, model, llm.ScenarioChat)
 
@@ -221,7 +222,8 @@ func (w *enhancedBrainWrapper) ChatWithModel(ctx context.Context, model string, 
 }
 
 func (w *enhancedBrainWrapper) AnalyzeWithModel(ctx context.Context, model string, prompt string, target any) error {
-	ctx = w.applyTimeout(ctx)
+	ctx, cancel := w.applyTimeout(ctx)
+	defer cancel()
 
 	model = w.selectModel(ctx, model, llm.ScenarioAnalyze)
 
@@ -237,13 +239,13 @@ func (w *enhancedBrainWrapper) AnalyzeWithModel(ctx context.Context, model strin
 }
 
 // applyTimeout applies the configured timeout to the context.
-func (w *enhancedBrainWrapper) applyTimeout(ctx context.Context) context.Context {
+// Returns the timeout context and its cancel function.
+// The caller must arrange for cancel to be called (typically via defer).
+func (w *enhancedBrainWrapper) applyTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if w.config.Model.TimeoutS > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(w.config.Model.TimeoutS)*time.Second)
-		defer cancel()
+		return context.WithTimeout(ctx, time.Duration(w.config.Model.TimeoutS)*time.Second)
 	}
-	return ctx
+	return ctx, func() {}
 }
 
 // selectModel selects a model using the router, or falls back to default.
