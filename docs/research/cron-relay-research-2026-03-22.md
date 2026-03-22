@@ -10,7 +10,7 @@
 
 | 系统 | 架构语言 | Cron 实现 | Relay 实现 | 持久化 | 多 Agent 协作 |
 |------|---------|----------|-----------|--------|--------------|
-| **cc-connect** | Go (2300+ stars) | CronScheduler + CronStore | RelayManager + Engine.HandleRelay | JSON 文件 | 无原生支持 |
+| **cc-connect** | Go (2300+ stars) | CronScheduler + CronStore | RelayManager + RelayExecutor | JSON 文件 | 无原生支持 |
 | **OpenClaw AgentScope** | Python + FastAPI | CronManager 单例，6字段秒级 | HTTP Client → 目标实例 | cron_jobs.json | Session 级串行 |
 | **Google A2A Protocol** | JSON-RPC 2.0 | 无内置 | 协议级 Agent 通信 | 外部 | 核心设计 |
 | **CrewAI** | Python | Task async_execution + callback | Task delegation | 外部存储 | 角色分工 + hierarchical |
@@ -71,7 +71,7 @@
 ```
 
 **HotPlex 适配**:
-- 复用 bridgewire WireMessage 作为传输层
+- 扩展 bridgewire WireMessage（`omitempty` 字段：`From`, `To`, `TaskID`, `Status`, `Response`, `Error`, `CreatedAt`）
 - 引入 Agent Card 机制（配置中声明能力）
 - 任务状态机支持 cancel/pause
 
@@ -331,7 +331,7 @@ User: "@bot2 帮我看看这个问题"
   → RelayManager.Send(to="bot2", message="帮我看看这个问题")
     → 解析 SessionKey
     → 验证 binding 和目标 engine
-    → Engine.HandleRelay(request)
+    → Engine.HandleRelay(request)  // [C2] Phase 0 新增 RelayExecutor 接口
     → 目标 bot 执行任务
     → 返回响应
     → 在 group chat 发布 visibility 消息
@@ -339,7 +339,7 @@ User: "@bot2 帮我看看这个问题"
 
 **关键设计**:
 - Binding 机制：Platform + ChatID 绑定一组 bots
-- HTTP 无直接处理，依赖 Engine.HandleRelay
+- HTTP 无直接处理，依赖 RelayExecutor.HandleRelay（Phase 0 新增接口）
 - 持久化 relay_bindings.json
 
 ---
@@ -416,70 +416,91 @@ cc-connect:
 
 ```
 internal/cron/
-├── job.go         # CronJob, CronStore 类型
+├── job.go         # CronJob, CronRun, CronStore 类型
 ├── scheduler.go   # CronScheduler (调度循环)
 ├── executor.go   # ExecuteRequest → Engine
-└── store.go      # 原子写入 JSON
+└── store.go      # 原子写入 JSON (Mutex + os.Rename)
 
 internal/relay/
 ├── binding.go     # RelayBinding, RelayManager
 ├── sender.go     # HTTP Sender (A2A 风格)
-└── agentcard.go  # Agent Card 能力发现
+├── agentcard.go  # Agent Card 能力发现
+└── circuit.go   # CircuitBreaker (per target instance)
 
 internal/agent/
 ├── card.go       # AgentCard 类型定义
 └── registry.go  # 本地 Agent 注册表
+
+internal/brain/
+└── cron_intent.go # CronIntent（独立于 guard.go）
 ```
 
-### Phase 1: Cron 调度器（核心）
+**Phase 0 必须完成的前置动作**:
+- **[C4]** `hotplex.go` 公开 `EngineOptions.Namespace` 字段，使 cron/relay 可创建独立 Engine 实例
+- **[C3]** `bridgewire/wire.go` 添加 relay 字段（`omitempty`）：`From`, `To`, `TaskID`, `Status`, `Response`, `Error`, `CreatedAt`
+- **[C2]** `internal/engine/runner.go` 新增 `RelayExecutor` 接口（`HandleRelay(ctx, req) (*RelayResponse, error)`）
+
+### Phase 1a: Cron 调度器（核心）
 
 | 功能 | 实现方式 | 借鉴来源 |
 |------|---------|---------|
 | 表达式解析 | `github.com/robfig/cron/v3` | cc-connect |
 | 持久化 | `cron_jobs.json`，原子写入 | cc-connect + NexFlow |
 | 执行 | 专用 `cron-` session（复用 SessionPool） | OpenClaw |
-| 自然语言解析 | Brain intent 扩展（guard.go） | cc-connect |
-| 工具注入 | `add_cron`, `del_cron`, `list_crons`, `pause_cron`, `resume_cron` | OpenClaw |
-| 输出格式化 | `output_format`: `text` \| `json` \| `structured` | CrewAI |
-| 执行历史 | `runs.json`（状态码、延迟、错误） | NexFlow Pulse |
-| 任务分类 | `type`: `light` \| `medium` \| `resource-intensive` | CrewAI |
+| 意图解析 | Brain cron intent（`brain/cron_intent.go`） | cc-connect |
+| 工具注入 | `add_cron`, `del_cron`, `list_crons` | OpenClaw |
+| Session 隔离 | `Namespace="cron"` 独立于普通会话 | OpenClaw |
+| 生命周期 | CronScheduler 随 Engine 启动/关闭 | — |
 
 **关键决策**:
 - 使用 `robfig/cron/v3`（Go 生态最成熟）
 - Session 隔离：Cron job 使用 `namespace="cron"` 独立于普通会话
-- **新增**: 执行历史记录 + 重试机制（借鉴 NexFlow Pulse）
-- **新增**: Task Callback 机制（借鉴 CrewAI）
+- CronScheduler 作为 `Engine` 的子组件，随 Engine 生命周期管理
+
+### Phase 1b: Cron 增强功能
+
+| 功能 | 实现方式 | 借鉴来源 |
+|------|---------|---------|
+| 工具扩展 | `pause_cron`, `resume_cron` | OpenClaw |
+| 输出格式化 | `output_format`: `text` \| `json` \| `structured`；structured 使用 `map[string]any` + 字段枚举验证 | CrewAI |
+| 执行历史 | `runs.json`（`CronRun` 类型） | NexFlow Pulse |
+| 任务分类 | `type`: `light` \| `medium` \| `resource-intensive` | CrewAI |
+| 重试机制 | 指数退避（1s → 2s → 4s，最多 N 次） | NexFlow Pulse |
+| 并发限制 |  semaphore（默认 maxConcurrent=4） | — |
+| Callback | `CronCallback` 接口（Webhook URL 或 in-process） | CrewAI |
 
 ### Phase 1.5: 多 Agent 协作（Relay 增强）
 
 | 功能 | 实现方式 | 借鉴来源 |
 |------|---------|---------|
 | Agent Card | 配置中声明 capabilities + skills | A2A Protocol |
-| 能力发现 | `AgentCard` endpoint | A2A Protocol |
+| 能力发现 | `AgentCard` HTTP endpoint | A2A Protocol |
 | 任务状态机 | `working` → `completed`/`failed`/`canceled` | A2A Protocol |
-| 消息格式 | 复用 bridgewire WireMessage | HotPlex 现有 |
+| 消息格式 | 扩展 bridgewire WireMessage（含 relay 字段） | HotPlex 现有 |
 | 传输协议 | JSON-RPC 2.0 over HTTP | A2A Protocol |
 | 绑定管理 | RelayBinding: Platform + ChatID → Bots | cc-connect |
+| Admin API | Cron/Relay 管理端点（`/admin/cron/*`, `/admin/relay/*`） | — |
 
-**新增**: A2A 风格的 Agent Card 和能力发现机制
+**新增**: A2A 风格的 Agent Card 和能力发现机制。Phase 1.5 依赖 Phase 1b 的 `CronRun` 执行历史，作为状态追踪的基础。
 
 ### Phase 2: Bot-to-Bot Relay（完整实现）
 
 | 功能 | 实现方式 | 借鉴来源 |
 |------|---------|---------|
-| 协议 | 复用 `bridgewire` WireMessage | HotPlex 现有 |
+| 协议 | 扩展 `bridgewire` WireMessage（含 From/To/TaskID/Status） | HotPlex 现有 |
 | 传输 | HTTP POST 到目标 HotPlex 实例 | cc-connect |
 | 路由 | RelayBinding: Platform + ChatID → Bots | cc-connect |
 | 安全 | API Key 认证 + WAF 检查 | A2A Protocol |
 | 超时 | 可配置 timeout（默认 120s） | cc-connect |
 | 重试 | 指数退避（1s → 2s → 4s，最多 3 次） | NexFlow Pulse |
-| 状态追踪 | 任务状态回调 + 执行历史 | A2A + NexFlow |
+| 熔断 | CircuitBreaker per target instance（closed/open/half-open） | — |
+| 状态追踪 | 任务状态回调 + 执行历史（`CronRun`） | A2A + NexFlow |
 
 **关键决策**:
-- 不新建协议，复用 bridgewire 的 WireMessage
 - Relay 作为 Bridge 的扩展，而非独立系统
 - 目标 HotPlex 实例通过配置注册（URL + API Key）
-- **新增**: 执行历史 + 状态机（借鉴 A2A Protocol）
+- **[C2]**: 通过 `RelayExecutor` 接口执行，不直接依赖 Engine 方法
+- **[M3]**: 熔断器防止级联故障（target instance 不可用时快速失败）
 
 ---
 
@@ -497,12 +518,12 @@ type CronJob struct {
     // 执行控制（借鉴 CrewAI）
     Type        JobType   `json:"type"`        // light | medium | resource-intensive
     TimeoutMins int       `json:"timeout_mins"`
-    Retries     int       `json:"retries"`      // 重试次数（默认 3）
-    RetryDelay  Duration  `json:"retry_delay"` // 初始重试延迟
+    Retries     int           `json:"retries"`       // 重试次数（默认 3）
+    RetryDelay  time.Duration `json:"retry_delay"`   // 初始重试延迟
 
     // 输出格式化（借鉴 CrewAI）
     OutputFormat OutputFormat `json:"output_format"` // text | json | structured
-    OutputSchema string       `json:"output_schema,omitempty"` // Pydantic JSON Schema
+    OutputSchema string       `json:"output_schema,omitempty"` // JSON Schema (用于 text/structured 输出校验)
 
     // 通知控制
     Enabled     bool      `json:"enabled"`
@@ -518,9 +539,13 @@ type CronJob struct {
     RunCount    int       `json:"run_count"`    // 执行次数
 
     // Callback（借鉴 CrewAI）
-    OnComplete  string    `json:"on_complete,omitempty"` // Webhook 或内部 callback
+    OnComplete  string    `json:"on_complete,omitempty"` // Webhook URL 或 in-process callback
     OnFail      string    `json:"on_fail,omitempty"`
 }
+
+// cron_jobs.json 文件头（用于 schema 版本管理）
+// { "version": 1, "jobs": [...] }
+const CronJobsSchemaVersion = 1
 
 type JobType string
 const (
@@ -542,6 +567,33 @@ const (
     EventFailed    Event = "failed"
     EventCanceled  Event = "canceled"
 )
+
+// CronRun: runs.json 单条记录（NexFlow Pulse 风格）
+type CronRun struct {
+    ID         string        `json:"id"`          // Run ID (UUID)
+    JobID      string        `json:"job_id"`      // 关联的 CronJob ID
+    StartedAt  time.Time     `json:"started_at"`
+    FinishedAt time.Time     `json:"finished_at,omitempty"`
+    Duration   time.Duration `json:"duration"`    // FinishedAt - StartedAt
+    Status     string        `json:"status"`      // success | failed | canceled | running
+    Error      string        `json:"error,omitempty"`
+    RetryCount int           `json:"retry_count"` // 本次 run 的重试次数
+    Response   string        `json:"response,omitempty"` // 输出内容（截断）
+}
+
+// CronCallback: Phase 1b 支持两种 callback 模式
+type CronCallback interface {
+    OnComplete(run *CronRun) error
+    OnFail(run *CronRun) error
+}
+
+// WebhookCallback 实现 CronCallback，支持 Bearer token 认证和超时控制
+type WebhookCallback struct {
+    URL     string
+    Token   string // 可选 Bearer token
+    Timeout time.Duration // 默认 10s，超时自动取消
+    Retry   int           // 失败后重试次数，默认 2
+}
 ```
 
 ---
@@ -601,7 +653,7 @@ type RelayMessage struct {
 | Cron 库 | `robfig/cron/v3` | Go 生态标准，稳定可靠 |
 | 持久化 | JSON 文件（原子写入） | 简单、无外部依赖、cc-connect 验证 |
 | 执行隔离 | 独立 SessionPool (`cron-` 前缀) | HotPlex SessionPool 已支持多 namespace |
-| 意图解析 | Brain 扩展（guard.go） | 架构一致，自然语言驱动 |
+| 意图解析 | `brain/cron_intent.go`（独立于 guard.go） | 架构一致，关注分离 |
 | Relay 协议 | 复用 bridgewire | 避免重复造轮子 |
 | 自然语言注册 | 工具化（cc-connect 模式） | Agent 可主动管理 |
 
@@ -616,6 +668,9 @@ type RelayMessage struct {
 | Cron job 执行阻塞 | context.WithTimeout + SessionGC |
 | Relay 超时 | 可配置 timeout，优雅处理 |
 | 安全风险 | WAF 检查 relay 消息内容 |
+| **[C4]** Cron Session 被 IdleTimeout 回收 | Phase 0 公开 `Namespace`，cron Engine 使用 `IdleTimeout=0`（永不过期） |
+| **[M3]** Relay 级联故障（目标实例宕机） | CircuitBreaker per target instance（失败 N 次后 open） |
+| **[m4]** Schema 演进导致旧配置无法解析 | `cron_jobs.json` 包含 `version` 字段，读取时校验并迁移 |
 
 ---
 
