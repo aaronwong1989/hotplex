@@ -1,0 +1,129 @@
+name: Issue Triage
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-label issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            // 安全地从 issue 提取数据
+            const title = (issue.title || '').toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+
+            const labels = new Set();
+
+            // === 1. Priority 分析 ===
+            // P0 - Critical
+            if (/\b(p0|critical|hotfix|security|blocking|urgent)\b/.test(title) ||
+                /\b(p0|critical|hotfix|security|blocking|urgent)\b/.test(body)) {
+              labels.add('priority/critical');
+            }
+            // P1 - High
+            else if (/\b(p1|high|important)\b/.test(title) || /\b(p1|high|important)\b/.test(body)) {
+              labels.add('priority/high');
+            }
+            // P3 - Low
+            else if (/\b(p3|low|nice-to-have|wishlist)\b/.test(title) || /\b(p3|low|nice-to-have|wishlist)\b/.test(body)) {
+              labels.add('priority/low');
+            }
+            // P2 - Medium (默认)
+            else {
+              labels.add('priority/medium');
+            }
+
+            // === 2. Type 分析 ===
+            // Bug
+            if (/\b(fix|bug|broken|crash|error|exception)\b/.test(title)) {
+              labels.add('type/bug');
+            }
+            // Feature
+            else if (/\b(feat|feature|add|implement|support)\b/.test(title)) {
+              labels.add('type/feature');
+            }
+            // Enhancement
+            else if (/\b(enhance|improve|optimize|refactor|perf)\b/.test(title)) {
+              labels.add('type/enhancement');
+            }
+            // Docs
+            else if (/\b(docs|document|readme|guide|tutorial)\b/.test(title)) {
+              labels.add('type/docs');
+            }
+            // Test
+            else if (/\b(test|spec|coverage)\b/.test(title)) {
+              labels.add('type/test');
+            }
+            // Question
+            else if (/^\/?question\//i.test(title) || /\bhow\b|\bwhat\b|\bwhy\b/.test(title)) {
+              labels.add('type/question');
+            }
+
+            // === 3. Size 分析 (基于 body 长度粗略估计) ===
+            const bodyLength = (issue.body || '').length;
+            if (bodyLength > 1000) {
+              labels.add('size/large');
+            } else if (bodyLength > 300) {
+              labels.add('size/medium');
+            } else {
+              labels.add('size/small');
+            }
+
+            // === 4. Status 分析 ===
+            labels.add('status/needs-triage');
+
+            // === 5. Area 分析 (基于组件/路径) ===
+            // Engine
+            if (/\b(engine|brain|core)\b/.test(title) || /\binternal\/engine\b/.test(body)) {
+              labels.add('area/engine');
+            }
+            // ChatApps
+            if (/\b(slack|telegram|dingtalk|chatapp|adapter)\b/.test(title) || /\bchatapps\b/.test(body)) {
+              labels.add('area/chatapps');
+            }
+            // Provider
+            if (/\b(claude|opencode|provider)\b/.test(title) || /\bprovider\b/.test(body)) {
+              labels.add('area/provider');
+            }
+            // Security
+            if (/\b(security|waf|sanitiz|filter)\b/.test(title) || /\binternal\/security\b/.test(body)) {
+              labels.add('area/security');
+            }
+            // Infrastructure
+            if (/\b(docker|deploy|ci|cd|workflow|k8s|kubernetes)\b/.test(title)) {
+              labels.add('area/infrastructure');
+            }
+
+            // === 应用标签 ===
+            if (labels.size > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: Array.from(labels)
+              });
+
+              console.log('Applied labels:', Array.from(labels).join(', '));
+            }
+
+      - name: Add triage comment
+        if: github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            // 如果是 question 类型，添加快速回复
+            if (/^\/?question\//i.test(issue.title)) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: '👋 感谢您的提问！\n\n我们的团队会尽快回复。在等待期间，您可以：\n\n- 📖 查看 [文档](https://github.com/hrygo/hotplex/tree/main/docs)\n- 🔍 搜索 [已有 issues](https://github.com/hrygo/hotplex/issues) 看是否有类似问题\n- 💬 加入我们的社区讨论\n\n如果您找到了解决方案，欢迎在此分享！'
+              });
+            }
