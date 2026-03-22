@@ -101,25 +101,25 @@ See `docs/provider-extension-guide.md` for detailed extension guide.
 To support a new AI CLI tool, implement the `Provider` interface:
 
 ```go
-type MyNewProvider struct {
-    provider.ProviderBase // Optional: provides common functionality
-}
-
 func (p *MyNewProvider) Name() string { return "my-new-ai" }
 
-func (p *MyNewProvider) BuildCLIArgs(sessionID string, opts *ProviderSessionOptions) []string {
+func (p *MyNewProvider) Metadata() provider.ProviderMeta {
+    return provider.ProviderMeta{ Type: "my-new-ai", BinaryName: "my-ai" }
+}
+
+func (p *MyNewProvider) BuildCLIArgs(providerSessionID string, opts *provider.ProviderSessionOptions) []string {
     // Construct command line arguments (e.g., --session-id, --model)
 }
 
-func (p *MyNewProvider) BuildInputMessage(prompt string, taskInst string) (map[string]any, error) {
+func (p *MyNewProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
     // Format the stdin payload for the CLI
 }
 
-func (p *MyNewProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
+func (p *MyNewProvider) ParseEvent(line string) ([]*provider.ProviderEvent, error) {
     // Convert a raw line of stdout to normalized events
 }
 
-func (p *MyNewProvider) DetectTurnEnd(event *ProviderEvent) bool {
+func (p *MyNewProvider) DetectTurnEnd(event *provider.ProviderEvent) bool {
     // Return true when a turn is complete
 }
 
@@ -127,8 +127,12 @@ func (p *MyNewProvider) ValidateBinary() (string, error) {
     // Check if CLI binary exists
 }
 
-func (p *MyNewProvider) CleanupSession(sessionID string, workDir string) error {
+func (p *MyNewProvider) CleanupSession(providerSessionID string, workDir string) error {
     // Clean up session files
+}
+
+func (p *MyNewProvider) VerifySession(providerSessionID string, workDir string) bool {
+    // Check if session data exists on disk
 }
 ```
 
@@ -197,6 +201,7 @@ provider:
 ```
 provider/
 ├── provider.go        # Core interfaces and types
+├── types.go           # Configuration and constant definitions
 ├── plugin.go          # Plugin system (RFC #216)
 ├── factory.go         # Provider factory and registry
 ├── event.go           # Event types and normalization

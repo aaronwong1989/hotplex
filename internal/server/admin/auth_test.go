@@ -110,14 +110,14 @@ func TestAdminAuthMiddleware_TimingAttackResistant(t *testing.T) {
 
 	// Test that similar keys are handled correctly
 	testCases := []struct {
-		key     string
-		want    int
+		key  string
+		want int
 	}{
 		{"test-secret-key", http.StatusOK},
-		{"Test-Secret-Key", http.StatusUnauthorized}, // Different case
-		{"test-secret-ke", http.StatusUnauthorized},    // One char short
+		{"Test-Secret-Key", http.StatusUnauthorized},       // Different case
+		{"test-secret-ke", http.StatusUnauthorized},        // One char short
 		{"test-secret-key-extra", http.StatusUnauthorized}, // Extra chars
-		{"", http.StatusUnauthorized},                     // Empty
+		{"", http.StatusUnauthorized},                      // Empty
 	}
 
 	for _, tc := range testCases {

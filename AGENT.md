@@ -49,7 +49,16 @@ hotplexd session list              # 列出所有会话
 hotplexd session kill <session-id> # 终止会话
 hotplexd session logs <session-id> # 查看会话日志
 
-# 诊断
+# 定时任务管理
+hotplexd cron add_cron             # 添加定时任务
+hotplexd cron list_crons           # 列出所有任务
+hotplexd cron list_runs <job-id>   # 查看执行历史
+
+# 中继管理
+hotplexd relay add_binding         # 添加中继绑定
+hotplexd relay list_bindings       # 列出所有绑定
+
+# 诊断与监控
 hotplexd status   # 运行时状态 (Admin API)
 hotplexd doctor   # 全面诊断检查
 hotplexd config validate <path>  # 验证配置
@@ -99,7 +108,9 @@ hotplexd version  # 显示版本
     - `internal/persistence/`: `marker.go` (Session durability).
     - `internal/secrets/`: Secrets provider (API key management).
     - `internal/telemetry/`: OpenTelemetry integration.
-    - `internal/admin/`: Admin API server (port 9080) with session management, diagnostics, and config validation.
+    - `internal/admin/`: Admin API server (port 9080) for remote lifecycle management and diagnostics.
+    - `internal/cron/`: Cron scheduler engine and job execution.
+    - `internal/relay/`: Bot-to-bot relay routing and circuit breaking.
 - **Systems**: `internal/sys/` (OS Signals), `internal/config/` (Watchers), `internal/strutil/` (High-perf utils).
 - **Domain**: `types/` & `event/` (The "Universal Language" of the system).
 - **Plugins**: `plugins/storage/` (Message persistence backends: SQLite, PostgreSQL).

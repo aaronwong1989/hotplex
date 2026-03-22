@@ -39,6 +39,11 @@ cp .env.example .env
 ./hotplexd start --config configs/base/server.yaml
 ```
 
+#### 4. 环境诊断 (推荐)
+```bash
+./hotplexd doctor
+```
+
 ---
 
 ## 📖 下一步指南

@@ -41,6 +41,11 @@ cp .env.example .env
 ./hotplexd start --config configs/base/server.yaml
 ```
 
+#### 4. Diagnosis (Recommended)
+```bash
+./hotplexd doctor
+```
+
 ---
 
 ## 📖 Next Steps

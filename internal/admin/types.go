@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/hrygo/hotplex/internal/adminapi"
+	"github.com/hrygo/hotplex/internal/cron"
 )
 
 type (
@@ -19,10 +20,10 @@ type (
 // so callers can use admin.ErrCodeAuthFailed etc.
 const (
 	ErrCodeAuthFailed     = ErrorCode(adminapi.ErrCodeAuthFailed)
-	ErrCodeForbidden     = ErrorCode(adminapi.ErrCodeForbidden)
-	ErrCodeNotFound      = ErrorCode(adminapi.ErrCodeNotFound)
+	ErrCodeForbidden      = ErrorCode(adminapi.ErrCodeForbidden)
+	ErrCodeNotFound       = ErrorCode(adminapi.ErrCodeNotFound)
 	ErrCodeInvalidRequest = ErrorCode(adminapi.ErrCodeInvalidRequest)
-	ErrCodeServerError   = ErrorCode(adminapi.ErrCodeServerError)
+	ErrCodeServerError    = ErrorCode(adminapi.ErrCodeServerError)
 )
 
 // SessionInfo represents a session in admin CLI responses.
@@ -42,7 +43,7 @@ type SessionInfo struct {
 // SessionListResponse is the response for GET /admin/v1/sessions.
 type SessionListResponse struct {
 	Sessions []*SessionInfo `json:"sessions"`
-	Total    int           `json:"total"`
+	Total    int            `json:"total"`
 }
 
 // SessionDetailResponse is the response for GET /admin/v1/sessions/:id.
@@ -64,7 +65,7 @@ type SessionConfig struct {
 
 // SessionStats contains session statistics.
 type SessionStats struct {
-	InputTokens   int64 `json:"input_tokens"`
+	InputTokens  int64 `json:"input_tokens"`
 	OutputTokens int64 `json:"output_tokens"`
 	DurationSecs int64 `json:"duration_seconds"`
 }
@@ -124,4 +125,69 @@ type HealthDetails struct {
 	DatabaseLatencyMs int    `json:"database_latency_ms"`
 	CliVersion        string `json:"cli_version"`
 	ConfigFile        string `json:"config_file"`
+}
+
+// --- Cron API types ---
+
+// CronJobCreateRequest is the request body for POST /admin/cron/jobs.
+type CronJobCreateRequest struct {
+	CronExpr     string        `json:"cron_expr"`
+	Prompt       string        `json:"prompt"`
+	SessionKey   string        `json:"session_key,omitempty"`
+	WorkDir      string        `json:"work_dir,omitempty"`
+	Type         string        `json:"type"`
+	TimeoutMins  int           `json:"timeout_mins"`
+	Retries      int           `json:"retries"`
+	RetryDelay   time.Duration `json:"retry_delay"`
+	OutputFormat string        `json:"output_format"`
+	OutputSchema string        `json:"output_schema,omitempty"`
+	Enabled      bool          `json:"enabled"`
+	Silent       bool          `json:"silent"`
+	NotifyOn     []cron.Event  `json:"notify_on"`
+	CreatedBy    string        `json:"created_by"`
+}
+
+// CronJobResponse is the response for a single cron job.
+type CronJobResponse struct {
+	Job *cron.CronJob `json:"job"`
+}
+
+// CronJobListResponse is the response for GET /admin/cron/jobs.
+type CronJobListResponse struct {
+	Jobs  []*cron.CronJob `json:"jobs"`
+	Total int             `json:"total"`
+}
+
+// CronJobDeleteResponse is the response for DELETE /admin/cron/jobs/:id.
+type CronJobDeleteResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// CronRunListResponse is the response for GET /admin/cron/jobs/:id/runs.
+type CronRunListResponse struct {
+	Runs  []*cron.CronRun `json:"runs"`
+	Total int             `json:"total"`
+}
+
+// --- Relay API types ---
+
+// RelayBindingResponse mirrors relay.RelayBinding for the admin API.
+type RelayBindingResponse struct {
+	Platform string            `json:"platform"`
+	ChatID   string            `json:"chat_id"`
+	Bots     map[string]string `json:"bots"`
+}
+
+// RelayBindingsResponse is the response for GET /admin/relay/bindings.
+type RelayBindingsResponse struct {
+	Bindings []*RelayBindingResponse `json:"bindings"`
+	Total    int                     `json:"total"`
+}
+
+// RelayBindingCreateRequest is the request body for POST /admin/relay/bindings.
+type RelayBindingCreateRequest struct {
+	Platform string            `json:"platform"`
+	ChatID   string            `json:"chat_id"`
+	Bots     map[string]string `json:"bots"`
 }

@@ -10,11 +10,11 @@ import (
 // EventBuffer is a thread-safe ring buffer for audit events.
 // It stores the last maxSize events in memory for fast access.
 type EventBuffer struct {
-	mu       sync.RWMutex
-	events   []AdminEvent
-	maxSize  int
-	head     int // Points to the oldest event
-	count    int // Number of events in buffer
+	mu      sync.RWMutex
+	events  []AdminEvent
+	maxSize int
+	head    int // Points to the oldest event
+	count   int // Number of events in buffer
 }
 
 // NewEventBuffer creates a new event buffer with the given maximum size.

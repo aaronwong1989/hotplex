@@ -4,23 +4,23 @@
 //
 // Architecture (SOLID/DRY):
 //
-//	  ┌─────────────────────┐      ┌───────────────────────────┐
-//	  │   internal/admin     │      │ internal/server/admin      │
-//	  │   (Admin CLI)       │      │   (Webhook API)            │
-//	  │   gorilla/mux       │      │   net/http                 │
-//	  │   /admin/v1/...     │      │   /api/v1/admin/...        │
-//	  └──────────┬──────────┘      └─────────────┬─────────────┘
-//	              │                               │
-//	              └──────────┬────────────────────┘
-//	                         ▼
-//	           ┌─────────────────────────┐
-//	           │   internal/adminapi       │
-//	           │   (Shared Domain)        │
-//	           │   • ErrorCode            │
-//	           │   • MapSessionStatus     │
-//	           │   • writeJSON/writeError │
-//	           │   • Session mapping      │
-//	           └─────────────────────────┘
+//	┌─────────────────────┐      ┌───────────────────────────┐
+//	│   internal/admin     │      │ internal/server/admin      │
+//	│   (Admin CLI)       │      │   (Webhook API)            │
+//	│   gorilla/mux       │      │   net/http                 │
+//	│   /admin/v1/...     │      │   /api/v1/admin/...        │
+//	└──────────┬──────────┘      └─────────────┬─────────────┘
+//	            │                               │
+//	            └──────────┬────────────────────┘
+//	                       ▼
+//	         ┌─────────────────────────┐
+//	         │   internal/adminapi       │
+//	         │   (Shared Domain)        │
+//	         │   • ErrorCode            │
+//	         │   • MapSessionStatus     │
+//	         │   • writeJSON/writeError │
+//	         │   • Session mapping      │
+//	         └─────────────────────────┘
 package adminapi
 
 import (
@@ -37,12 +37,12 @@ import (
 type ErrorCode string
 
 const (
-	ErrCodeAuthFailed          ErrorCode = "AUTH_FAILED"
-	ErrCodeForbidden           ErrorCode = "FORBIDDEN"
-	ErrCodeNotFound            ErrorCode = "NOT_FOUND"
-	ErrCodeInvalidRequest      ErrorCode = "INVALID_REQUEST"
-	ErrCodeServerError         ErrorCode = "SERVER_ERROR"
-	ErrCodeUnauthorized        ErrorCode = "UNAUTHORIZED"
+	ErrCodeAuthFailed           ErrorCode = "AUTH_FAILED"
+	ErrCodeForbidden            ErrorCode = "FORBIDDEN"
+	ErrCodeNotFound             ErrorCode = "NOT_FOUND"
+	ErrCodeInvalidRequest       ErrorCode = "INVALID_REQUEST"
+	ErrCodeServerError          ErrorCode = "SERVER_ERROR"
+	ErrCodeUnauthorized         ErrorCode = "UNAUTHORIZED"
 	ErrCodeEngineNotInitialized ErrorCode = "ENGINE_NOT_INITIALIZED"
 )
 
@@ -115,11 +115,11 @@ func ResolvePlatform(sessionID string) string {
 
 // SessionSummary holds fields shared by all session-listing responses.
 type SessionSummary struct {
-	ID          string    `json:"id"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	LastActive  time.Time `json:"last_active"`
-	Platform    string    `json:"platform"`
+	ID         string    `json:"id"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
+	LastActive time.Time `json:"last_active"`
+	Platform   string    `json:"platform"`
 }
 
 // ToSessionSummary converts an internal engine.Session to a SessionSummary.

@@ -28,6 +28,8 @@ ctrl := server.NewExecutionController(engine, logger)
 err := ctrl.Execute(ctx, server.ExecutionRequest{
     SessionID:    "session-123",
     Prompt:       "Write a hello world program",
+    Instructions: "Use Python 3.14",
+    SystemPrompt: "You are a senior engineer",
     WorkDir:      "/tmp/sandbox",
     Timeout:      15 * time.Minute,
 }, callback)
@@ -37,9 +39,12 @@ err := ctrl.Execute(ctx, server.ExecutionRequest{
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/ws` | WebSocket | Native HotPlex WebSocket |
-| `/v1/execute` | POST | OpenCode-compatible execution |
-| `/health` | GET | Health check |
+| `/ws/v1/agent` | WebSocket | Native HotPlex Agent WebSocket |
+| `/session` | POST | Create OpenCode-compatible session |
+| `/session/{id}/message` | POST | Send prompt (OpenCode compatible) |
+| `/global/event` | GET/SSE | Global event stream (SSE) |
+| `/api/v1/admin/` | ANY | Enhanced Admin API (Sessions, Stats, Doctor) |
+| `/health[/ready|/live]` | GET | Health, Readiness, and Liveness checks |
 | `/metrics` | GET | Prometheus metrics |
 | `/bridge/v1/{platform}` | WebSocket | External platform adapter gateway (BridgeServer) |
 

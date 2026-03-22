@@ -151,7 +151,7 @@ func (q *MessageQueue) Requeue(msg *QueuedMessage) error {
 	defer q.mu.Unlock()
 
 	// Check size limit before re-queuing
-	if q.maxSize > 0 && len(q.queue) >= q.maxSize {
+	if len(q.queue) >= q.maxSize {
 		return ErrQueueFull
 	}
 	q.queue = append(q.queue, msg)

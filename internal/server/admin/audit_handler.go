@@ -10,8 +10,8 @@ import (
 
 // AuditHandler handles audit and history endpoints.
 type AuditHandler struct {
-	eventBuffer   *EventBuffer
-	sessionPool   interface {
+	eventBuffer *EventBuffer
+	sessionPool interface {
 		GetSession(sessionID string) (*intengine.Session, bool)
 	}
 }

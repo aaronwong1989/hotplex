@@ -62,6 +62,15 @@ func TestGuardConfig(t *testing.T) {
 	if len(cfg.AdminUsers) != 1 {
 		t.Errorf("AdminUsers length = %d, want 1", len(cfg.AdminUsers))
 	}
+	if len(cfg.BanPatterns) != 1 {
+		t.Error("BanPatterns length should be 1")
+	}
+	if cfg.MaxInputLength != 10000 {
+		t.Error("MaxInputLength should be 10000")
+	}
+	if cfg.Sensitivity != "medium" {
+		t.Error("Sensitivity should be medium")
+	}
 }
 
 func TestDefaultGuardConfig(t *testing.T) {

@@ -71,6 +71,7 @@ configs/
 | `HOTPLEX_LOG_FORMAT` | `json`       | Log format: json, text              |
 | `HOTPLEX_API_KEY`    | *(required)* | API security token                  |
 | `HOTPLEX_API_KEYS`   | *(optional)* | Multiple API keys (comma-separated) |
+| `HOTPLEX_ADMIN_PORT` | `9080`       | Admin API management port           |
 
 ### Engine
 
@@ -271,6 +272,36 @@ If an environment variable is not set, it will be replaced with an empty string.
 | `permission.allowed_users`            | User whitelist                                        |
 | `permission.blocked_users`            | User blacklist                                        |
 | `permission.slash_command_rate_limit` | Rate limit per user                                   |
+
+---
+
+## Admin & Management Configuration
+
+HotPlex v0.34.0 features a **Management Plane** that supports both direct local CLI access and a remote **Admin API**.
+
+### Admin Server Settings
+
+| Variable             | Default | Description                            |
+| -------------------- | ------- | -------------------------------------- |
+| `HOTPLEX_ADMIN_PORT` | `9080`  | Port for the Admin management server   |
+| `HOTPLEX_API_KEY`    | *(req)* | Shared secret for Admin API auth       |
+
+### Cron Scheduler
+
+Background tasks are persisted in a JSON store.
+
+| Variable           | Default                 | Description                          |
+| ------------------ | ----------------------- | ------------------------------------ |
+| `HOTPLEX_CRON_DIR` | `~/.hotplex/cron`       | Directory for cron job persistence   |
+| `maxConcurrent`    | `4` (internal)          | Max simultaneous running tasks       |
+
+### Message Relay
+
+Bot-to-bot relaying settings.
+
+| Variable            | Default                 | Description                           |
+| ------------------- | ----------------------- | ------------------------------------- |
+| `HOTPLEX_RELAY_DIR` | `~/.hotplex/relay`      | Directory for relay binding storage   |
 
 ---
 

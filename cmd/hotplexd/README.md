@@ -15,8 +15,10 @@
 4.  **HTTP Server Setup**:
     - **Main Server**: Handles WebSocket connections for agents and OpenCode compatibility APIs.
     - **Admin Server**: Provides internal management APIs on a separate port.
-5.  **Observability**: Registers health checks and metrics endpoints.
-6.  **ChatApps Integration**: Optionally initializes adapters for platforms like Slack or Feishu.
+5.  **Observability**: Registers health checks and metrics endpoints (Prometheus compatible).
+6.  **Background Jobs**: Orchestrates `CronScheduler` for scheduled AI tasks.
+7.  **Bot Relay**: Manages `RelayManager` for cross-platform message routing.
+8.  **ChatApps Integration**: Optionally initializes adapters for platforms like Slack or Feishu.
 
 ## Related Packages
 

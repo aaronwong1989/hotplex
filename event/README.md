@@ -4,9 +4,10 @@ The `event` package defines the high-performance communication protocol for HotP
 
 ## 📡 Event Models
 
-- **`Event`**: The base structure for all system events.
-- **`EventMetadata`**: Contextual information including timestamps, session IDs, and trace IDs.
-- **`Callback`**: A unified function signature used throughout the codebase for event handling.
+- **`EventWithMeta`**: The envelope for all system events, containing the type, data, and metadata.
+- **`EventMeta`**: Detailed contextual information including durations, tool usage, tokens, and file system impacts.
+- **`SessionStatsData`**: Final summary of a session (Total tokens, cost, duration, total files modified).
+- **`Callback`**: A unified function signature: `func(eventType string, data any) error`.
 
 ## 🔄 Interaction Pattern
 
@@ -20,12 +21,17 @@ HotPlex events follow a **Streamed Observer** pattern:
 
 ```go
 // Register a simple observer
-engine.Execute(ctx, cfg, prompt, func(ev event.Event) {
-    switch ev.Type {
-    case types.MessageTypeToken:
-        processToken(ev)
-    case types.MessageTypeDangerBlock:
-        triggerSecurityAlert(ev)
+engine.Execute(ctx, cfg, prompt, func(eventType string, data any) error {
+    switch eventType {
+    case "token":
+        processToken(data.(string))
+    case "tool_result":
+        meta := data.(*event.EventMeta)
+        logToolSuccess(meta.ToolName, meta.DurationMs)
+    case "session_stats":
+        stats := data.(*event.SessionStatsData)
+        reportCost(stats.TotalCostUSD)
     }
+    return nil
 })
 ```

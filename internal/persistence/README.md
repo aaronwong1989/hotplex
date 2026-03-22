@@ -53,6 +53,7 @@ err := store.Delete(sessionID)
 | Type | Description |
 |------|-------------|
 | `FileMarkerStore` | Filesystem-based storage (default) |
+| `InMemoryMarkerStore` | In-memory storage (for testing or non-persistent sessions) |
 | `SessionMarkerStore` | Interface for custom backends |
 
 ## Files

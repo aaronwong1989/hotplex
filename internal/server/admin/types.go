@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/hrygo/hotplex/engine"
-	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/adminapi"
+	intengine "github.com/hrygo/hotplex/internal/engine"
 )
 
 // AdminSession represents a session in the admin API.
@@ -25,7 +25,7 @@ type AdminSession struct {
 
 // AdminSessionStats represents execution statistics aligned with engine.SessionStats.
 type AdminSessionStats struct {
-	SessionID             string   `json:"session_id"`
+	SessionID            string   `json:"session_id"`
 	TotalDurationMs      int64    `json:"total_duration_ms"`
 	ThinkingDurationMs   int64    `json:"thinking_duration_ms"`
 	ToolDurationMs       int64    `json:"tool_duration_ms"`
@@ -75,12 +75,12 @@ type (
 
 // Error code constants re-exported from adminapi.
 const (
-	ErrCodeAuthFailed          = adminapi.ErrCodeAuthFailed
-	ErrCodeForbidden           = adminapi.ErrCodeForbidden
-	ErrCodeNotFound            = adminapi.ErrCodeNotFound
-	ErrCodeInvalidRequest      = adminapi.ErrCodeInvalidRequest
-	ErrCodeServerError         = adminapi.ErrCodeServerError
-	ErrCodeUnauthorized        = adminapi.ErrCodeUnauthorized
+	ErrCodeAuthFailed           = adminapi.ErrCodeAuthFailed
+	ErrCodeForbidden            = adminapi.ErrCodeForbidden
+	ErrCodeNotFound             = adminapi.ErrCodeNotFound
+	ErrCodeInvalidRequest       = adminapi.ErrCodeInvalidRequest
+	ErrCodeServerError          = adminapi.ErrCodeServerError
+	ErrCodeUnauthorized         = adminapi.ErrCodeUnauthorized
 	ErrCodeEngineNotInitialized = adminapi.ErrCodeEngineNotInitialized
 )
 
@@ -90,14 +90,14 @@ type AdminError = ErrorResponse
 // BatchStopRequest is the request body for batch session stop.
 type BatchStopRequest struct {
 	SessionIDs []string `json:"session_ids"`
-	Reason    string   `json:"reason"`
+	Reason     string   `json:"reason"`
 }
 
 // BatchStopResponse is the response for batch session stop.
 type BatchStopResponse struct {
-	Stopped   []string          `json:"stopped"`
-	NotFound []string           `json:"not_found"`
-	Failed    []BatchStopFailed `json:"failed"`
+	Stopped  []string          `json:"stopped"`
+	NotFound []string          `json:"not_found"`
+	Failed   []BatchStopFailed `json:"failed"`
 }
 
 // BatchStopFailed represents a failed session stop.
@@ -147,7 +147,7 @@ type EventsResponse struct {
 
 // TranscriptResponse is the response for session transcript.
 type TranscriptResponse struct {
-	SessionID string            `json:"session_id"`
+	SessionID string          `json:"session_id"`
 	Messages  []TranscriptMsg `json:"messages"`
 }
 
@@ -160,8 +160,8 @@ type TranscriptMsg struct {
 
 // ToolsResponse is the response for tools list endpoints.
 type ToolsResponse struct {
-	Tools []string `json:"tools"`
-	Source string  `json:"source"`
+	Tools  []string `json:"tools"`
+	Source string   `json:"source"`
 }
 
 // ConfigResponse is the response for config endpoint.
@@ -184,10 +184,10 @@ func NewAdminErrorWithDetails(code ErrorCode, message string, details map[string
 // MapSessionToAdminSession converts an internal engine.Session to AdminSession.
 func MapSessionToAdminSession(s *intengine.Session) AdminSession {
 	return AdminSession{
-		SessionID:     s.ID,
-		Status:        adminapi.MapSessionStatus(s.GetStatus()),
-		Platform:      adminapi.ResolvePlatform(s.ID),
-		CreatedAt:     s.CreatedAt,
+		SessionID:    s.ID,
+		Status:       adminapi.MapSessionStatus(s.GetStatus()),
+		Platform:     adminapi.ResolvePlatform(s.ID),
+		CreatedAt:    s.CreatedAt,
 		LastActiveAt: s.GetLastActive(),
 	}
 }
@@ -205,12 +205,12 @@ func MapSessionStatsToAdminStats(stats *engine.SessionStats) AdminSessionStats {
 	}
 
 	return AdminSessionStats{
-		SessionID:             stats.SessionID,
-		TotalDurationMs:       stats.TotalDurationMs,
-		ThinkingDurationMs:    stats.ThinkingDurationMs,
-		ToolDurationMs:        stats.ToolDurationMs,
-		GenerationDurationMs:   stats.GenerationDurationMs,
-		InputTokens:           int64(stats.InputTokens),
+		SessionID:            stats.SessionID,
+		TotalDurationMs:      stats.TotalDurationMs,
+		ThinkingDurationMs:   stats.ThinkingDurationMs,
+		ToolDurationMs:       stats.ToolDurationMs,
+		GenerationDurationMs: stats.GenerationDurationMs,
+		InputTokens:          int64(stats.InputTokens),
 		OutputTokens:         int64(stats.OutputTokens),
 		CacheReadTokens:      int64(stats.CacheReadTokens),
 		CacheWriteTokens:     int64(stats.CacheWriteTokens),
@@ -220,4 +220,3 @@ func MapSessionStatsToAdminStats(stats *engine.SessionStats) AdminSessionStats {
 		FilePaths:            stats.FilePaths,
 	}
 }
-

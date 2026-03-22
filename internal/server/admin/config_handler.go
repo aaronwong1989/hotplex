@@ -34,7 +34,7 @@ func (h *ConfigHandler) getConfig(w http.ResponseWriter, r *http.Request) {
 		"permission_mode":  opts.PermissionMode,
 		"skip_permissions": opts.DangerouslySkipPermissions,
 		"allowed_tools":    opts.AllowedTools,
-		"disallowed_tools":  opts.DisallowedTools,
+		"disallowed_tools": opts.DisallowedTools,
 	}
 
 	response := ConfigResponse{Config: config}

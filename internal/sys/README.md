@@ -15,11 +15,19 @@ Ensure proper cleanup of CLI processes and their children, preventing zombie pro
 ```go
 import "github.com/hrygo/hotplex/internal/sys"
 
-// Kill process group (Unix: PGID, Windows: taskkill)
-err := sys.KillProcessGroup(pid)
+// Kill process group (Unix: PGID, Windows: Job Object)
+sys.KillProcessGroup(cmd, jobHandle)
 
-// Find process by name
-pids, err := sys.FindProcessByName("claude")
+// Check if process is alive
+if sys.IsProcessAlive(process) {
+    // ...
+}
+
+// Diagnostics
+result := sys.CheckCliAvailable()
+if result.Available {
+    fmt.Printf("Claude version: %s\n", result.Version)
+}
 ```
 
 ## Platform Differences
@@ -34,6 +42,7 @@ pids, err := sys.FindProcessByName("claude")
 | File | Purpose |
 |------|---------|
 | `doc.go` | Package documentation |
-| `proc_unix.go` | Unix process management |
-| `proc_windows.go` | Windows process management |
+| `proc_unix.go` | Unix process management (PGID-based) |
+| `proc_windows.go` | Windows process management (Job Object-based) |
+| `diagnostics.go` | CLI and database health checks |
 | `path.go` | Path utilities |

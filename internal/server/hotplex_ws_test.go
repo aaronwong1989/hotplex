@@ -50,6 +50,28 @@ func (m *mockEngine) ValidateConfig(cfg *hotplex.Config) error {
 	return nil
 }
 
+func (m *mockEngine) AddCronJob(ctx context.Context, job *hotplex.CronJob) error { return nil }
+func (m *mockEngine) DeleteCronJob(ctx context.Context, id string) error         { return nil }
+func (m *mockEngine) PauseCronJob(ctx context.Context, id string) error          { return nil }
+func (m *mockEngine) ResumeCronJob(ctx context.Context, id string) error         { return nil }
+func (m *mockEngine) ListCronJobs(ctx context.Context) ([]*hotplex.CronJob, error) {
+	return nil, nil
+}
+func (m *mockEngine) GetCronRuns(ctx context.Context, jobID string) ([]*hotplex.CronRun, error) {
+	return nil, nil
+}
+
+func (m *mockEngine) SendRelay(ctx context.Context, to, content string) (*hotplex.RelayResponse, error) {
+	return &hotplex.RelayResponse{Status: "ok"}, nil
+}
+func (m *mockEngine) AddRelayBinding(ctx context.Context, binding *hotplex.RelayBinding) error {
+	return nil
+}
+func (m *mockEngine) RemoveRelayBinding(ctx context.Context, chatID string) error { return nil }
+func (m *mockEngine) ListRelayBindings(ctx context.Context) ([]*hotplex.RelayBinding, error) {
+	return nil, nil
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }

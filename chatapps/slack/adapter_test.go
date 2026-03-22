@@ -623,8 +623,8 @@ func TestProbeAssistantCapability(t *testing.T) {
 
 	t.Run("AssistantAPIEnabled_false_skips", func(t *testing.T) {
 		a := NewAdapter(&Config{
-			BotToken:           "xoxb-test",
-			AppToken:           "xapp-test",
+			BotToken:            "xoxb-test",
+			AppToken:            "xapp-test",
 			AssistantAPIEnabled: func() *bool { v := false; return &v }(),
 		}, logger, base.WithoutServer())
 		result := a.ProbeAssistantCapability(ctx)

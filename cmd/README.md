@@ -11,6 +11,8 @@ This directory contains the entry points for the HotPlex AI Agent Runtime Engine
 - **`main.go`**: The entry point for the daemon and the CLI.
 - **`cmd/`**: Implementation of the Cobra-based CLI commands.
 - **`cmd/session/`**: Commands for managing active agent sessions.
+- **`cmd/cron/`**: Commands for background task scheduling.
+- **`cmd/relay/`**: Commands for bot-to-bot cross-platform relaying.
 
 ### Usage
 
@@ -32,9 +34,11 @@ hotplexd start [flags]
 `hotplexd` also includes several utility commands:
 
 - `hotplexd session`: Manage active sessions (list, kill, logs).
-- `hotplexd status`: Check the status of the daemon and active sessions.
-- `hotplexd config`: View or modify configuration settings.
-- `hotplexd doctor`: Run diagnostic checks on the system environment.
+- `hotplexd cron`: Schedule background tasks with AI (add, list, history).
+- `hotplexd relay`: Manage cross-platform bot communication bindings.
+- `hotplexd status`: Check real-time daemon metrics (CPU, Memory, Sessions).
+- `hotplexd config`: Validate configuration files locally or remotely.
+- `hotplexd doctor`: Run in-depth diagnostics (Binary, Network, API Health).
 - `hotplexd version`: Display version and build information.
 
 ### Configuration
@@ -46,3 +50,7 @@ hotplexd start [flags]
 4.  **`.env` file**: Key-value pairs for environment variables.
 
 For detailed configuration options, refer to the [internal/config](../internal/config) package or run `hotplexd config --help`.
+
+---
+> [!NOTE]
+> **Dual Management Modes**: Many `hotplexd` subcommands (session, cron, status, etc.) support both direct local access and remote communication via the **Admin API** (default port 9080). This ensures flexibility for both local development and remote orchestration.

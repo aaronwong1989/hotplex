@@ -150,7 +150,7 @@ err := client.SendMessage(ctx, &bridgeclient.Message{
 #   bridge_token=secret
 
 # 2. Run the example DingTalk adapter
-cd cmd/bridge-client/example
+cd _examples/go_bridge_client
 go run main.go
 ```
 

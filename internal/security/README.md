@@ -18,24 +18,31 @@ This package implements the core security engine with a **Danger Detector** that
 ```go
 import "github.com/hrygo/hotplex/internal/security"
 
-// Create detector
-detector := security.NewDangerDetector(logger)
+// Create detector with default rules
+detector := security.NewDetector(logger)
 
-// Check input
-result := detector.CheckInput(ctx, userInput)
-if result.Blocked {
-    log.Warn("Dangerous input blocked", "pattern", result.MatchedPattern)
+// Check input (returns nil if safe, or *DangerBlockEvent if blocked)
+result := detector.CheckInput(userInput)
+if result != nil {
+    log.Warn("Dangerous input blocked",
+        "reason", result.Reason,
+        "level", result.Level,
+        "pattern", result.PatternMatched)
     return ErrSecurityBlock
 }
 ```
 
-## Detection Rules
+The detector uses a 4-level severity system:
+- **Critical (0)**: Irreparable damage (e.g., recursive root deletion, disk wiping)
+- **High (1)**: Significant damage potential (e.g., deleting user home, modifying system config)
+- **Moderate (2)**: Unintended side effects (e.g., resetting Git history, sensitive recon)
+- **Safe (-1)**: Allowlisted patterns that bypass further checks
 
-The detector blocks patterns like:
+Commonly blocked patterns:
 - `rm -rf /` - Recursive root deletion
-- Credential exfiltration attempts
-- Shell injection patterns
-- Sensitive file access
+- Credential exfiltration via `curl` or `cat /etc/shadow`
+- Reverse shells and network listener attempts
+- Sudo/Privilege escalation
 
 ## Architecture
 
@@ -54,4 +61,7 @@ SecurityRule
 
 | File | Purpose |
 |------|---------|
-| `detector.go` | Core detection engine and interfaces |
+| `detector.go` | Core WAF engine and regex signature implementation |
+| `rules/` | Extensible rule sources (File, Memory, API) |
+| `audit/` | Forensic logging and session audit persistence |
+| `doc.go` | Package-level documentation and overview |

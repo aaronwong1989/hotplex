@@ -39,6 +39,7 @@ pool := engine.NewSessionPool(
 )
 
 // Get or create session
+// SessionConfig contains: WorkDir, Env, Instruction, etc.
 session, created, err := pool.GetOrCreateSession(ctx, sessionID, cfg, prompt)
 
 // Execute command
@@ -51,9 +52,10 @@ pool.Shutdown(ctx)
 ## Design Principles
 
 - **PGID Isolation**: Each session runs in its own process group for clean termination
-- **Idle GC**: Inactive sessions are garbage collected after timeout
+- **Idle GC**: Inactive sessions are garbage collected after timeout (default: 30m)
+- **Deterministic ID**: Supports mapping platform-specific IDs to unique session markers
 - **Thread Safety**: All operations are protected by `sync.RWMutex`
-- **Graceful Shutdown**: Respects context cancellation
+- **Graceful Shutdown**: Respects context cancellation and cleans up all processes in the pool
 
 ## Files
 

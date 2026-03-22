@@ -62,6 +62,7 @@ make build       # Build the daemon
 make run         # Build and run in foreground
 make test        # Run unit tests
 make lint        # Run linter
+./hotplexd doctor # Diagnose environment
 ```
 
 ### First Build
@@ -229,6 +230,12 @@ go mod tidy
 2. **Environment variables** (`.env` file)
 3. **YAML config files** (`configs/base/*.yaml` with inheritance)
 4. **Defaults** (lowest priority)
+
+### Management Plane
+
+HotPlex v0.34.0 supports **Dual Management Modes**:
+- **Direct CLI**: Run `hotplexd <cmd>` locally.
+- **Admin API**: Remote management via port `9080` (requires `HOTPLEX_API_KEY`).
 
 ### Directory Structure
 

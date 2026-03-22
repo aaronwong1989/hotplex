@@ -11,7 +11,7 @@ import (
 
 func TestNewServer_NilLogger(t *testing.T) {
 	// Should not panic when logger is nil
-	srv := NewServer(nil, "9080", "token", time.Now(), nil)
+	srv := NewServer(nil, nil, nil, "9080", "token", time.Now(), nil)
 	if srv == nil {
 		t.Fatal("expected non-nil server")
 	}
@@ -22,7 +22,7 @@ func TestNewServer_NilLogger(t *testing.T) {
 
 func TestNewServer_WithSlogLogger(t *testing.T) {
 	slogLogger := slog.Default()
-	srv := NewServer(nil, "9080", "token", time.Now(), slogLogger)
+	srv := NewServer(nil, nil, nil, "9080", "token", time.Now(), slogLogger)
 	if srv == nil {
 		t.Fatal("expected non-nil server")
 	}
@@ -32,7 +32,7 @@ func TestNewServer_WithSlogLogger(t *testing.T) {
 }
 
 func TestServer_Stop_GracefulShutdown(t *testing.T) {
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 
 	// Directly test Stop without starting
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -46,7 +46,7 @@ func TestServer_Stop_GracefulShutdown(t *testing.T) {
 }
 
 func TestServer_ErrChan(t *testing.T) {
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 	errCh := srv.ErrChan()
 
 	if errCh == nil {
@@ -65,7 +65,7 @@ func TestServer_ErrChan(t *testing.T) {
 }
 
 func TestServer_RoutesRegistered(t *testing.T) {
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 
 	// Check that routes are registered by making requests
 	// Note: This tests the mux configuration indirectly
@@ -79,7 +79,7 @@ func TestServer_RoutesRegistered(t *testing.T) {
 
 func TestServer_FieldsSet(t *testing.T) {
 	startTime := time.Now()
-	srv := NewServer(nil, "9080", "my-token", startTime, slog.Default())
+	srv := NewServer(nil, nil, nil, "9080", "my-token", startTime, slog.Default())
 
 	if srv.port != "9080" {
 		t.Errorf("expected port 9080, got %s", srv.port)
@@ -97,7 +97,7 @@ func TestServer_FieldsSet(t *testing.T) {
 
 func TestServer_RouteConfig(t *testing.T) {
 	// Test that all routes are properly configured
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 
 	// Create a test request router
 	req := httptest.NewRequest(http.MethodGet, "/admin/v1/sessions", nil)
@@ -117,7 +117,7 @@ func TestServer_DeleteRoute(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/admin/v1/sessions/test-id", nil)
 	rec := httptest.NewRecorder()
 
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 	srv.server.Handler.ServeHTTP(rec, req)
 
 	// With nil engine, should get 503 Service Unavailable
@@ -130,7 +130,7 @@ func TestServer_StatsRoute(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin/v1/stats", nil)
 	rec := httptest.NewRecorder()
 
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 	srv.server.Handler.ServeHTTP(rec, req)
 
 	// With nil engine, stats endpoint returns partial data (200)
@@ -143,7 +143,7 @@ func TestServer_ValidateRoute(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/admin/v1/config/validate", nil)
 	rec := httptest.NewRecorder()
 
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 	srv.server.Handler.ServeHTTP(rec, req)
 
 	// Should get 400 Bad Request (invalid JSON)
@@ -156,7 +156,7 @@ func TestServer_HealthRoute(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin/v1/health/detailed", nil)
 	rec := httptest.NewRecorder()
 
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 	srv.server.Handler.ServeHTTP(rec, req)
 
 	// Should get 200 OK (partial health)
@@ -169,7 +169,7 @@ func TestServer_SessionLogsRoute(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin/v1/sessions/nonexistent/logs", nil)
 	rec := httptest.NewRecorder()
 
-	srv := NewServer(nil, "0", "", time.Now(), slog.Default())
+	srv := NewServer(nil, nil, nil, "0", "", time.Now(), slog.Default())
 	srv.server.Handler.ServeHTTP(rec, req)
 
 	// Should get 404 Not Found (no log file)

@@ -29,7 +29,7 @@ graph TD
 
 ---
 
-## 🧠 Native Brain Core Components (v0.22.0)
+## 🧠 Native Brain Core Components (v0.34.0)
 
 ### 1. IntentRouter
 
@@ -153,7 +153,7 @@ sanitized := guard.CheckOutput(ctx, llmResponse)
 
 ## 🛠 Developer Guide
 
-### Explicit Interface Design (v0.31.2)
+### Explicit Interface Design (v0.34.0)
 
 All LLM client wrappers implement the `LLMClient` interface at compile time, verified via static checks:
 

@@ -10,12 +10,13 @@ This package manages Prometheus metrics and internal tracing. It tracks session 
 
 | Metric | Description |
 |--------|-------------|
-| `sessions_active` | Currently active sessions |
-| `sessions_total` | Total sessions created |
-| `sessions_errors` | Failed sessions |
-| `tools_invoked` | Tool invocations count |
-| `dangers_blocked` | Security blocks count |
-| `slack_permission_*` | Slack permission decisions |
+| `sessions_active` | Currently active sessions (Gauge) |
+| `sessions_total` | Total sessions created (Counter) |
+| `sessions_errors` | Failed sessions (Counter) |
+| `tools_invoked` | Tool invocations count (Counter) |
+| `dangers_blocked` | Security blocks count (Counter) |
+| `request_duration` | Latest request duration (ms) |
+| `slack_permission_*` | Slack permission decisions (Allowed, BlockedUser, DM, Mention) |
 
 ## Usage
 
@@ -32,18 +33,26 @@ m := telemetry.GetMetrics()
 m.IncSessionsActive()
 m.IncToolsInvoked()
 m.IncDangersBlocked()
+m.RecordDuration(150 * time.Millisecond)
 
 // Get snapshot
 snapshot := m.Snapshot()
 fmt.Printf("Active sessions: %d\n", snapshot.SessionsActive)
+fmt.Printf("Last duration: %v\n", snapshot.RequestDuration)
 ```
 
 ## Health Check
 
+HotPlex uses a two-tier health system:
+1. **`internal/telemetry.HealthChecker`**: Logic-only checker for registering and running probes.
+2. **`internal/server.HealthHandler`**: HTTP wrapper that exposes the status as JSON.
+
 ```go
-// Health endpoint handler
-handler := telemetry.NewHealthHandler(engine)
-// GET /health returns {"status": "ok"}
+// Register a custom check
+checker := telemetry.GetHealthChecker()
+checker.RegisterCheck("engine", func() bool { return engine.IsReady() })
+
+// Checks are exposed via /health, /health/ready, and /health/live
 ```
 
 ## Files

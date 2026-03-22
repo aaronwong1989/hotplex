@@ -32,9 +32,11 @@ const (
 // SessionConfig contains the minimal configuration needed for session management.
 // This is a subset of the root Config to avoid circular dependencies.
 type SessionConfig struct {
-	WorkDir          string // Absolute path to the isolated sandbox directory
-	TaskInstructions string // Persistent instructions for the session
-	BaseSystemPrompt string // Session-level system prompt override (takes precedence over Engine-level)
+	WorkDir          string        // Absolute path to the isolated sandbox directory
+	TaskInstructions string        // Persistent instructions for the session
+	BaseSystemPrompt string        // Session-level system prompt override (takes precedence over Engine-level)
+	IdleTimeout      time.Duration // Per-session idle timeout; 0 means use pool default
+	Namespace        string        // Per-session namespace override; empty means use pool default
 }
 
 // Callback handles streaming events from the CLI.

@@ -14,7 +14,7 @@ From the client terminal's perspective, HotPlex operates as a reactive streaming
 
 ### Data Normalization (Event to Message Mapping)
 
-The `chatapps` layer normalizes raw provider events into a standard "Chat Language" using the **`base.MessageType`** Go type. While the underlying values often share names with Engine events, they represent **UI Rendering Intents** documented in [base/types.go](file:///Users/huangzhonghui/HotPlex/chatapps/base/types.go).
+The `chatapps` layer normalizes raw provider events into a standard "Chat Language" using the **`base.MessageType`** Go type. While the underlying values often share names with Engine events, they represent **UI Rendering Intents** documented in [base/types.go](./base/types.go).
 
 | Provider/Engine Event | `base.MessageType` Constant    | UI Presentation                                  |
 | :-------------------- | :----------------------------- | :----------------------------------------------- |
@@ -30,7 +30,7 @@ The `chatapps` layer normalizes raw provider events into a standard "Chat Langua
 |                       |                                |                                                  |
 
 > [!NOTE]
-> **Slack Free Plan Compatibility**: Some advanced features (Streaming, Status Bar) require a paid plan or [Developer Sandbox](https://api.slack.com/developer/program). See [docs/plans/slack_free_plan_compatibility.md](file:///Users/huangzhonghui/HotPlex/docs/plans/slack_free_plan_compatibility.md) for current tracking of fallback optimizations.
+> Some advanced features (Streaming, Status Bar) require a paid plan or [Developer Sandbox](https://api.slack.com/developer/program). See [docs/plans/slack_free_plan_compatibility.md](../docs/plans/slack_free_plan_compatibility.md) for current tracking of fallback optimizations.
 
 ### Key Architectural Concepts
 -   **`ProcessorChain`**: A middleware-style pipeline that processes messages before they are sent or after they are received. Standard processors include:

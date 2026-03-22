@@ -28,11 +28,20 @@ manager.ClearCache()
 ### EnvProvider
 Uses environment variables. Default provider.
 
-### FileProvider (TODO)
+### FileProvider
 Encrypted file-based storage.
+```go
+manager.AddProvider(secrets.NewFileProvider("path/to/secrets.json"))
+```
 
-### VaultProvider (TODO)
+### VaultProvider
 HashiCorp Vault integration.
+```go
+manager.AddProvider(secrets.NewVaultProvider(
+    secrets.WithVaultAddress("https://vault.local"),
+    secrets.WithVaultToken("s.token"),
+))
+```
 
 ### AWSSecretsProvider (TODO)
 AWS Secrets Manager integration.

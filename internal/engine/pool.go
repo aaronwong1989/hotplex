@@ -334,12 +334,17 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 
 	// Use direct string concatenation for better performance
 	// Always use deterministic SHA1 for consistent session ID mapping
-	// This ensures end-to-end session traceability - no random UUIDs
-	uniqueStr := sm.opts.Namespace + ":session:" + sessionID
+	// This ensures end-to-end session traceability - no random UUIDs.
+	// Per-session Namespace override takes precedence over pool default.
+	ns := cfg.Namespace
+	if ns == "" {
+		ns = sm.opts.Namespace
+	}
+	uniqueStr := ns + ":session:" + sessionID
 	providerSessionID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(uniqueStr)).String()
 
 	sessLog := sm.logger.With(
-		"namespace", sm.opts.Namespace,
+		"namespace", ns,
 		"session_id", sessionID,
 		"provider_session_id", providerSessionID,
 	)
@@ -625,8 +630,8 @@ func (sm *SessionPool) cleanupInterval() time.Duration {
 	if interval > 5*time.Minute {
 		interval = 5 * time.Minute
 	}
-	if interval < 1*time.Minute {
-		interval = 1 * time.Minute
+	if interval < 30*time.Second {
+		interval = 30 * time.Second
 	}
 	return interval
 }
@@ -638,14 +643,18 @@ func (sm *SessionPool) cleanupIdleSessions() {
 
 	now := time.Now()
 	for sessionID, sess := range sm.sessions {
+		idleTimeout := sess.Config.IdleTimeout
+		if idleTimeout == 0 {
+			idleTimeout = sm.timeout // pool default
+		}
 		idleTime := now.Sub(sess.GetLastActive())
-		if idleTime > sm.timeout {
+		if idleTime > idleTimeout {
 			sm.logger.Info("Session idle timeout, terminating",
 				"namespace", sm.opts.Namespace,
 				"session_id", sessionID,
 				"provider_session_id", sess.ProviderSessionID,
 				"idle_duration", idleTime,
-				"timeout", sm.timeout)
+				"idle_timeout", idleTimeout)
 			_ = sm.cleanupSessionLocked(sessionID)
 		}
 	}

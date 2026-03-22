@@ -8,22 +8,25 @@ This package handles YAML-based configuration for the `hotplexd` server, includi
 
 ## Key Types
 
-```go
 type ServerConfig struct {
-    Engine   EngineConfig
-    Server   ServerSettings
-    Security SecurityConfig
+    Engine    EngineConfig     `yaml:"engine"`
+    Server    ServerSettings   `yaml:"server"`
+    Security  SecurityConfig   `yaml:"security"`
+    AgentCard *AgentCardConfig `yaml:"agent_card,omitempty"`
 }
 
-type EngineConfig struct {
-    Timeout         time.Duration
-    IdleTimeout     time.Duration
-    WorkDir         string
-    SystemPrompt    string
-    AllowedTools    []string
-    DisallowedTools []string
+type ServerSettings struct {
+    Port        string `yaml:"port"`
+    LogLevel    string `yaml:"log_level"`
+    LogFormat   string `yaml:"log_format"`
+    BridgePort  string `yaml:"bridge_port"`
+    BridgeToken string `yaml:"bridge_token"`
 }
-```
+
+type SecurityConfig struct {
+    APIKey         string `yaml:"api_key"`
+    PermissionMode string `yaml:"permission_mode"`
+}
 
 ## Usage
 
@@ -48,9 +51,10 @@ loader.Watch(ctx, func(newCfg *ServerConfig) {
 ## Features
 
 - **YAML Parsing**: Uses `gopkg.in/yaml.v3`
-- **Hot-Reload**: Watch for config file changes
+- **Env Expansion**: Automatically expands `${VAR}` or `$VAR` in YAML values
+- **Hot-Reload**: Watch for config file changes (via `Watch` method)
 - **Thread-Safe**: Safe concurrent access via `sync.RWMutex`
-- **Validation**: Validates configuration values on load
+- **Validation**: Strict validation of timeouts, log levels, and permission modes
 
 ## Files
 

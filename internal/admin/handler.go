@@ -11,8 +11,10 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/hrygo/hotplex/engine"
-	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/adminapi"
+	intagent "github.com/hrygo/hotplex/internal/agent"
+	"github.com/hrygo/hotplex/internal/cron"
+	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/internal/telemetry"
 	"github.com/hrygo/hotplex/provider"
@@ -24,10 +26,13 @@ var _ Logger = (*slog.Logger)(nil)
 
 // Handler handles admin API requests.
 type Handler struct {
-	engine     *engine.Engine
-	startTime  time.Time
-	logger     Logger
-	cliVersion string // cached CLI version, set once at construction
+	engine        *engine.Engine
+	cronScheduler *cron.CronScheduler
+	agentRegistry *intagent.AgentRegistry
+	relayBindings []*RelayBindingResponse
+	startTime     time.Time
+	logger        Logger
+	cliVersion    string // cached CLI version, set once at construction
 }
 
 // Logger interface for logging.
@@ -39,15 +44,17 @@ type Logger interface {
 }
 
 // NewHandler creates a new admin handler.
-func NewHandler(eng *engine.Engine, startTime time.Time, logger Logger) *Handler {
+func NewHandler(eng *engine.Engine, cronScheduler *cron.CronScheduler, agentRegistry *intagent.AgentRegistry, startTime time.Time, logger Logger) *Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &Handler{
-		engine:     eng,
-		startTime:  startTime,
-		logger:     logger,
-		cliVersion: sys.CheckCliAvailable().Version, // cache at construction
+		engine:        eng,
+		cronScheduler: cronScheduler,
+		agentRegistry: agentRegistry,
+		startTime:     startTime,
+		logger:        logger,
+		cliVersion:    sys.CheckCliAvailable().Version, // cache at construction
 	}
 }
 

@@ -4,22 +4,30 @@ The `types` package contains the fundamental data structures used across the ent
 
 ## 🧱 Core Models
 
-- **`Config`**: Global system configuration, including timeouts and security rules.
-- **`SessionConfig`**: Per-request session parameters (ID, Provider, Workspace).
-- **`StreamMessage`**: The normalized event payload for full-duplex communication.
-- **`UsageStats`**: Token consumption and performance metrics.
+- **`Config`**: Turn-level execution context (WorkDir, SessionID, Instructions).
+- **`StreamMessage`**: The fundamental wire protocol envelope for all events.
+- **`AssistantMessage`**: Structured message containing hierarchical content blocks.
+- **`ContentBlock`**: Atomic unit of model output (text, tool_use, or tool_result).
+- **`UsageStats`**: Detailed token consumption breakdown.
+- **`MessageType`**: Type alias for categorizing interaction intents.
 
 ## 🌊 Message Types
 
-HotPlex uses a unified `MessageType` to categorize interaction intents:
+HotPlex uses `MessageType` (string) to categorize event intents.
 
-| Type            | Description                                         |
-| :-------------- | :-------------------------------------------------- |
-| `UserInput`     | Raw text or command from the user.                  |
-| `Token`         | A single chunk of AI-generated content (streaming). |
-| `FinalResponse` | The complete, finalized message.                    |
-| `DangerBlock`   | A security alert triggered by the WAF.              |
-| `StatusUpdate`  | Progress indicators (e.g., "AI is searching...").   |
+| Type | Description | Storable |
+| :--- | :--- | :--- |
+| `user_input` | Raw user command | Yes |
+| `final_response` | Complete assistant answer | Yes |
+| `thinking` | Model's internal reasoning | No |
+| `tool_use` | Tool invocation with arguments | No |
+| `tool_result` | Output or error from a tool | No |
+| `status` | Progress indicator/Generic log | No |
+| `error` | System or execution error | No |
+| `danger_block` | WAF hit/Security intervention | No |
+| `session_stats` | Final token and cost summary | No |
+| `permission_request` | Interactive approval needed | No |
+| `answer` | Streaming token or final text | No |
 
 ## 📐 Interface Definitions
 

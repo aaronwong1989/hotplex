@@ -31,7 +31,7 @@ graph TD
 
 ---
 
-## 🧠 Native Brain 核心组件 (v0.22.0)
+## 🧠 Native Brain 核心组件 (v0.34.0)
 
 ### 1. IntentRouter (意图路由器)
 
@@ -155,7 +155,7 @@ sanitized := guard.CheckOutput(ctx, llmResponse)
 
 ## 🛠 开发指南
 
-### 接口定义
+### 接口定义 (v0.34.0)
 
 包导出多个接口，支持细粒度使用 brain 能力：
 

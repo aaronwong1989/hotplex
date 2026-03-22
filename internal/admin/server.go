@@ -8,6 +8,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/hrygo/hotplex/engine"
+	intagent "github.com/hrygo/hotplex/internal/agent"
+	"github.com/hrygo/hotplex/internal/cron"
 )
 
 // Server is the admin HTTP server.
@@ -22,12 +24,12 @@ type Server struct {
 }
 
 // NewServer creates a new admin server.
-func NewServer(eng *engine.Engine, port, token string, startTime time.Time, logger *slog.Logger) *Server {
+func NewServer(eng *engine.Engine, cronScheduler *cron.CronScheduler, agentRegistry *intagent.AgentRegistry, port, token string, startTime time.Time, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	handler := NewHandler(eng, startTime, logger)
+	handler := NewHandler(eng, cronScheduler, agentRegistry, startTime, logger)
 	mw := NewMiddleware(token, logger)
 
 	router := mux.NewRouter()
@@ -42,6 +44,24 @@ func NewServer(eng *engine.Engine, port, token string, startTime time.Time, logg
 	api.HandleFunc("/stats", handler.getStats).Methods(http.MethodGet)
 	api.HandleFunc("/config/validate", handler.validateConfig).Methods(http.MethodPost)
 	api.HandleFunc("/health/detailed", handler.getHealthDetailed).Methods(http.MethodGet)
+
+	// Cron relay routes (Phase 1.5)
+	cronRouter := router.PathPrefix("/admin/cron").Subrouter()
+	cronRouter.HandleFunc("/jobs", handler.listCronJobs).Methods(http.MethodGet)
+	cronRouter.HandleFunc("/jobs", handler.createCronJob).Methods(http.MethodPost)
+	cronRouter.HandleFunc("/jobs/{id}", handler.getCronJob).Methods(http.MethodGet)
+	cronRouter.HandleFunc("/jobs/{id}", handler.deleteCronJob).Methods(http.MethodDelete)
+	cronRouter.HandleFunc("/jobs/{id}/pause", handler.pauseCronJob).Methods(http.MethodPost)
+	cronRouter.HandleFunc("/jobs/{id}/resume", handler.resumeCronJob).Methods(http.MethodPost)
+	cronRouter.HandleFunc("/jobs/{id}/runs", handler.listCronJobRuns).Methods(http.MethodGet)
+
+	// Relay routes
+	relayRouter := router.PathPrefix("/admin/relay").Subrouter()
+	relayRouter.HandleFunc("/bindings", handler.listRelayBindings).Methods(http.MethodGet)
+	relayRouter.HandleFunc("/bindings", handler.createRelayBinding).Methods(http.MethodPost)
+
+	// Agent card route (outside /admin/v1 for discovery)
+	router.HandleFunc("/admin/agent-card", handler.getAgentCard).Methods(http.MethodGet)
 
 	server := &http.Server{
 		Addr:         ":" + port,

@@ -1,4 +1,4 @@
-# HotPlex Examples v0.24.x
+# HotPlex Examples v0.34.x
 
 This directory contains examples of how to use the HotPlex SDK and Proxy Server.
 
@@ -45,7 +45,13 @@ Java clients demonstrating both HTTP REST and WebSocket protocols:
 - **SimpleClient.java**: Basic HTTP client with SSE support
 - **HotPlexWsClient.java**: Enterprise WebSocket client with reconnection and metrics
 
-### 8. [Claude WebSocket Client (Node.js)](./node_claude_websocket)
+### 8. [Bridge Client (Go)](./go_bridge_client)
+Example of a custom platform adapter (e.g., DingTalk) using the `BridgeClient` SDK to connect to `BridgeServer`.
+- **WebSocket Protocol**: Securely connecting to the control plane.
+- **Inbound Message Handling**: Processing messages from third-party bot webhooks.
+- **Capabilities**: Declaring supported message types (Text, Card, Buttons).
+
+### 9. [Claude WebSocket Client (Node.js)](./node_claude_websocket)
 
 | File                   | Description                                                                                                |
 | :--------------------- | :--------------------------------------------------------------------------------------------------------- |
@@ -106,6 +112,9 @@ go run _examples/go_opencode_basic/main.go
 
 # OpenCode Lifecycle Demo
 go run _examples/go_opencode_lifecycle/main.go
+
+# Bridge Client Demo
+HOTPLEX_BRIDGE_TOKEN=secret go run _examples/go_bridge_client/main.go
 ```
 
 ### Running the Python Example

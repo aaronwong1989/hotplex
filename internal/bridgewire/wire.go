@@ -64,6 +64,15 @@ type WireMessage struct {
 	Code         int             `json:"code,omitempty"`
 	Message      string          `json:"message,omitempty"`
 	Capabilities []string        `json:"capabilities,omitempty"`
+
+	// Relay fields (omitempty for backward compatibility)
+	From      string `json:"from,omitempty"`
+	To        string `json:"to,omitempty"`
+	TaskID    string `json:"task_id,omitempty"`
+	Status    string `json:"status,omitempty"`
+	Response  string `json:"response,omitempty"`
+	Error     string `json:"error,omitempty"`
+	CreatedAt string `json:"created_at,omitempty"`
 }
 
 // WireMetadata is the metadata carried inside WireMessage.Metadata.

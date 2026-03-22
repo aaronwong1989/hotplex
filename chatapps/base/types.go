@@ -221,7 +221,7 @@ type StatusProvider interface {
 var StatusEmojiMap = map[StatusType]string{
 	StatusInitializing: "hourglass_flowing_sand",
 	StatusThinking:     "brain",
-	StatusToolUse:     "gear",
+	StatusToolUse:      "gear",
 	StatusToolResult:   "wrench",
 	StatusAnswering:    "pencil",
 	StatusIdle:         "white_circle",

@@ -89,10 +89,10 @@ func (h *HealthHandler) getHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := AdminHealth{
-		Status:      overallStatus,
-		Version:     hotplex.Version,
-		Uptime:      formatUptime(time.Since(h.startTime)),
-		Subsystems:  subsystems,
+		Status:     overallStatus,
+		Version:    hotplex.Version,
+		Uptime:     formatUptime(time.Since(h.startTime)),
+		Subsystems: subsystems,
 	}
 
 	adminapi.WriteJSON(w, http.StatusOK, response)

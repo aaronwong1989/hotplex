@@ -59,9 +59,10 @@ vim .env
 ```bash
 make help        # 显示所有可用命令
 make build       # 构建守护进程
-make run         # 构建并前台运行
+make run         # 编译并在前台运行
 make test        # 运行单元测试
 make lint        # 运行代码检查
+./hotplexd doctor # 诊断本地环境
 ```
 
 ### 首次构建
@@ -227,8 +228,14 @@ go mod tidy
 
 1. **命令行参数**（最高优先级）
 2. **环境变量**（`.env` 文件）
-3. **YAML 配置文件**（`configs/base/*.yaml`，支持继承）
-4. **默认值**（最低优先级）
+3. **YAML 配置文件** (`configs/base/*.yaml`，支持继承)
+4. **默认值** (最低优先级)
+
+### 管理平面 (Management Plane)
+
+HotPlex v0.34.0 支持**双管理模式**：
+- **直接 CLI**: 在本地运行 `hotplexd <cmd>`。
+- **Admin API**: 通过 `9080` 端口进行远程管理 (需要 `HOTPLEX_API_KEY`)。
 
 ### 目录结构
 

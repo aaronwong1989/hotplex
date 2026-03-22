@@ -4,7 +4,7 @@
 
 HotPlex is a high-performance **Agent Runtime** for AI CLI Agents, designed to transform one-off terminal-based AI tools (like Claude Code or OpenCode) into production-ready, long-lived interactive services. Its core philosophy is "Leverage vs Build"—by maintaining a persistent process pool with hardened security boundaries and a normalized full-duplex protocol layer, HotPlex eliminates the spin-up overhead of headless CLI environments and enables millisecond-level responsiveness.
 
-**Version**: v0.33.0 | **Core Role**: AI Agent Engineering Protocol (Cli-as-a-Service)
+**Version**: v0.34.0 | **Core Role**: AI Agent Engineering Protocol (Cli-as-a-Service)
 
 ---
 
@@ -34,6 +34,9 @@ HotPlex follows a layered architecture with strict visibility rules, separating 
 - **`internal/sys/`**: **Safety Primitives**. Cross-platform implementations for Process Group ID (PGID) management and signal cascading.
 - **`internal/server/`**: Protocol adapters. Contains `hotplex_ws.go` (WebSocket) and `opencode_http.go` (REST/SSE).
 - **`internal/config/`**: Configuration hot-reloading with file watchers.
+- **`internal/admin/`**: **Management Plane**. Admin API server (port 9080) for session management, diagnostics, and config validation.
+- **`internal/cron/`**: **Automation Engine**. `CronScheduler` for managing periodic AI tasks with persistent history.
+- **`internal/relay/`**: **Inter-Agent Communication**. `RelayManager` for cross-platform bot-to-bot message routing.
 - **`internal/strutil/`**: High-performance string manipulation and path cleaning.
 - **`configs/`**: SSOT configuration templates with inheritance support.
 
@@ -143,6 +146,7 @@ Multi-platform support with consistent architecture:
 ### 2.6 Event Hooks & Observability (`hooks/`, `telemetry/`)
 *   **Webhooks & Audit**: Asynchronously broadcasts payload events to external systems (Slack, Webhooks) without blocking the hot-execution path.
 *   **Tracing & Metrics**: Pushes native OpenTelemetry spans and exposes `/metrics` for Prometheus scraping.
+*   **Cron & Relay**: New internal services for background automation and cross-platform message routing.
 
 ---
 
@@ -223,6 +227,9 @@ sequenceDiagram
 - [x] **Observability**: OpenTelemetry native tracing and Prometheus metrics (`/metrics`)
 - [x] **Configuration Hot-Reload**: YAML-based config with file watchers
 - [x] **Unified Configuration System**: SSOT architecture with base templates and inheritance
+- [x] **Dual Management Modes**: Provides both direct local CLI and remote Admin API (port 9080)
+- [x] **Cron Scheduling**: Periodic AI tasks with failure recovery and history
+- [x] **Bot-to-Bot Relay**: Cross-platform message routing with circuit breakers
 
 ### Platform-Specific Features
 

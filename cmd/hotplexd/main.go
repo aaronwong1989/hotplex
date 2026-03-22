@@ -18,11 +18,14 @@ import (
 	"github.com/hrygo/hotplex/brain"
 	"github.com/hrygo/hotplex/chatapps"
 	"github.com/hrygo/hotplex/cmd/hotplexd/cmd"
+	croncmd "github.com/hrygo/hotplex/cmd/hotplexd/cmd/cron"
+	relaycmd "github.com/hrygo/hotplex/cmd/hotplexd/cmd/relay"
 	"github.com/hrygo/hotplex/cmd/hotplexd/cmd/session"
 	"github.com/hrygo/hotplex/internal/admin"
-	adminwebhook "github.com/hrygo/hotplex/internal/server/admin"
 	"github.com/hrygo/hotplex/internal/config"
+	"github.com/hrygo/hotplex/internal/security"
 	"github.com/hrygo/hotplex/internal/server"
+	adminwebhook "github.com/hrygo/hotplex/internal/server/admin"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/provider"
 	"github.com/joho/godotenv"
@@ -41,6 +44,8 @@ func main() {
 
 	// Register session subcommands
 	cmd.RootCmd.AddCommand(session.SessionCmd)
+	cmd.RootCmd.AddCommand(croncmd.SessionCmd)
+	cmd.RootCmd.AddCommand(relaycmd.SessionCmd)
 
 	// Handle start command specially
 	if len(os.Args) > 1 && os.Args[1] == "start" {
@@ -177,7 +182,7 @@ func runDaemon() {
 	}()
 
 	// 8. Start Admin Server (independent port)
-	adminServer := admin.NewServer(engine, resolvedAdminPort, adminToken, time.Now(), logger)
+	adminServer := admin.NewServer(engine, nil, nil, resolvedAdminPort, adminToken, time.Now(), logger)
 	adminServer.Start()
 
 	// Monitor admin server startup
@@ -404,6 +409,13 @@ func setupHTTPHandlers(engine *hotplex.Engine, adminToken string, logger *slog.L
 	corsConfig := server.NewSecurityConfig(logger, securityKeys...)
 	wsHandler := server.NewHotPlexWSHandler(engine, logger, corsConfig)
 	r.Handle("/ws/v1/agent", wsHandler)
+
+	// WAF detector for HTTP handlers
+	wafDetector := security.NewDetector(logger)
+
+	// Relay handler for bot-to-bot communication
+	relayHandler := server.NewRelayHandler(engine, logger, wafDetector)
+	relayHandler.RegisterRoutes(r)
 
 	// OpenCode compatibility
 	if os.Getenv("HOTPLEX_OPENCODE_COMPAT_ENABLED") != "false" {

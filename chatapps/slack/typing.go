@@ -23,11 +23,11 @@ type TypingStage struct {
 // DefaultStages is the multi-stage progression for emoji typing indicators.
 // Stages progress from initial awareness to long-wait feedback.
 var DefaultStages = []TypingStage{
-	{0 * time.Second, "eyes"},                           // AI saw the message
-	{2 * time.Minute, "clock1"},                          // Taking a while
-	{7 * time.Minute, "hourglass_flowing_sand"},          // Long wait
-	{12 * time.Minute, "gear"},                           // Processing complex task
-	{17 * time.Minute, "hourglass_flowing_sand"},         // Still going...
+	{0 * time.Second, "eyes"},                    // AI saw the message
+	{2 * time.Minute, "clock1"},                  // Taking a while
+	{7 * time.Minute, "hourglass_flowing_sand"},  // Long wait
+	{12 * time.Minute, "gear"},                   // Processing complex task
+	{17 * time.Minute, "hourglass_flowing_sand"}, // Still going...
 }
 
 // TypingIndicator manages emoji reactions for a single typing session.

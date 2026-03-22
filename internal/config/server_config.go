@@ -16,9 +16,10 @@ import (
 
 // ServerConfig represents the YAML configuration for the hotplexd server.
 type ServerConfig struct {
-	Engine   EngineConfig   `yaml:"engine"`
-	Server   ServerSettings `yaml:"server"`
-	Security SecurityConfig `yaml:"security"`
+	Engine    EngineConfig     `yaml:"engine"`
+	Server    ServerSettings   `yaml:"server"`
+	Security  SecurityConfig   `yaml:"security"`
+	AgentCard *AgentCardConfig `yaml:"agent_card,omitempty"`
 }
 
 // EngineConfig contains engine-level configuration.
@@ -162,11 +163,31 @@ func (l *ServerLoader) validate() error {
 	return nil
 }
 
-// Get returns the current server configuration.
+// Get returns a defensive copy of the current server configuration.
 func (l *ServerLoader) Get() *ServerConfig {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.config
+
+	// Deep copy to prevent external mutation
+	cfg := *l.config // Shallow copy of value types
+
+	// Deep copy AgentCard if present
+	if l.config.AgentCard != nil {
+		agentCard := *l.config.AgentCard
+		agentCard.Skills = make([]AgentSkillConfig, len(l.config.AgentCard.Skills))
+		copy(agentCard.Skills, l.config.AgentCard.Skills)
+		agentCard.Security = make([]AgentSecurityConfig, len(l.config.AgentCard.Security))
+		copy(agentCard.Security, l.config.AgentCard.Security)
+		cfg.AgentCard = &agentCard
+	}
+
+	// Deep copy slice fields in EngineConfig
+	cfg.Engine.AllowedTools = make([]string, len(l.config.Engine.AllowedTools))
+	copy(cfg.Engine.AllowedTools, l.config.Engine.AllowedTools)
+	cfg.Engine.DisallowedTools = make([]string, len(l.config.Engine.DisallowedTools))
+	copy(cfg.Engine.DisallowedTools, l.config.Engine.DisallowedTools)
+
+	return &cfg
 }
 
 // GetSystemPrompt returns the base system prompt.
@@ -228,6 +249,36 @@ func (l *ServerLoader) GetBridgeToken() string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.config.Server.BridgeToken
+}
+
+// AgentCardConfig represents the agent card configuration for discovery.
+type AgentCardConfig struct {
+	Name       string                `yaml:"name"`
+	Provider   AgentProviderConfig   `yaml:"provider"`
+	URL        string                `yaml:"url"`
+	Skills     []AgentSkillConfig    `yaml:"skills"`
+	Security   []AgentSecurityConfig `yaml:"security"`
+	Streaming  bool                  `yaml:"streaming"`
+	PushNotify bool                  `yaml:"push_notifications"`
+}
+
+// AgentProviderConfig describes the AI provider.
+type AgentProviderConfig struct {
+	Organization string `yaml:"organization"`
+	URL          string `yaml:"url"`
+}
+
+// AgentSkillConfig describes a named capability.
+type AgentSkillConfig struct {
+	ID          string `yaml:"id"`
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+}
+
+// AgentSecurityConfig describes a security mechanism.
+type AgentSecurityConfig struct {
+	Type        string `yaml:"type"`
+	Description string `yaml:"description"`
 }
 
 // ResolveConfigPath resolves the config file path from various sources.

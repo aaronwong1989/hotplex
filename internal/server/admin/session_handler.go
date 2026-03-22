@@ -126,9 +126,9 @@ func (h *SessionHandler) BatchStopSessions(w http.ResponseWriter, r *http.Reques
 	}
 
 	resp := BatchStopResponse{
-		Stopped:   make([]string, 0),
-		NotFound:  make([]string, 0),
-		Failed:    make([]BatchStopFailed, 0),
+		Stopped:  make([]string, 0),
+		NotFound: make([]string, 0),
+		Failed:   make([]BatchStopFailed, 0),
 	}
 
 	for _, sessionID := range req.SessionIDs {
@@ -169,4 +169,3 @@ func extractSessionID(r *http.Request) string {
 	// No '/' found, return the whole path
 	return path
 }
-

@@ -636,7 +636,7 @@ func (g *SafetyGuard) ExecuteConfigIntent(ctx context.Context, intent *ConfigInt
 	}
 }
 
-func (g *SafetyGuard) handleModelConfig(ctx context.Context, intent *ConfigIntent) (string, error) {
+func (g *SafetyGuard) handleModelConfig(_ context.Context, intent *ConfigIntent) (string, error) {
 	router := GlobalIntentRouter()
 	if router == nil {
 		return "Router not configured", nil
@@ -658,7 +658,7 @@ func (g *SafetyGuard) handleModelConfig(ctx context.Context, intent *ConfigInten
 	}
 }
 
-func (g *SafetyGuard) handleProviderConfig(ctx context.Context, intent *ConfigIntent) (string, error) {
+func (g *SafetyGuard) handleProviderConfig(_ context.Context, intent *ConfigIntent) (string, error) {
 	switch intent.Action {
 	case "get":
 		return "Provider configuration is set at system level.", nil
@@ -669,7 +669,7 @@ func (g *SafetyGuard) handleProviderConfig(ctx context.Context, intent *ConfigIn
 	}
 }
 
-func (g *SafetyGuard) handleFeatureConfig(ctx context.Context, intent *ConfigIntent) (string, error) {
+func (g *SafetyGuard) handleFeatureConfig(_ context.Context, intent *ConfigIntent) (string, error) {
 	switch intent.Action {
 	case "list":
 		return "Features: intent_routing, context_compression, safety_guard, chat2config.", nil
@@ -684,7 +684,7 @@ func (g *SafetyGuard) handleFeatureConfig(ctx context.Context, intent *ConfigInt
 	}
 }
 
-func (g *SafetyGuard) handleLimitConfig(ctx context.Context, intent *ConfigIntent) (string, error) {
+func (g *SafetyGuard) handleLimitConfig(_ context.Context, intent *ConfigIntent) (string, error) {
 	switch intent.Action {
 	case "get":
 		compressor := GlobalCompressor()

@@ -8,13 +8,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/hrygo/hotplex/event"
+	"github.com/hrygo/hotplex/internal/cron"
 	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/permission"
+	"github.com/hrygo/hotplex/internal/relay"
 	"github.com/hrygo/hotplex/internal/security"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/internal/telemetry"
@@ -39,12 +42,14 @@ type Engine struct {
 	manager           intengine.SessionManager
 	dangerDetector    *security.Detector
 	permissionMatcher *permission.PermissionMatcher
+	cronScheduler     *cron.CronScheduler
+	relayStore        *relay.BindingStore
 	// mu protects runtime configuration updates (AllowedTools, DisallowedTools)
 	mu sync.RWMutex
 	// drainMu and draining protect drain mode state
-	drainMu   sync.RWMutex
-	draining  bool
-	drainMsg  string
+	drainMu  sync.RWMutex
+	draining bool
+	drainMsg string
 }
 
 // GetOptions returns the current engine options.
@@ -96,13 +101,32 @@ func NewEngine(options EngineOptions) (*Engine, error) {
 		dangerDetector.SetAdminToken(options.AdminToken)
 	}
 
+	// Create the session pool (shared by Engine and cron Executor)
+	manager := intengine.NewSessionPool(logger, options.IdleTimeout, options, cliPath, prv)
+
+	// Initialize cron scheduler
+	cronStore, err := cron.NewCronStore("")
+	if err != nil {
+		return nil, fmt.Errorf("open cron store: %w", err)
+	}
+	cronExecutor := cron.NewExecutor(manager)
+	cronScheduler := cron.NewCronScheduler(cronStore, cronExecutor, logger, 4)
+	if err := cronScheduler.Start(); err != nil {
+		return nil, fmt.Errorf("start cron scheduler: %w", err)
+	}
+
+	// Initialize relay store
+	relayStore := relay.NewBindingStore("")
+
 	return &Engine{
 		opts:           options,
 		cliPath:        cliPath,
 		logger:         logger,
 		provider:       prv,
-		manager:        intengine.NewSessionPool(logger, options.IdleTimeout, options, cliPath, prv),
+		manager:        manager,
 		dangerDetector: dangerDetector,
+		cronScheduler:  cronScheduler,
+		relayStore:     relayStore,
 	}, nil
 }
 
@@ -920,8 +944,7 @@ func (r *Engine) SetDisallowedTools(tools []string) {
 func (r *Engine) GetAllowedTools() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	return r.opts.AllowedTools
+	return slices.Clone(r.opts.AllowedTools)
 }
 
 // GetDisallowedTools returns the current disallowed tools list.
@@ -929,8 +952,7 @@ func (r *Engine) GetAllowedTools() []string {
 func (r *Engine) GetDisallowedTools() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	return r.opts.DisallowedTools
+	return slices.Clone(r.opts.DisallowedTools)
 }
 
 // SetPermissionMatcher sets the permission matcher for the engine.
@@ -945,4 +967,70 @@ func (r *Engine) PermissionMatcher() *permission.PermissionMatcher {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.permissionMatcher
+}
+
+// ---------------------------------------------------------------------------
+// Cron API
+// ---------------------------------------------------------------------------
+
+// AddCronJob adds a new cron job to the scheduler.
+func (r *Engine) AddCronJob(ctx context.Context, job *cron.CronJob) error {
+	return r.cronScheduler.AddJob(job)
+}
+
+// DeleteCronJob removes a cron job from the scheduler.
+func (r *Engine) DeleteCronJob(ctx context.Context, id string) error {
+	return r.cronScheduler.RemoveJob(id)
+}
+
+// PauseCronJob pauses a cron job.
+func (r *Engine) PauseCronJob(ctx context.Context, id string) error {
+	return r.cronScheduler.PauseJob(id)
+}
+
+// ResumeCronJob resumes a paused cron job.
+func (r *Engine) ResumeCronJob(ctx context.Context, id string) error {
+	return r.cronScheduler.ResumeJob(id)
+}
+
+// ListCronJobs returns all cron jobs.
+func (r *Engine) ListCronJobs(ctx context.Context) ([]*cron.CronJob, error) {
+	return r.cronScheduler.ListJobs(), nil
+}
+
+// GetCronRuns returns all runs for a job.
+func (r *Engine) GetCronRuns(ctx context.Context, jobID string) ([]*cron.CronRun, error) {
+	return r.cronScheduler.ListRuns(jobID), nil
+}
+
+// ---------------------------------------------------------------------------
+// Relay API
+// ---------------------------------------------------------------------------
+
+// SendRelay sends a message to a remote agent via the relay network.
+func (r *Engine) SendRelay(ctx context.Context, to, content string) (*relay.RelayResponse, error) {
+	resp := &relay.RelayResponse{
+		TaskID:    "",
+		Status:    "not_implemented",
+		Content:   content,
+		Timestamp: time.Now(),
+	}
+	// TODO: implement actual relay send using RelaySender + BindingStore (Phase 3)
+	r.logger.Warn("SendRelay: not yet implemented", "to", to)
+	return resp, nil
+}
+
+// AddRelayBinding adds a new relay binding.
+func (r *Engine) AddRelayBinding(ctx context.Context, binding *relay.RelayBinding) error {
+	return r.relayStore.Add(binding)
+}
+
+// RemoveRelayBinding removes a relay binding by chat ID.
+func (r *Engine) RemoveRelayBinding(ctx context.Context, chatID string) error {
+	return r.relayStore.Delete(chatID)
+}
+
+// ListRelayBindings returns all relay bindings.
+func (r *Engine) ListRelayBindings(ctx context.Context) ([]*relay.RelayBinding, error) {
+	return r.relayStore.List(), nil
 }

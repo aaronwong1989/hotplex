@@ -110,7 +110,7 @@ Carried inside `WireMessage.Metadata`. Describes the source room, thread, and us
 - Receives `MsgTypeMessage` (AI replies) and `MsgTypeEvent` (stream signals) via `OnMessage` / `OnEvent` handlers.
 - Sends inbound user messages via `SendMessage` and typing indicators via `Typing`.
 
-See `cmd/bridge-client/example/main.go` for a complete integration example.
+See [_examples/go_bridge_client/main.go](../../_examples/go_bridge_client/main.go) for a complete integration example.
 
 ---
 

@@ -157,7 +157,8 @@ assistant:
 | `HOTPLEX_LOG_LEVEL`  | `INFO`   | 日志级别：DEBUG, INFO, WARN, ERROR |
 | `HOTPLEX_LOG_FORMAT` | `json`   | 日志格式：json, text               |
 | `HOTPLEX_API_KEY`    | *(必填)* | API 安全令牌                       |
-| `HOTPLEX_API_KEYS`   | *(可选)* | 多个 API 密钥（逗号分隔）          |
+| `HOTPLEX_API_KEYS`   | *(可选)* | 多个 API Key (逗号分隔) |
+| `HOTPLEX_ADMIN_PORT` | `9080`   | Admin API 管理端口     |
 
 ### 引擎
 
@@ -338,7 +339,37 @@ security:
 | `permission.bot_user_id`              | Bot 用户 ID（必填）                               |
 | `permission.allowed_users`            | 用户白名单                                        |
 | `permission.blocked_users`            | 用户黑名单                                        |
-| `permission.slash_command_rate_limit` | 每用户速率限制                                    |
+| `permission.slash_command_rate_limit` | 每个用户的速率限制     |
+
+---
+
+## 管理与运维配置 (Admin & Management)
+
+HotPlex v0.34.0 引入了**管理平面 (Management Plane)**，支持直接的本地 CLI 访问以及通过 **Admin API** 进行远程管理。
+
+### Admin 服务设置
+
+| 变量                 | 默认值  | 描述                               |
+| -------------------- | ------- | --------------------------------- |
+| `HOTPLEX_ADMIN_PORT` | `9080`  | Admin 管理服务监听端口             |
+| `HOTPLEX_API_KEY`    | *(必填)*| Admin API 认证所需的共享密钥        |
+
+### Cron 调度器
+
+后台任务持久化存储在 JSON 文件中。
+
+| 变量               | 默认值                  | 描述                               |
+| ------------------ | ----------------------- | ---------------------------------- |
+| `HOTPLEX_CRON_DIR` | `~/.hotplex/cron`       | Cron 任务持久化存储目录             |
+| `maxConcurrent`    | `4` (内部硬编码)         | 最大并发运行任务数                 |
+
+### 消息中继 (Relay)
+
+机器人到机器人 (Bot-to-Bot) 的中继配置。
+
+| 变量                | 默认值                  | 描述                               |
+| ------------------- | ----------------------- | ---------------------------------- |
+| `HOTPLEX_RELAY_DIR` | `~/.hotplex/relay`      | 中继绑定信息持久化存储目录          |
 
 ---
 

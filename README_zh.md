@@ -9,7 +9,7 @@
 
   <p>
     <a href="https://github.com/hrygo/hotplex/releases/latest">
-      <img src="https://img.shields.io/github/v/release/hrygo/hotplex?style=flat-square&logo=go&color=00ADD8" alt="Release">
+      <img src="https://img.shields.io/badge/版本-v0.34.0-00ADD8?style=flat-square&logo=go" alt="Release">
     </a>
     <a href="https://pkg.go.dev/github.com/hrygo/hotplex">
       <img src="https://img.shields.io/badge/go-reference-00ADD8?style=flat-square&logo=go" alt="Go Reference">
@@ -65,10 +65,10 @@ curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash
 make build
 
 # 启动守护进程
-./hotplexd start --config configs/server.yaml
+./hotplexd start -config configs/server.yaml
 
 # 使用自定义环境文件启动
-./hotplexd start --config configs/server.yaml --env-file .env.local
+./hotplexd start -config configs/server.yaml -env-file .env.local
 ```
 
 ### 前置要求
@@ -94,7 +94,7 @@ cp .env.example .env
 # 确保 Claude Code 或 OpenCode 在 PATH 中
 
 # 4. 运行守护进程
-./hotplexd start --config configs/server.yaml
+./hotplexd start -config configs/server.yaml
 ```
 
 ---
@@ -175,6 +175,42 @@ type MessageOperations interface {
 
 ---
 
+## 模块分析 (Module Analysis)
+
+### 1. 引擎与会话池 (internal/engine)
+引擎层是 HotPlex 的大脑，负责协调所有的 AI 交互。
+- **确定性 ID 映射**: 使用平台元数据生成 UUID v5，确保 `hotplexd` 重启后仍能找回对应的 Claude CLI 进程。
+- **健康检测**: 500ms 频率的 `waitForReady` 轮询，结合 `process.Signal(0)` 探测，确保分配给用户的会话百分之百可用。
+- **清理机制**: 动态调整清理间隔 (Timeout/4)，在资源利用率与响应速度间取得平衡。
+
+### 2. 安全与防护 (internal/security)
+HotPlex 充当了本地系统的 WAF。
+- **多级过滤**: 预置了超过 50 种危险命令模式，涵盖从简单的 `rm` 到复杂的 `sudo bash` 反弹 Shell。
+- **绕过防御**: 专门针对 LLM 生成内容的特性，设计了 Markdown 代码块自动剥离和恶意控制字符 (如空字节) 的实时检测。
+
+### 3. 通讯服务器 (internal/server)
+- **协议转换**: 核心控制器 `ExecutionController` 将复杂的 CLI 事件序列化为标准的流式 JSON，供上游平台消费。
+- **Admin API**: 提供完整的会话审计记录 (Audit Events) 和导出接口。
+
+### 4. 智能大脑 (brain & internal/brain)
+- **"System 1" 抽象**: 提供轻量级的意图识别与安全预审接口，支持多种 LLM 模型路由。
+- **Resiliency**: 内置断路器 (Circuit Breaker) 与自动降级逻辑，确保在主模型不可用时系统依然能够提供基础响应。
+
+### 5. 遥测与监控 (internal/telemetry)
+- **OpenTelemetry**: 深度集成 OTEL，不仅记录请求延迟，更追踪了 AI 权力的每一次“出笼” (Permission Decisions)。
+- **监控指标**: 导出 Prometheus 兼容指标，涵盖会话成功率、Token 成本及安全拦截频次。
+
+### 6. 管理工具 (Management CLI)
+`hotplexd` 不仅仅是一个守护进程，它也是一个功能完善的管理工具：
+- **`status`**: 实时查看引擎运行负荷、活跃会话数及内存占用。
+- **`session`**: 提供 `list` (列出)、`kill` (强制终止)、`logs` (查看流日志) 等细粒度会话控制。
+- **`doctor`**: 自动诊断本地环境，检查 `claude` CLI 连通性、权限设置及 Docker 状态。
+- **`config`**: 验证并渲染当前合并后的配置树，支持本地校验与远程 API 校验。
+- **`cron`**: 使用标准 Cron 语法调度和管理后台 AI 任务，并提供执行历史追踪。
+- **`relay`**: 配置跨平台的机器人到机器人 (Bot-to-Bot) 消息中继与绑定。
+
+---
+
 ## 📂 项目结构
 
 ```
@@ -192,8 +228,8 @@ hotplex/
 ├── brain/                  # Native Brain 编排
 ├── cache/                  # 缓存层
 ├── [provider/](./provider)        # AI 提供商适配器
-│   ├── [claudecode/](./provider/claudecode) # Claude Code 协议
-│   ├── [opencode/](./provider/opencode)     # OpenCode 协议
+│   ├── [claude_provider.go](./provider/claude_provider.go)      # Claude Code 协议
+│   ├── [opencode_provider.go](./provider/opencode_provider.go)  # OpenCode 协议
 │   └── ...
 ├── [chatapps/](./chatapps)        # 平台适配器
 │   ├── slack/              # Slack 机器人
@@ -229,72 +265,58 @@ hotplex/
 
 | 特性 | 描述 | 使用场景 |
 |------|------|----------|
-| 🔄 **会话池化** | 长生命周期 CLI 进程，即时复用 | 高频 AI 交互 |
-| 🌊 **全双工流** | 亚秒级 token 投递 via Go channels | 实时 UI 更新 |
-| 🛡️ **正则 WAF** | 拦截破坏性命令（`rm -rf /`、`mkfs` 等） | 安全加固 |
-| 🔒 **PGID 隔离** | 干净的进程终止，无僵尸进程 | 生产可靠性 |
-| 💬 **多平台** | Slack · 飞书 | 团队协作 |
-| 📦 **Go SDK** | 零开销直接嵌入 Go 应用 | 自定义集成 |
-| 🔌 **WebSocket 网关** | 通过 `hotplexd` 守护进程实现语言无关访问 | Web 前端 |
-| 🛠️ **CLI 工具集**    | `session`、`status`、`doctor`、`config` 等工具 | 管理与调试 |
-| 📊 **OpenTelemetry** | 内置指标和追踪支持 | 可观测性 |
-| 🐳 **Docker 1+n 架构** | 1 个基础镜像 + n 个语言栈 | 多语言支持 |
+| 🔄 **确定性会话** | 基于 UUID v5 (SHA1) 的精确映射，确保跨平台上下文一致性 | 高频 AI 协作 |
+| 🛡️ **安全隔离** | Unix PGID 与 Windows Job Objects 隔离，彻底杜绝僵尸进程 | 生产级安全 |
+| 🛡️ **正则 WAF** | 6 级风险评估体系，防御命令注入、特权提升及反弹 Shell | 系统加固 |
+| 🌊 **流式投递** | 1MB 级 I/O 缓冲区 + 全双工 Pipe，亚秒级 Token 响应 | 实时交互 UI |
+| 💬 **多平台适配** | Slack、飞书原生支持，带二级索引的 $O(1)$ 会话查找 | 企业级通讯 |
+| 🛡️ **跨平台中继** | 安全的 Bot-to-Bot 消息路由，支持不同聊天平台间的交互 | 多智能体协作 |
+| ⏰ **后台 Cron** | 原生支持 AI 任务定时调度，具备失败恢复与 Webhook 回调 | 自动化与监控 |
+| Packaged **Go SDK** | 零开销嵌入式引擎，直接集成到 Go 业务逻辑 | 自定义 Agent |
+| 🔌 **协议兼容** | 完整 OpenCode HTTP/SSE 协议支持，无缝对接主流前端 | 跨语言前端 |
+| 📊 **深度遥测** | 内置 OpenTelemetry 链路追踪，详解工具执行与权限决策 | 生产监控 |
+| 🐳 **BaaS 架构** | Docker 1+n 容器化方案，预装主流语言开发环境 | 快速部署 |
 
 ---
 
-## 🏛 架构
+## 🏛 核心架构 (Technical Architecture)
 
+HotPlex 采用了分层解耦的架构，确保从 Chat 平台到执行引擎的高可靠性。
+
+### 1. 引擎层 (Engine & Session Pool)
+- **确定性 ID 映射**: 采用 `UUID v5 (SHA1)` 将 `Namespace + Platform + UserID + ChannelID` 映射为持久化的 `providerSessionID`。这确保了只要用户元数据不变，进程重启后仍能精准恢复。
+- **冷/热启动逻辑**: 具备 500ms 轮询的 `waitForReady` 机制，配合 Job Marker 标记位，实现会话的状态恢复与残留检测。
+
+### 2. 隔离与安全 (Isolation & Security)
+- **进程组隔离**: 使用 **PGID (Process Group ID)**。当会话结束时，发送负 PID 信号强制移除整个进程树，彻底根除孤儿进程。
+- **双向 WAF**: 在命令到达 CLI 前进行 6 级风险评估。具备 WAF 规避保护（拦截空字节/控制字符）及代码块自动剥离（减少 Markdown 误报）。
+
+### 3. 通讯与流控 (Protocol & Data Flow)
+- **OpenCode 兼容**: 将内部 Event 实时映射为 `reasoning` (思考)、`text` (回答) 和 `tool` (工具链)。
+- **I/O 多路复用**: 全双工管道配合 1MB 动态缓冲区，防止在大规模并发写入/读取时导致的 Block 现象。
+- **管理平面**: 提供直接的本地 CLI 访问及远程 Admin API (9080 端口)，用于会话管理、诊断和指标采集。
+
+### 4. 模块结构
+- **Provider 系统**: 插件化架构，支持 Claude Code 的 `~/.claude/projects/` 路径自动管理与权限同步。
+- **ChatApp 适配器**: 内置二级索引，实现基于 `user + channel` 的 $O(1)$ 级别会话定位。
+
+```mermaid
+graph TD
+    User([用户 / ChatApps]) -- WebSocket / HTTP --> Gateway[hotplexd Gateway]
+    Gateway -- Event Map --> Pool[Session Pool]
+    Pool -- ID Mapping --> Runner[Runner/Multiplexer]
+    Runner -- PGID Isolation --> CLI[AI CLI Process]
+    
+    subgraph Security Layer
+    WAF[Regex WAF] .-> Runner
+    Auth[API Key / Admin Auth] .-> Gateway
+    end
+    
+    subgraph Persistence
+    Marker[Session Marker Store] .-> Pool
+    Log[Session Logs] .-> Runner
+    end
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        ChatApps 层                               │
-│                   Slack 机器人 · 飞书机器人 · Web                │
-│              (Event → ChatMessage → Session ID)                 │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-┌────────────────────────────▼────────────────────────────────────┐
-│                      WebSocket 网关                             │
-│                hotplexd 守护进程 / Go SDK / HTTP                 │
-│              (协议转换、限流、认证)                              │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-┌────────────────────────────▼────────────────────────────────────┐
-│                      引擎 / 运行器                               │
-│    ┌─────────────────────────────────────────────────────┐      │
-│    │  会话池 (map[SessionID]*Session)                     │      │
-│    │  - 生命周期管理                                      │      │
-│    │  - 空闲超时与垃圾回收                                 │      │
-│    └─────────────────────────────────────────────────────┘      │
-│    ┌─────────────────────────────────────────────────────┐      │
-│    │  运行器 (I/O 复用器)                                 │      │
-│    │  - stdin/stdout/stderr 管道                         │      │
-│    │  - 事件序列化                                        │      │
-│    └─────────────────────────────────────────────────────┘      │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        ▼                    ▼                    ▼
-   ┌─────────┐         ┌─────────┐         ┌─────────┐
-   │ Claude  │         │ OpenCode│         │  自定义  │
-   │   CLI   │         │   CLI   │         │ Provider│
-   └─────────┘         └─────────┘         └─────────┘
-```
-
-### 数据流：请求到响应
-
-```
-用户 → 网关 → 会话池 → 运行器 → CLI
-CLI → 运行器 → 网关 → 用户 (流式)
-```
-
-### 安全层级
-
-| 层级 | 实现方式 | 配置项 |
-|------|----------|--------|
-| 工具治理 | `AllowedTools` 配置 | `security.allowed_tools` |
-| 危险 WAF | 正则拦截 | `security.danger_waf` |
-| 进程隔离 | 基于 PGID 终止 | 自动 |
-| 文件系统沙箱 | `WorkDir` 锁定 | `engine.work_dir` |
-| 容器沙箱 | Docker (BaaS) | `docker/` |
 
 ---
 
@@ -412,12 +434,19 @@ ws.send(JSON.stringify({
 }));
 ```
 
-### HTTP SSE API
+### OpenCode 兼容 API (HTTP/SSE)
 
 ```bash
-curl -N -X POST http://localhost:8080/api/v1/execute \
+# 1. 创建会话
+curl -X POST http://localhost:8080/session
+
+# 2. 发送提示词 (异步)
+curl -X POST http://localhost:8080/session/{session_id}/message \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "你好，AI！", "session_id": "session-123"}'
+  -d '{"prompt": "你好，AI！"}'
+
+# 3. 监听事件 (SSE)
+curl -N http://localhost:8080/global/event
 ```
 
 ---
@@ -445,6 +474,9 @@ make docker-build
 # 启动 Docker 栈
 make docker-up
 ```
+
+> [!TIP]
+> `hotplexd version` 显示的版本信息是在构建时通过 `LDFLAGS` 注入的。如果直接运行 `go run` 或 `go build` 而不带 LDFLAGS，将显示默认的 `v0.0.0-dev`。建议通过 `make build` 进行编译。
 
 ### 添加新的 ChatApp 平台
 
@@ -486,23 +518,18 @@ mode: socket  # 或 http
 
 ### 添加新的 Provider
 
-1. 实现 `provider/<name>/parser.go`：
+1. 在 `provider/` 实现新的 Provider：
 
 ```go
-type Parser struct{}
+// provider/custom_provider.go
+type CustomProvider struct{}
 
-func (p *Parser) ParseStream(line string) (*types.StreamMessage, error) {
-    // Provider 特定输出解析
+func (p *CustomProvider) Execute(ctx context.Context, cfg *types.Config, prompt string, callback event.Callback) error {
+    // 实现 Provider 特定逻辑
 }
 ```
 
-2. 在 `provider/factory.go` 注册：
-
-```go
-func init() {
-    providers.Register("provider-name", NewProvider)
-}
-```
+2. 在 `provider/factory.go` 注册新类型。
 
 ---
 
