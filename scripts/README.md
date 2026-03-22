@@ -1,53 +1,64 @@
 # HotPlex Scripts
 
-This directory contains utility scripts and Git hooks used for development, documentation, and asset generation in the HotPlex project.
+Utility scripts and Git hooks for development, deployment, and asset generation.
 
-## Development Tools
+## Git Hooks
 
-### Git Hooks
-These scripts ensure code quality and consistent commit messages.
-- `setup_hooks.sh`: Links the following hooks from `scripts/` to `.git/hooks/`.
-- `pre-commit`: Runs `go fmt` and dependency checks before each commit.
-- `commit-msg`: Validates that commit messages follow the Conventional Commits specification.
-- `pre-push`: Performs final checks (e.g., full test suite) before pushing to remote.
+Ensure code quality and consistent commit messages.
 
-### Documentation Management
-- `sync_docs.sh`: Synchronizes documentation from the `docs/` and `sdks/` directories to the VitePress site (`docs-site/`). It includes advanced regex-based link transformation (e.g., converting relative code links to GitHub URLs).
-- `check_links.py`: Audits internal documentation links to prevent dead links and ensure integrity.
+| Script | Description |
+|--------|-------------|
+| `setup_hooks.sh` | Links hooks from `scripts/` to `.git/hooks/` |
+| `pre-commit` | Runs `go fmt` and dependency checks before commit |
+| `commit-msg` | Validates Conventional Commits format |
+| `pre-push` | Final checks (e.g., full test suite) before push |
 
-### Asset Generation
-- `generate_assets.sh`: Generates project assets like `favicon.ico`, Open Graph (OG) social preview images, and high-resolution PNGs from original SVG sources.
-- `svg2png.sh`: A versatile CLI utility to convert SVG files in `docs/images` to high-resolution PNGs with customizable zoom and background colors.
+Setup: `bash scripts/setup_hooks.sh`
 
-## Usage
+## Documentation
 
-To set up the development environment hooks, run:
-```bash
-bash scripts/setup_hooks.sh
-```
+| Script | Description |
+|--------|-------------|
+| `check_links.py` | Audits internal docs links to prevent dead links |
 
-To synchronize documentation for local preview:
-```bash
-make docs  # This triggers scripts/sync_docs.sh
-```
+## Asset Generation
 
-To verify documentation links:
-```bash
-python3 scripts/check_links.py
-```
+| Script | Description |
+|--------|-------------|
+| `generate_assets.sh` | Generates `favicon.ico`, OG images, and PNGs from SVG sources |
+| `svg2png.sh` | Converts SVG files to high-resolution PNGs with customizable zoom/colors |
 
 ## GitHub Management
 
-### Label Manager
-- `manage-labels.py`: Manages GitHub issue/PR labels with standardized naming, colors, and descriptions.
-  - **7 categories**: Priority, Type, Size, Status, Platform, Area, Special (34 labels total)
-  - **Features**: Batch create/update, delete old labels, dry-run mode
-  - **Usage**:
-    ```bash
-    # Preview changes
-    python3 scripts/manage-labels.py --dry-run
+| Script | Description |
+|--------|-------------|
+| `manage-labels.py` | Manages GitHub issue/PR labels — 7 categories, 34 labels total |
 
-    # Apply changes
-    python3 scripts/manage-labels.py --apply
-    ```
-  - **Documentation**: See [docs/github-labels.md](../docs/github-labels.md) for detailed label system guide
+```bash
+python3 scripts/manage-labels.py --dry-run  # Preview changes
+python3 scripts/manage-labels.py --apply    # Apply changes
+```
+
+See [docs/github-labels.md](../docs/github-labels.md) for the full label system guide.
+
+## Deployment & DevOps
+
+| Script | Description |
+|--------|-------------|
+| `service.sh` | Install/manage hotplexd as a system service (launchd/systemd) |
+| `setup_gitconfig.sh` | Generate isolated git identity for each bot container |
+| `verify_slack_tokens.sh` | Verify Slack Bot Token (xoxb-) and App Token (xapp-) validity |
+| `restart_helper.sh` | Gracefully restart the hotplexd daemon (used by Makefile) |
+
+```bash
+# Service management
+bash scripts/service.sh install    # Install as system service
+bash scripts/service.sh start      # Start service
+bash scripts/service.sh status     # Check status
+
+# Verify Slack tokens
+bash scripts/verify_slack_tokens.sh
+
+# Setup bot git identities
+bash scripts/setup_gitconfig.sh
+```
