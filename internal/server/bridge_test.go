@@ -300,14 +300,14 @@ func TestBridgePlatform_handleRegister_OK(t *testing.T) {
 
 	err := bp.handleRegister(&WireMessage{
 		Type:         BridgeMsgTypeRegister,
-		Platform:     "dingtalk",
+		Platform:     "custom-bridge",
 		Capabilities: []string{CapText, CapCard},
 	})
 	if err != nil {
 		t.Errorf("handleRegister: unexpected error: %v", err)
 	}
-	if bp.platform != "dingtalk" {
-		t.Errorf("bp.platform = %q, want dingtalk", bp.platform)
+	if bp.platform != "custom-bridge" {
+		t.Errorf("bp.platform = %q, want custom-bridge", bp.platform)
 	}
 }
 

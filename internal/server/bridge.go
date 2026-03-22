@@ -18,8 +18,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +29,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/hrygo/hotplex/internal/bridgewire"
+	"github.com/hrygo/hotplex/internal/security"
 	"github.com/hrygo/hotplex/types"
 )
 
@@ -58,6 +61,32 @@ var allCapabilities = bridgewire.AllCapabilities
 // WireMessage and WireMetadata are type aliases to the shared bridgewire package.
 type WireMessage = bridgewire.WireMessage
 type WireMetadata = bridgewire.WireMetadata
+
+// Platform name validation regex: lowercase alphanumeric, underscore, hyphen, 1-32 chars
+var platformNameRegex = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
+
+// Reserved platform names that cannot be used by bridge adapters
+var reservedPlatformNames = map[string]bool{
+	"slack":    true,
+	"feishu":   true,
+	"dingtalk": true,
+	"wechat":   true,
+	"telegram": true,
+	"discord":  true,
+}
+
+func validatePlatformName(name string) error {
+	if !platformNameRegex.MatchString(name) {
+		return fmt.Errorf("invalid platform name %q: must match %s", name, platformNameRegex.String())
+	}
+	if reservedPlatformNames[name] {
+		return fmt.Errorf("platform name %q is reserved for built-in platform", name)
+	}
+	return nil
+}
+
+// Global WAF detector for BridgeServer input validation
+var wafDetector = security.NewDetector(nil)
 
 // =============================================================================
 // BridgeServer
@@ -146,8 +175,19 @@ func (s *BridgeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	platform := parts[0]
 
-	// Authenticate via token
-	token := r.URL.Query().Get("token")
+	// Authenticate via token (prefer Authorization header, fallback to query param)
+	authHeader := r.Header.Get("Authorization")
+	token := ""
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		token = strings.TrimPrefix(authHeader, "Bearer ")
+	} else {
+		// Fallback to query param for backwards compatibility (deprecated)
+		token = r.URL.Query().Get("token")
+		if token != "" {
+			s.logger.Warn("Token passed via URL query is deprecated, use Authorization header instead",
+				"platform", platform)
+		}
+	}
 	if s.token != "" && token != s.token {
 		s.logger.Warn("Bridge auth failed", "platform", platform, "reason", "invalid_token")
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -332,6 +372,16 @@ func (bp *BridgePlatform) handleRegister(wm *WireMessage) error {
 	if wm.Platform == "" {
 		return errors.New("register: platform name required")
 	}
+
+	// Validate platform name to prevent injection and conflicts
+	if err := validatePlatformName(wm.Platform); err != nil {
+		bp.logger.Warn("Bridge registration rejected: invalid platform name",
+			"platform", wm.Platform,
+			"error", err)
+		_ = bp.writeError(400, err.Error()) // best-effort notify client
+		return err
+	}
+
 	bp.mu.Lock()
 	bp.platform = wm.Platform
 	if len(wm.Capabilities) > 0 {
@@ -380,6 +430,15 @@ func (bp *BridgePlatform) getAdapterManager() adapterManagerInterface {
 func (bp *BridgePlatform) handleMessage(wm *WireMessage) error {
 	if wm.SessionKey == "" {
 		return errors.New("message: session_key required")
+	}
+
+	// WAF security check - validate external input
+	if event := wafDetector.CheckInput(wm.Content); event != nil {
+		bp.logger.Warn("Bridge message blocked by WAF",
+			"platform", bp.platform,
+			"session_key", wm.SessionKey,
+			"reason", event.Reason)
+		return bp.writeError(400, "message blocked by security policy")
 	}
 
 	// Parse metadata
