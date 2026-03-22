@@ -118,8 +118,12 @@ func (ti *TypingIndicator) Stop(ctx context.Context) {
 	}
 	ti.done = true
 	close(ti.stopCh)
-	added := make([]string, len(ti.added))
-	copy(added, ti.added)
+	// Only allocate if there are reactions to remove
+	var added []string
+	if len(ti.added) > 0 {
+		added = make([]string, len(ti.added))
+		copy(added, ti.added)
+	}
 	ti.mu.Unlock()
 
 	for _, emoji := range added {
