@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
@@ -310,4 +311,51 @@ func TestNativeStreamingWriter_InterfaceCompliance(t *testing.T) {
 
 	// Suppress unused variable warning
 	_ = writer
+}
+
+// TestIsStreamStateError tests the isStreamStateError helper used in AppendStream error handling.
+func TestIsStreamStateError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "message_not_in_streaming_state",
+			err:  fmt.Errorf("append stream: %w", fmt.Errorf("message_not_in_streaming_state")),
+			want: true,
+		},
+		{
+			name: "streaming_state keyword",
+			err:  fmt.Errorf("the streaming_state is invalid"),
+			want: true,
+		},
+		{
+			name: "not_in_streaming keyword",
+			err:  fmt.Errorf("not_in_streaming mode"),
+			want: true,
+		},
+		{
+			name: "case insensitive",
+			err:  fmt.Errorf("MESSAGE_NOT_IN_STREAMING_STATE"),
+			want: true,
+		},
+		{
+			name: "other error",
+			err:  fmt.Errorf("rate_limited"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isStreamStateError(tt.err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

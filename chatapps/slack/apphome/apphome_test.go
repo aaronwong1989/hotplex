@@ -2,6 +2,8 @@ package apphome
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -776,13 +778,98 @@ func TestHandler_SetClient(t *testing.T) {
 	assert.NotNil(t, handler.client)
 }
 
-func TestHandler_SetExecutor(t *testing.T) {
-	registry := NewRegistry()
-	handler := NewHandler(registry)
+func TestIsAppHomeNotEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		// True cases: not_enabled detection
+		{
+			name: "not_enabled error",
+			err:  fmt.Errorf("not_enabled"),
+			want: true,
+		},
+		{
+			name: "wrapped not_enabled error",
+			err:  fmt.Errorf("publish view: %w", fmt.Errorf("not_enabled")),
+			want: true,
+		},
+		{
+			name: "uppercase not_enabled",
+			err:  fmt.Errorf("NOT_ENABLED"),
+			want: true,
+		},
+		// False cases: other Slack errors
+		{
+			name: "not_authed",
+			err:  errors.New("not_authed"),
+			want: false,
+		},
+		{
+			name: "channel_not_found",
+			err:  errors.New("channel_not_found"),
+			want: false,
+		},
+		{
+			name: "not_in_channel",
+			err:  errors.New("not_in_channel"),
+			want: false,
+		},
+		{
+			name: "wrapped rate_limited",
+			err:  fmt.Errorf("rate_limited: %w", errors.New("too_many_requests")),
+			want: false,
+		},
+		// False cases: generic errors
+		{
+			name: "other error",
+			err:  fmt.Errorf("something went wrong"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
 
-	assert.Nil(t, handler.executor)
-	handler.SetExecutor(NewExecutor())
-	assert.NotNil(t, handler.executor)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isAppHomeNotEnabled(tt.err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestHandler_HandleHomeOpened_ConnectionRefused(t *testing.T) {
+	registry := NewRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Use an invalid API URL to force a connection refused error.
+	// This verifies that connection errors are returned, not silently swallowed.
+	client := slack.New("xoxb-test",
+		slack.OptionAPIURL("http://localhost:0/"))
+	handler := NewHandler(registry,
+		WithSlackClient(client),
+		WithHandlerLogger(logger))
+
+	err := handler.HandleHomeOpened(context.Background(), &HomeOpenedEvent{User: "U123"})
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), "not_enabled")
+}
+
+func TestHandler_HandleHomeRefresh_ConnectionRefused(t *testing.T) {
+	registry := NewRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Use an invalid API URL to force a connection refused error.
+	client := slack.New("xoxb-test",
+		slack.OptionAPIURL("http://localhost:0/"))
+	handler := NewHandler(registry,
+		WithSlackClient(client),
+		WithHandlerLogger(logger))
+
+	err := handler.HandleHomeRefresh(context.Background(), "U123")
+	assert.Error(t, err)
 }
 
 func TestBuilder_BuildHomeTab(t *testing.T) {

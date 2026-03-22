@@ -476,7 +476,19 @@ func (a *Adapter) AppendStream(ctx context.Context, channelID, messageTS, conten
 
 	_, _, err := a.client.AppendStreamContext(ctx, channelID, messageTS, options...)
 	if err != nil {
-		a.Logger().Error("AppendStream failed", "channel_id", channelID, "message_ts", messageTS, "error", err)
+		// message_not_in_streaming_state is a recoverable condition handled by the
+		// streaming writer's fallback mechanism — log at WARN to avoid alarming operators.
+		if isStreamStateError(err) {
+			a.Logger().Warn("AppendStream failed (stream expired)",
+				"channel_id", channelID,
+				"message_ts", messageTS,
+				"error", err)
+		} else {
+			a.Logger().Error("AppendStream failed",
+				"channel_id", channelID,
+				"message_ts", messageTS,
+				"error", err)
+		}
 		return fmt.Errorf("append stream: %w", err)
 	}
 
