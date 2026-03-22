@@ -4,7 +4,12 @@ import (
 	"crypto/subtle"
 	"log/slog"
 	"net/http"
+
+	"github.com/hrygo/hotplex/internal/adminapi"
 )
+
+// ErrCodeUnauthorized is the error code for missing or invalid auth credentials.
+const ErrCodeUnauthorized = adminapi.ErrorCode("UNAUTHORIZED")
 
 // AdminAuthMiddleware creates an HTTP middleware that validates the X-Admin-Key header.
 // It uses constant-time comparison to prevent timing attacks.
@@ -26,7 +31,7 @@ func AdminAuthMiddleware(adminKey string, logger *slog.Logger) func(http.Handler
 					"remote_addr", r.RemoteAddr,
 					"path", r.URL.Path,
 				)
-				writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Missing X-Admin-Key header")
+				adminapi.WriteError(w, http.StatusUnauthorized, ErrCodeUnauthorized, "Missing X-Admin-Key header")
 				return
 			}
 
@@ -37,7 +42,7 @@ func AdminAuthMiddleware(adminKey string, logger *slog.Logger) func(http.Handler
 					"path", r.URL.Path,
 					"key_prefix", keyPrefix(key),
 				)
-				writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid X-Admin-Key")
+				adminapi.WriteError(w, http.StatusUnauthorized, ErrCodeUnauthorized, "Invalid X-Admin-Key")
 				return
 			}
 
@@ -53,13 +58,4 @@ func keyPrefix(key string) string {
 		return "****"
 	}
 	return key[:4] + "****"
-}
-
-// writeError writes a JSON error response.
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = NewAdminError(code, message)
-	// Simple JSON encoding without importing encoding/json
-	_, _ = w.Write([]byte(`{"error":{"code":"` + code + `","message":"` + message + `"}}`))
 }

@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/hrygo/hotplex/internal/adminapi"
 )
 
 func TestAdminAuthMiddleware_ValidKey(t *testing.T) {
@@ -163,7 +165,7 @@ func TestKeyPrefix(t *testing.T) {
 func TestWriteError(t *testing.T) {
 	rec := httptest.NewRecorder()
 
-	writeError(rec, http.StatusBadRequest, "INVALID_REQUEST", "Test error message")
+	adminapi.WriteError(rec, http.StatusBadRequest, adminapi.ErrCodeInvalidRequest, "Test error message")
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rec.Code)

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/hrygo/hotplex/engine"
+	"github.com/hrygo/hotplex/internal/adminapi"
 )
 
 // ConfigHandler handles configuration endpoints.
@@ -19,7 +20,7 @@ func NewConfigHandler(eng *engine.Engine) *ConfigHandler {
 // getConfig handles GET /api/v1/admin/config.
 func (h *ConfigHandler) getConfig(w http.ResponseWriter, r *http.Request) {
 	if h.engine == nil {
-		writeError(w, http.StatusServiceUnavailable, "ENGINE_NOT_INITIALIZED", "Engine not initialized")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, "ENGINE_NOT_INITIALIZED", "Engine not initialized")
 		return
 	}
 
@@ -37,13 +38,13 @@ func (h *ConfigHandler) getConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := ConfigResponse{Config: config}
-	writeJSON(w, http.StatusOK, response)
+	adminapi.WriteJSON(w, http.StatusOK, response)
 }
 
 // getAllowedTools handles GET /api/v1/admin/config/allowed_tools.
 func (h *ConfigHandler) getAllowedTools(w http.ResponseWriter, r *http.Request) {
 	if h.engine == nil {
-		writeError(w, http.StatusServiceUnavailable, "ENGINE_NOT_INITIALIZED", "Engine not initialized")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, "ENGINE_NOT_INITIALIZED", "Engine not initialized")
 		return
 	}
 
@@ -52,13 +53,13 @@ func (h *ConfigHandler) getAllowedTools(w http.ResponseWriter, r *http.Request) 
 		Tools:  opts.AllowedTools,
 		Source: "engine_options",
 	}
-	writeJSON(w, http.StatusOK, response)
+	adminapi.WriteJSON(w, http.StatusOK, response)
 }
 
 // getDisallowedTools handles GET /api/v1/admin/config/disallowed_tools.
 func (h *ConfigHandler) getDisallowedTools(w http.ResponseWriter, r *http.Request) {
 	if h.engine == nil {
-		writeError(w, http.StatusServiceUnavailable, "ENGINE_NOT_INITIALIZED", "Engine not initialized")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, "ENGINE_NOT_INITIALIZED", "Engine not initialized")
 		return
 	}
 
@@ -67,5 +68,5 @@ func (h *ConfigHandler) getDisallowedTools(w http.ResponseWriter, r *http.Reques
 		Tools:  opts.DisallowedTools,
 		Source: "engine_options",
 	}
-	writeJSON(w, http.StatusOK, response)
+	adminapi.WriteJSON(w, http.StatusOK, response)
 }

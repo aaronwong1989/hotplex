@@ -3,6 +3,8 @@ package admin
 import (
 	"crypto/subtle"
 	"net/http"
+
+	"github.com/hrygo/hotplex/internal/adminapi"
 )
 
 // Middleware provides HTTP middleware functions for the admin API.
@@ -26,19 +28,19 @@ func (m *Middleware) AuthMiddleware(next http.Handler) http.Handler {
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			writeError(w, http.StatusUnauthorized, ErrCodeAuthFailed, "Authorization header required")
+			adminapi.WriteError(w, http.StatusUnauthorized, ErrCodeAuthFailed, "Authorization header required")
 			return
 		}
 
 		const bearerPrefix = "Bearer "
 		if len(authHeader) < len(bearerPrefix)+len(m.adminToken) {
-			writeError(w, http.StatusUnauthorized, ErrCodeAuthFailed, "Invalid authorization format")
+			adminapi.WriteError(w, http.StatusUnauthorized, ErrCodeAuthFailed, "Invalid authorization format")
 			return
 		}
 
 		token := authHeader[len(bearerPrefix):]
 		if subtle.ConstantTimeCompare([]byte(token), []byte(m.adminToken)) != 1 {
-			writeError(w, http.StatusForbidden, ErrCodeForbidden, "Invalid admin token")
+			adminapi.WriteError(w, http.StatusForbidden, ErrCodeForbidden, "Invalid admin token")
 			return
 		}
 

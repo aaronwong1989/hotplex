@@ -11,6 +11,7 @@ import (
 
 	"github.com/hrygo/hotplex"
 	"github.com/hrygo/hotplex/engine"
+	"github.com/hrygo/hotplex/internal/adminapi"
 	intengine "github.com/hrygo/hotplex/internal/engine"
 )
 
@@ -93,7 +94,7 @@ func (h *HealthHandler) getHealth(w http.ResponseWriter, r *http.Request) {
 		Subsystems:  subsystems,
 	}
 
-	writeJSON(w, http.StatusOK, response)
+	adminapi.WriteJSON(w, http.StatusOK, response)
 }
 
 // getMetrics handles GET /api/v1/admin/metrics.
@@ -114,7 +115,7 @@ func (h *HealthHandler) getMetrics(w http.ResponseWriter, r *http.Request) {
 		statusCounts := make(map[string]int)
 		platformCounts := make(map[string]int)
 		for _, s := range sessions {
-			status := MapSessionStatus(s.GetStatus())
+			status := adminapi.MapSessionStatus(s.GetStatus())
 			statusCounts[status]++
 			platformCounts[MapSessionToAdminSession(s).Platform]++
 		}
@@ -156,7 +157,7 @@ func (h *HealthHandler) enterDrain(w http.ResponseWriter, r *http.Request) {
 	var req DrainRequest
 	if r.ContentLength > 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body")
+			adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body")
 			return
 		}
 	}
@@ -184,7 +185,7 @@ func (h *HealthHandler) enterDrain(w http.ResponseWriter, r *http.Request) {
 		ActiveSessions: activeSessions,
 		Message:        msg,
 	}
-	writeJSON(w, http.StatusOK, response)
+	adminapi.WriteJSON(w, http.StatusOK, response)
 }
 
 // exitDrain handles DELETE /api/v1/admin/drain.
@@ -196,7 +197,7 @@ func (h *HealthHandler) exitDrain(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !wasDraining {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Service is not in drain mode")
+		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Service is not in drain mode")
 		return
 	}
 
@@ -206,7 +207,7 @@ func (h *HealthHandler) exitDrain(w http.ResponseWriter, r *http.Request) {
 		Status:  "active",
 		Message: "Service has exited drain mode",
 	}
-	writeJSON(w, http.StatusOK, response)
+	adminapi.WriteJSON(w, http.StatusOK, response)
 }
 
 // getDrainStatus handles GET /api/v1/admin/drain.
@@ -230,12 +231,12 @@ func (h *HealthHandler) getDrainStatus(w http.ResponseWriter, r *http.Request) {
 			ActiveSessions: activeSessions,
 			Message:        msg,
 		}
-		writeJSON(w, http.StatusOK, response)
+		adminapi.WriteJSON(w, http.StatusOK, response)
 	} else {
 		response := DrainResponse{
 			Status: "active",
 		}
-		writeJSON(w, http.StatusOK, response)
+		adminapi.WriteJSON(w, http.StatusOK, response)
 	}
 }
 

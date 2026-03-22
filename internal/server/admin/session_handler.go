@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/hrygo/hotplex/internal/adminapi"
 	intengine "github.com/hrygo/hotplex/internal/engine"
 )
 
@@ -72,32 +73,32 @@ func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 		Offset:   offset,
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	adminapi.WriteJSON(w, http.StatusOK, resp)
 }
 
 // GetSession handles GET /api/v1/sessions/:id
 func (h *SessionHandler) GetSession(w http.ResponseWriter, r *http.Request) {
 	sessionID := extractSessionID(r)
 	if sessionID == "" {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
+		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
 		return
 	}
 
 	sess, ok := h.pool.GetSession(sessionID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
+		adminapi.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
 		return
 	}
 
 	adminSess := MapSessionToAdminSession(sess)
-	writeJSON(w, http.StatusOK, adminSess)
+	adminapi.WriteJSON(w, http.StatusOK, adminSess)
 }
 
 // StopSession handles POST /api/v1/sessions/:id/stop
 func (h *SessionHandler) StopSession(w http.ResponseWriter, r *http.Request) {
 	sessionID := extractSessionID(r)
 	if sessionID == "" {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
+		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
 		return
 	}
 
@@ -108,7 +109,7 @@ func (h *SessionHandler) StopSession(w http.ResponseWriter, r *http.Request) {
 
 	_, ok := h.pool.GetSession(sessionID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
+		adminapi.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
 		return
 	}
 
@@ -127,19 +128,19 @@ func (h *SessionHandler) StopSession(w http.ResponseWriter, r *http.Request) {
 		resp.Message = "Session termination initiated: " + req.Reason
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	adminapi.WriteJSON(w, http.StatusOK, resp)
 }
 
 // BatchStopSessions handles POST /api/v1/sessions/batch-stop
 func (h *SessionHandler) BatchStopSessions(w http.ResponseWriter, r *http.Request) {
 	var req BatchStopRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
+		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
 		return
 	}
 
 	if len(req.SessionIDs) == 0 {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "No session IDs provided")
+		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "No session IDs provided")
 		return
 	}
 
@@ -167,7 +168,7 @@ func (h *SessionHandler) BatchStopSessions(w http.ResponseWriter, r *http.Reques
 		resp.Stopped = append(resp.Stopped, sessionID)
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	adminapi.WriteJSON(w, http.StatusOK, resp)
 }
 
 // extractSessionID extracts the session ID from the URL path.
@@ -188,9 +189,3 @@ func extractSessionID(r *http.Request) string {
 	return path
 }
 
-// writeJSON writes a JSON response.
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(data)
-}

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/hrygo/hotplex/internal/adminapi"
 	intengine "github.com/hrygo/hotplex/internal/engine"
 )
 
@@ -75,7 +76,7 @@ func (h *AuditHandler) getEvents(w http.ResponseWriter, r *http.Request) {
 		NextCursor: nextCursor,
 		Total:      total,
 	}
-	writeJSON(w, http.StatusOK, response)
+	adminapi.WriteJSON(w, http.StatusOK, response)
 }
 
 // getTranscript handles GET /api/v1/admin/sessions/:id/transcript.
@@ -84,13 +85,13 @@ func (h *AuditHandler) getEvents(w http.ResponseWriter, r *http.Request) {
 func (h *AuditHandler) getTranscript(w http.ResponseWriter, r *http.Request) {
 	sessionID := extractSessionID(r)
 	if sessionID == "" {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
+		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
 		return
 	}
 
 	sess, ok := h.sessionPool.GetSession(sessionID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
+		adminapi.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
 		return
 	}
 
@@ -108,7 +109,7 @@ func (h *AuditHandler) getTranscript(w http.ResponseWriter, r *http.Request) {
 		SessionID: sessionID,
 		Messages:  messages,
 	}
-	writeJSON(w, http.StatusOK, response)
+	adminapi.WriteJSON(w, http.StatusOK, response)
 }
 
 // PushEvent is a helper to add an event to the buffer.

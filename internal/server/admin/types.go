@@ -5,6 +5,7 @@ import (
 
 	"github.com/hrygo/hotplex/engine"
 	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/internal/adminapi"
 )
 
 // AdminSession represents a session in the admin API.
@@ -183,10 +184,10 @@ func NewAdminErrorWithDetails(code, message string, details map[string]interface
 // MapSessionToAdminSession converts an internal engine.Session to AdminSession.
 func MapSessionToAdminSession(s *intengine.Session) AdminSession {
 	return AdminSession{
-		SessionID:    s.ID,
-		Status:       MapSessionStatus(s.GetStatus()),
-		Platform:     resolvePlatform(s.ID),
-		CreatedAt:    s.CreatedAt,
+		SessionID:     s.ID,
+		Status:        adminapi.MapSessionStatus(s.GetStatus()),
+		Platform:      adminapi.ResolvePlatform(s.ID),
+		CreatedAt:     s.CreatedAt,
 		LastActiveAt: s.GetLastActive(),
 	}
 }
@@ -220,48 +221,3 @@ func MapSessionStatsToAdminStats(stats *engine.SessionStats) AdminSessionStats {
 	}
 }
 
-// MapSessionStatus maps internal engine.SessionStatus to admin API string.
-func MapSessionStatus(status intengine.SessionStatus) string {
-	switch status {
-	case intengine.SessionStatusStarting:
-		return "starting"
-	case intengine.SessionStatusReady:
-		return "idle"
-	case intengine.SessionStatusBusy:
-		return "running"
-	case intengine.SessionStatusDead:
-		return "dead"
-	default:
-		return "unknown"
-	}
-}
-
-// resolvePlatform resolves the platform from session ID prefix.
-// Session IDs follow the format: {platform}-{uuid}
-// e.g., "ws-abc123", "slack-def456", "admin-ghi789"
-func resolvePlatform(sessionID string) string {
-	if sessionID == "" {
-		return "unknown"
-	}
-	// Split by '-' and take the first part
-	for i := 0; i < len(sessionID); i++ {
-		if sessionID[i] == '-' {
-			prefix := sessionID[:i]
-			switch prefix {
-			case "ws", "websocket":
-				return "websocket"
-			case "slack":
-				return "slack"
-			case "tg", "telegram":
-				return "telegram"
-			case "feishu", "lark":
-				return "feishu"
-			case "admin":
-				return "admin"
-			default:
-				return prefix
-			}
-		}
-	}
-	return "unknown"
-}
