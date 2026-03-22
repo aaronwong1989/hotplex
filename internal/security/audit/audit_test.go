@@ -84,9 +84,9 @@ func TestMemoryAuditStore_Query_Filter(t *testing.T) {
 	ctx := context.Background()
 
 	// Save events with different levels
-	store.Save(ctx, sampleEvent(security.DangerLevelModerate, security.AuditActionApproved))
-	store.Save(ctx, sampleEvent(security.DangerLevelCritical, security.AuditActionBlocked))
-	store.Save(ctx, sampleEvent(security.DangerLevelHigh, security.AuditActionBlocked))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelModerate, security.AuditActionApproved))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelCritical, security.AuditActionBlocked))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelHigh, security.AuditActionBlocked))
 
 	// Filter by action
 	results, _ := store.Query(ctx, security.AuditFilter{
@@ -129,7 +129,7 @@ func TestMemoryAuditStore_Query_TimeFilter(t *testing.T) {
 	// Save old event
 	oldEvent := sampleEvent(security.DangerLevelModerate, security.AuditActionApproved)
 	oldEvent.Timestamp = time.Now().Add(-1 * time.Hour)
-	store.Save(ctx, oldEvent)
+	_ = store.Save(ctx, oldEvent)
 
 	// Query with start time filter
 	results, _ := store.Query(ctx, security.AuditFilter{
@@ -146,9 +146,9 @@ func TestMemoryAuditStore_Stats(t *testing.T) {
 	ctx := context.Background()
 
 	// Save events
-	store.Save(ctx, sampleEvent(security.DangerLevelModerate, security.AuditActionApproved))
-	store.Save(ctx, sampleEvent(security.DangerLevelCritical, security.AuditActionBlocked))
-	store.Save(ctx, sampleEvent(security.DangerLevelHigh, security.AuditActionBlocked))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelModerate, security.AuditActionApproved))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelCritical, security.AuditActionBlocked))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelHigh, security.AuditActionBlocked))
 
 	stats, err := store.Stats(ctx)
 	if err != nil {
@@ -290,8 +290,8 @@ func TestFileAuditStore_Query_Filter(t *testing.T) {
 	ctx := context.Background()
 
 	// Save events
-	store.Save(ctx, sampleEvent(security.DangerLevelModerate, security.AuditActionApproved))
-	store.Save(ctx, sampleEvent(security.DangerLevelCritical, security.AuditActionBlocked))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelModerate, security.AuditActionApproved))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelCritical, security.AuditActionBlocked))
 
 	// Filter by action
 	results, _ := store.Query(ctx, security.AuditFilter{
@@ -321,8 +321,8 @@ func TestFileAuditStore_Stats(t *testing.T) {
 	ctx := context.Background()
 
 	// Save events
-	store.Save(ctx, sampleEvent(security.DangerLevelModerate, security.AuditActionApproved))
-	store.Save(ctx, sampleEvent(security.DangerLevelCritical, security.AuditActionBlocked))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelModerate, security.AuditActionApproved))
+	_ = store.Save(ctx, sampleEvent(security.DangerLevelCritical, security.AuditActionBlocked))
 
 	stats, err := store.Stats(ctx)
 	if err != nil {
