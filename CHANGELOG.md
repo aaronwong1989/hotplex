@@ -1,5 +1,24 @@
 # CHANGELOG.md
 
+## [v0.35.1] - 2026-03-23
+
+### Features
+- feat(brain): support OpenCode CLI extractor in config priority
+- feat(brain): fix config priority - group-based fallback, no cross-group mixing
+
+### Bug Fixes
+- fix(brain): fix applyTimeout context cancellation and entrypoint HOME
+- fix(config): empty mode defaults to socket mode, YAML config precedence
+- fix(brain): skip TestConfig_AnthropicProviderType when Claude Code and ANTHROPIC_API_KEY are unavailable
+
+### Maintenance
+- chore(config): remove HOTPLEX_API_KEY default from common.yml
+- chore(docker): sync instance .env files via docker-sync
+- chore(config): add admin API key and fix platform field
+
+### Documentation
+- docs: add 24h productivity report (v0.35.0)
+
 ## [v0.35.0] - 2026-03-22
 
 ### Features

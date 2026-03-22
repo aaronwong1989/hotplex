@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -742,12 +743,22 @@ func TestConfig_AnthropicProviderType(t *testing.T) {
 	// Note: ClaudeCodeExtractor reads from ~/.claude/settings.json which may
 	// have an API key set (e.g., PROXY_MANAGED). If extraction succeeds,
 	// Enabled will be true and provider/protocol will be anthropic.
+	//
+	// If neither Claude Code CLI nor ANTHROPIC_API_KEY is available,
+	// Group 2b falls through to default → "openai", making the assertion
+	// impossible to satisfy. Skip in that case.
+	_, err := NewClaudeCodeExtractor().Extract()
+	hasClaudeCode := err == nil
+	hasAnthropicKey := os.Getenv("ANTHROPIC_API_KEY") != ""
+	if !hasClaudeCode && !hasAnthropicKey {
+		t.Skip("TestConfig_AnthropicProviderType requires Claude Code CLI with API key or ANTHROPIC_API_KEY")
+	}
+
 	t.Setenv("HOTPLEX_BRAIN_API_KEY", "")
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	t.Setenv("SILICONFLOW_API_KEY", "")
 	t.Setenv("HOTPLEX_PROVIDER_TYPE", "claude-code")
-	// Clear the actual env var
 	t.Setenv("ANTHROPIC_API_KEY", "")
 
 	config := LoadConfigFromEnv()
