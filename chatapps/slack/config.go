@@ -156,13 +156,9 @@ type Config struct {
 	AppHome *AppHomeConfig `yaml:"apphome"`
 
 	// AssistantAPIEnabled controls whether to attempt native Assistant API first.
-	// When true (default): probe capability at startup, fall back if not available.
+	// When true (default): probe capability at startup, fall back to emoji if unavailable.
 	// When false: always use emoji reaction fallback.
 	AssistantAPIEnabled *bool `yaml:"assistant_api_enabled"`
-
-	// ForceAssistantFallback forces emoji reaction fallback regardless of plan.
-	// Useful for development or when Assistant API has issues.
-	ForceAssistantFallback *bool `yaml:"force_assistant_fallback"`
 }
 
 // AppHomeConfig holds configuration for the Slack App Home Capability Center.

@@ -75,8 +75,7 @@ type Adapter struct {
 
 	// isAssistantCapable indicates if the workspace supports Assistant API (paid plan).
 	// Probed once at startup via ProbeAssistantCapability.
-	isAssistantCapable     bool
-	isAssistantCapableOnce sync.Once
+	isAssistantCapable bool
 }
 
 // Compile-time check: ensure Adapter implements StatusProvider
@@ -808,42 +807,35 @@ func (a *Adapter) ClaimThreadOwnership(channelID, threadTS string) {
 
 // ProbeAssistantCapability attempts a lightweight Assistant API call to determine
 // if the workspace supports it. Returns true if native Assistant API is available.
-// Config-driven: respects AssistantAPIEnabled and ForceAssistantFallback.
+//
+// Behavior:
+//   - AssistantAPIEnabled is true (default): probe capability; fall back to emoji on not_allowed
+//   - AssistantAPIEnabled is false: skip probe, always use emoji
+//   - client is nil: skip probe, always use emoji
 func (a *Adapter) ProbeAssistantCapability(ctx context.Context) bool {
-	// Respect ForceAssistantFallback config
-	if a.config.ForceAssistantFallback != nil && *a.config.ForceAssistantFallback {
-		a.Logger().Debug("Assistant capability probe skipped: ForceAssistantFallback=true")
-		return false
-	}
-
-	// Respect AssistantAPIEnabled config (default true if not set)
-	if a.config.AssistantAPIEnabled != nil && !*a.config.AssistantAPIEnabled {
-		a.Logger().Debug("Assistant capability probe skipped: AssistantAPIEnabled=false")
+	if !BoolValue(a.config.AssistantAPIEnabled, true) {
+		a.Logger().Debug("Assistant API disabled via config, using emoji fallback")
 		return false
 	}
 
 	if a.client == nil {
-		a.Logger().Debug("Assistant capability probe skipped: no Slack client")
+		a.Logger().Debug("No Slack client, using emoji fallback")
 		return false
 	}
 
-	// Try a no-op status set to check capability
-	params := slack.AssistantThreadsSetStatusParameters{
-		Status: "", // Clear any status (no-op)
-	}
+	// Attempt a no-op status call to probe capability
+	params := slack.AssistantThreadsSetStatusParameters{Status: ""}
 	err := a.client.SetAssistantThreadsStatusContext(ctx, params)
 	if err != nil {
-		// Check if it's a paid-plan error
 		if strings.Contains(err.Error(), "not_allowed") ||
 			strings.Contains(err.Error(), "not_allowed_token_type") {
 			a.Logger().Warn("Assistant API not available (free workspace?), falling back to emoji reactions",
 				slog.String("error", err.Error()))
 			return false
 		}
-		// Other errors might be transient - log but don't treat as incapable
+		// Other errors may be transient; treat as capable so runtime retries
 		a.Logger().Warn("Assistant API probe returned unexpected error, treating as capable",
 			slog.String("error", err.Error()))
-		// Return true so we still try the native API at runtime
 		return true
 	}
 	return true
