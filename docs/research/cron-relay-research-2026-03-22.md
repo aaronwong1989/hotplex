@@ -1,18 +1,211 @@
 # 调研报告：Cron 调度器 & Bot-to-Bot Relay — 竞品分析 & HotPlex 适配设计
 
 **日期**: 2026-03-22
-**基于**: Issue #325 + cc-connect 竞品源码 + OpenClaw AgentScope 框架实践
-**目标**: 为 HotPlex 设计符合其架构风格的 Cron + Relay 系统
+**基于**: Issue #325 + cc-connect 竞品源码 + OpenClaw AgentScope + A2A Protocol + CrewAI/Mastra/LangGraph 最佳实践
+**目标**: 为 HotPlex 设计符合其架构风格的多 Agent 协作 + Cron + Relay 系统
 
 ---
 
 ## 1. 竞品概览
 
-| 系统 | 架构语言 | Cron 实现 | Relay 实现 | 持久化 | 测试覆盖 |
-|------|---------|----------|-----------|--------|---------|
-| **cc-connect** | Go (2300+ stars) | CronScheduler + CronStore | RelayManager + Engine.HandleRelay | JSON 文件 | cron_test.go (13KB) |
-| **OpenClaw AgentScope** | Python + FastAPI | CronManager 单例 | HTTP Client → 目标实例 | cron_jobs.json | — |
-| **HotPlex** (现状) | Go | **无** | **无** | Session marker (SessionPool) | — |
+| 系统 | 架构语言 | Cron 实现 | Relay 实现 | 持久化 | 多 Agent 协作 |
+|------|---------|----------|-----------|--------|--------------|
+| **cc-connect** | Go (2300+ stars) | CronScheduler + CronStore | RelayManager + Engine.HandleRelay | JSON 文件 | 无原生支持 |
+| **OpenClaw AgentScope** | Python + FastAPI | CronManager 单例，6字段秒级 | HTTP Client → 目标实例 | cron_jobs.json | Session 级串行 |
+| **Google A2A Protocol** | JSON-RPC 2.0 | 无内置 | 协议级 Agent 通信 | 外部 | 核心设计 |
+| **CrewAI** | Python | Task async_execution + callback | Task delegation | 外部存储 | 角色分工 + hierarchical |
+| **Mastra** | TypeScript | Scheduled Workflows | Agent tools | DB | Workflow 图编排 |
+| **LangGraph** | Python | 外挂 + cron | Shared state + message passing | Checkpoint | 状态机 + 持久化 |
+| **HotPlex** (现状) | Go | **无** | **无** | Session marker | Bridge 平台接入 |
+
+---
+
+## 1.5 多 Agent 协作最佳实践
+
+### 1.5.1 A2A Protocol (Google) — 协议级设计
+
+**核心理念**: Agent 作为服务，通过标准协议相互发现和通信。
+
+```json
+// Agent Card: 能力发现机制
+{
+  "name": "hotplex-coder",
+  "provider": {"organization": "acme", "url": "https://..."},
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": true,
+    "extendedAgentCard": false
+  },
+  "skills": [
+    {"id": "code-review", "name": "Code Review", "description": "..."}
+  ],
+  "securitySchemes": ["APIKey", "OAuth2"]
+}
+```
+
+**任务状态机**（借鉴 A2A Protocol）:
+
+| 状态 | 含义 |
+|------|------|
+| `working` | 处理中 |
+| `input_required` | 需用户/其他 Agent 补充信息 |
+| `completed` | 成功完成 |
+| `failed` | 执行失败 |
+| `canceled` | 被取消 |
+
+**消息格式**（JSON-RPC 2.0）:
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tasks/send",
+  "params": {
+    "id": "task-uuid",
+    "sessionId": "session-uuid",
+    "acceptedOutputModes": ["text", "json"],
+    "message": {
+      "role": "user",
+      "parts": [{"type": "text", "text": "帮我看看这段代码"}]
+    }
+  }
+}
+```
+
+**HotPlex 适配**:
+- 复用 bridgewire WireMessage 作为传输层
+- 引入 Agent Card 机制（配置中声明能力）
+- 任务状态机支持 cancel/pause
+
+### 1.5.2 CrewAI 多 Agent 协作模式
+
+**Agent 定义三要素**:
+```python
+Agent(
+    role="代码审查员",      # 角色/专业领域
+    goal="发现代码问题",    # 个人目标
+    backstory="10年经验",  # 背景/人格
+    tools=[...],
+    allow_delegation=True  # 是否允许委托任务
+)
+```
+
+**Process Types**:
+
+| 模式 | 特点 | 适用场景 |
+|------|------|---------|
+| Sequential | 预定义顺序，上游输出 → 下游输入 | 线性 Pipeline |
+| Hierarchical | Manager Agent 负责任务分配和审核 | 需要质量把控 |
+| Consensual | 民主协商（待实现） | 复杂决策 |
+
+**Task Callback 机制**:
+```python
+def on_complete(output: TaskOutput):
+    # 触发通知、更新状态、触发下游任务
+    notify_user(output)
+
+task = Task(
+    description="审查代码",
+    agent=reviewer,
+    callback=on_complete,
+    async_execution=True  # 不阻塞后续
+)
+```
+
+**HotPlex 适配**:
+- Cron Job 作为 Task，支持 callback 机制
+- Hierarchical 模式：cron trigger → manager bot → delegate
+
+### 1.5.3 LangGraph 状态持久化模式
+
+**核心特性**:
+- **Checkpoint**: 任意时刻可中断/恢复
+- **Memory**: 短期工作记忆 + 长期持久化记忆
+- **Human-in-the-loop**: 关键节点暂停等人工审批
+
+```python
+# LangGraph 风格的状态机
+state = {"messages": [], "context": {}, "task_status": "working"}
+
+# 可在任何节点中断
+if should_interrupt(state):
+    raise Interrupt("waiting_for_approval")
+
+# Checkpoint 保存完整状态
+checkpoint = {"state": state, "node": "analyze"}
+```
+
+**HotPlex 适配**:
+- Cron Job 执行中间状态持久化（避免重复执行）
+- 支持 pause/resume（借鉴 LangGraph interrupt）
+
+### 1.5.4 Mastra Workflows 编排
+
+```typescript
+// Mastra 风格工作流
+const workflow = createWorkflow({ trigger: cron("0 9 * * *") })
+  .step(collectData)
+  .then(analyzeData)
+  .branch({
+    if: (state) => state.anomaly,
+    then: alertTeam,
+    else: storeResults
+  })
+```
+
+**HotPlex 适配**:
+- Cron Trigger 作为 Workflow 入口
+- 支持条件分支（anomaly detection → alert）
+
+---
+
+## 1.6 Agent Cron Job 最佳实践
+
+### 1.6.1 任务分类 (CrewAI Style)
+
+| 类型 | 特点 | 执行策略 |
+|------|------|---------|
+| `light` | 快速查询、分析 | 可并行，超时短 |
+| `medium` | 报告生成、代码审查 | 串行，超时适中 |
+| `resource-intensive` | 大规模重构、数据处理 | 资源感知调度 |
+
+### 1.6.2 执行可靠性 (NexFlow Pulse)
+
+| 机制 | 说明 |
+|------|------|
+| 自动重试 + 指数退避 | 失败后 1s → 2s → 4s 重试 |
+| 执行历史记录 | HTTP 状态码、延迟、错误信息 |
+| 测试运行 | 立即触发不影响原调度 |
+| 按执行计费 | 暂停任务不收费 |
+
+### 1.6.3 智能调度 (Arcron)
+
+- **ML 驱动**: 学习历史负载模式，预测最优执行窗口
+- **资源感知**: 避免与高峰时段冲突
+- **Self-Healing**: 预测偏离实际时自动调整
+
+**HotPlex 简化实现**:
+- 基于 SessionPool 负载状态选择执行时机
+- 避免在用户高峰期执行 heavy cron job
+
+### 1.6.4 Session 隔离 (OpenClaw)
+
+| Session 类型 | 用途 | 隔离策略 |
+|-------------|------|---------|
+| `user-*` | 用户交互 | 标准权限 |
+| `cron-*` | 定时任务 | 独立 namespace，无打扰模式 |
+| `relay-*` | Bot 间通信 | 专用上下文 |
+
+### 1.6.5 输出格式化 (CrewAI Style)
+
+```python
+Task(
+    output_json={"summary": str, "issues": list},
+    output_pydantic=ReportModel  # Pydantic 模型校验
+)
+```
+
+**HotPlex 适配**:
+- Cron Job 支持 `output_format`: `text` | `json` | `structured`
+- 执行结果自动解析并路由到目标平台
 
 ---
 
@@ -215,7 +408,7 @@ cc-connect:
 
 ---
 
-## 6. 设计方案：三阶段演进
+## 6. 设计方案：三阶段演进（含多 Agent 最佳实践）
 
 ### Phase 0: 架构基础（新增）
 
@@ -225,42 +418,179 @@ cc-connect:
 internal/cron/
 ├── job.go         # CronJob, CronStore 类型
 ├── scheduler.go   # CronScheduler (调度循环)
-└── store.go       # 原子写入 JSON
+├── executor.go   # ExecuteRequest → Engine
+└── store.go      # 原子写入 JSON
 
 internal/relay/
-├── binding.go   # RelayBinding, RelayManager
-└── sender.go   # HTTP Sender
+├── binding.go     # RelayBinding, RelayManager
+├── sender.go     # HTTP Sender (A2A 风格)
+└── agentcard.go  # Agent Card 能力发现
+
+internal/agent/
+├── card.go       # AgentCard 类型定义
+└── registry.go  # 本地 Agent 注册表
 ```
 
 ### Phase 1: Cron 调度器（核心）
 
-| 功能 | 实现方式 |
-|------|---------|
-| 表达式解析 | `github.com/robfig/cron/v3` |
-| 持久化 | `cron_jobs.json`，原子写入 |
-| 执行 | 专用 `cronjob` session（复用 SessionPool） |
-| 自然语言解析 | Brain intent 扩展（guard.go） |
-| 工具注入 | `add_cron`, `del_cron`, `list_crons`, `pause_cron`, `resume_cron` |
+| 功能 | 实现方式 | 借鉴来源 |
+|------|---------|---------|
+| 表达式解析 | `github.com/robfig/cron/v3` | cc-connect |
+| 持久化 | `cron_jobs.json`，原子写入 | cc-connect + NexFlow |
+| 执行 | 专用 `cron-` session（复用 SessionPool） | OpenClaw |
+| 自然语言解析 | Brain intent 扩展（guard.go） | cc-connect |
+| 工具注入 | `add_cron`, `del_cron`, `list_crons`, `pause_cron`, `resume_cron` | OpenClaw |
+| 输出格式化 | `output_format`: `text` \| `json` \| `structured` | CrewAI |
+| 执行历史 | `runs.json`（状态码、延迟、错误） | NexFlow Pulse |
+| 任务分类 | `type`: `light` \| `medium` \| `resource-intensive` | CrewAI |
 
 **关键决策**:
 - 使用 `robfig/cron/v3`（Go 生态最成熟）
-- Session 隔离：Cron job 使用 `namespace="hotplex-cron"` 独立于普通会话
-- 配置驱动：YAML 配置 + 运行时 API
+- Session 隔离：Cron job 使用 `namespace="cron"` 独立于普通会话
+- **新增**: 执行历史记录 + 重试机制（借鉴 NexFlow Pulse）
+- **新增**: Task Callback 机制（借鉴 CrewAI）
 
-### Phase 2: Bot-to-Bot Relay（扩展）
+### Phase 1.5: 多 Agent 协作（Relay 增强）
 
-| 功能 | 实现方式 |
-|------|---------|
-| 协议 | 复用 `bridgewire` WireMessage |
-| 传输 | HTTP POST 到目标 HotPlex 实例 |
-| 路由 | RelayBinding: Platform + ChatID → Bots |
-| 安全 | API Key 认证 + WAF 检查 |
-| 超时 | 可配置 timeout（默认 120s） |
+| 功能 | 实现方式 | 借鉴来源 |
+|------|---------|---------|
+| Agent Card | 配置中声明 capabilities + skills | A2A Protocol |
+| 能力发现 | `AgentCard` endpoint | A2A Protocol |
+| 任务状态机 | `working` → `completed`/`failed`/`canceled` | A2A Protocol |
+| 消息格式 | 复用 bridgewire WireMessage | HotPlex 现有 |
+| 传输协议 | JSON-RPC 2.0 over HTTP | A2A Protocol |
+| 绑定管理 | RelayBinding: Platform + ChatID → Bots | cc-connect |
+
+**新增**: A2A 风格的 Agent Card 和能力发现机制
+
+### Phase 2: Bot-to-Bot Relay（完整实现）
+
+| 功能 | 实现方式 | 借鉴来源 |
+|------|---------|---------|
+| 协议 | 复用 `bridgewire` WireMessage | HotPlex 现有 |
+| 传输 | HTTP POST 到目标 HotPlex 实例 | cc-connect |
+| 路由 | RelayBinding: Platform + ChatID → Bots | cc-connect |
+| 安全 | API Key 认证 + WAF 检查 | A2A Protocol |
+| 超时 | 可配置 timeout（默认 120s） | cc-connect |
+| 重试 | 指数退避（1s → 2s → 4s，最多 3 次） | NexFlow Pulse |
+| 状态追踪 | 任务状态回调 + 执行历史 | A2A + NexFlow |
 
 **关键决策**:
 - 不新建协议，复用 bridgewire 的 WireMessage
 - Relay 作为 Bridge 的扩展，而非独立系统
 - 目标 HotPlex 实例通过配置注册（URL + API Key）
+- **新增**: 执行历史 + 状态机（借鉴 A2A Protocol）
+
+---
+
+## 6.5 增强的 CronJob 结构（融合最佳实践）
+
+```go
+type CronJob struct {
+    // 核心字段
+    ID          string    `json:"id"`           // UUID
+    CronExpr    string    `json:"cron_expr"`   // 标准5字段cron
+    Prompt      string    `json:"prompt"`       // 自然语言任务描述
+    SessionKey  string    `json:"session_key"` // 目标会话
+    WorkDir     string    `json:"work_dir"`    // 工作目录
+
+    // 执行控制（借鉴 CrewAI）
+    Type        JobType   `json:"type"`        // light | medium | resource-intensive
+    TimeoutMins int       `json:"timeout_mins"`
+    Retries     int       `json:"retries"`      // 重试次数（默认 3）
+    RetryDelay  Duration  `json:"retry_delay"` // 初始重试延迟
+
+    // 输出格式化（借鉴 CrewAI）
+    OutputFormat OutputFormat `json:"output_format"` // text | json | structured
+    OutputSchema string       `json:"output_schema,omitempty"` // Pydantic JSON Schema
+
+    // 通知控制
+    Enabled     bool      `json:"enabled"`
+    Silent      bool      `json:"silent"`       // 不通知
+    NotifyOn    []Event   `json:"notify_on"`   // completed | failed | all
+
+    // 元数据
+    CreatedBy   string    `json:"created_by"`   // 用户标识
+    CreatedAt   time.Time `json:"created_at"`
+    LastRun     time.Time `json:"last_run,omitempty"`
+    LastError   string    `json:"last_error,omitempty"`
+    NextRun     time.Time `json:"next_run,omitempty"`
+    RunCount    int       `json:"run_count"`    // 执行次数
+
+    // Callback（借鉴 CrewAI）
+    OnComplete  string    `json:"on_complete,omitempty"` // Webhook 或内部 callback
+    OnFail      string    `json:"on_fail,omitempty"`
+}
+
+type JobType string
+const (
+    JobTypeLight             JobType = "light"
+    JobTypeMedium            JobType = "medium"
+    JobTypeResourceIntensive JobType = "resource-intensive"
+)
+
+type OutputFormat string
+const (
+    OutputFormatText       OutputFormat = "text"
+    OutputFormatJSON        OutputFormat = "json"
+    OutputFormatStructured  OutputFormat = "structured"
+)
+
+type Event string
+const (
+    EventCompleted Event = "completed"
+    EventFailed    Event = "failed"
+    EventCanceled  Event = "canceled"
+)
+```
+
+---
+
+## 6.6 增强的 Relay 结构（融合 A2A Protocol）
+
+```go
+// Agent Card（借鉴 A2A Protocol）
+type AgentCard struct {
+    Name        string       `json:"name"`
+    Provider    Provider     `json:"provider"`
+    URL         string       `json:"url"`          // Agent 服务端点
+    Capabilities Capabilities `json:"capabilities"`
+    Skills      []Skill      `json:"skills"`       // 可用技能列表
+    Security    []Security   `json:"security"`
+}
+
+type Capabilities struct {
+    Streaming          bool `json:"streaming"`
+    PushNotifications bool `json:"push_notifications"`
+}
+
+type Skill struct {
+    ID          string `json:"id"`
+    Name        string `json:"name"`
+    Description string `json:"description"`
+}
+
+// Relay Binding（借鉴 cc-connect）
+type RelayBinding struct {
+    Platform string            `json:"platform"`  // slack, feishu, ding
+    ChatID   string            `json:"chat_id"`   // Group Chat ID
+    Bots     map[string]string `json:"bots"`     // project → display_name
+}
+
+// Relay Message（借鉴 A2A Protocol）
+type RelayMessage struct {
+    TaskID     string    `json:"task_id"`     // 任务唯一 ID
+    From       string    `json:"from"`        // 发送方 Agent
+    To         string    `json:"to"`          // 目标 Agent
+    Content    string    `json:"content"`     // 消息内容
+    SessionKey string    `json:"session_key"` // 可选：指定 session
+    Metadata   string    `json:"metadata,omitempty"`
+    Status     string    `json:"status"`      // working | completed | failed | canceled
+    Response   string    `json:"response,omitempty"`
+    Error      string    `json:"error,omitempty"`
+    CreatedAt  time.Time `json:"created_at"`
+}
+```
 
 ---
 
