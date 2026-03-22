@@ -128,28 +128,32 @@ type PiToolExecutionEvent struct {
 // Compile-time interface verification.
 var _ Provider = (*PiProvider)(nil)
 
+// piProviderMeta is the shared metadata for Pi provider.
+// Defined once and reused by both NewPiProvider and piPlugin.Meta().
+var piProviderMeta = ProviderMeta{
+	Type:        ProviderTypePi,
+	DisplayName: "Pi (pi-coding-agent)",
+	BinaryName:  "pi",
+	InstallHint: "npm install -g @mariozechner/pi-coding-agent",
+	Features: ProviderFeatures{
+		SupportsResume:             true,
+		SupportsStreamJSON:         true,
+		SupportsSSE:                false,
+		SupportsHTTPAPI:            false,
+		SupportsSessionID:          true,
+		SupportsPermissions:        false,
+		MultiTurnReady:             true,
+		RequiresInitialPromptAsArg: true,
+	},
+}
+
 // NewPiProvider creates a new pi provider instance.
 func NewPiProvider(cfg ProviderConfig, logger *slog.Logger) (*PiProvider, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	meta := ProviderMeta{
-		Type:        ProviderTypePi,
-		DisplayName: "Pi (pi-coding-agent)",
-		BinaryName:  "pi",
-		InstallHint: "npm install -g @mariozechner/pi-coding-agent",
-		Features: ProviderFeatures{
-			SupportsResume:             true,
-			SupportsStreamJSON:         true,
-			SupportsSSE:                false,
-			SupportsHTTPAPI:            false,
-			SupportsSessionID:          true,
-			SupportsPermissions:        false,
-			MultiTurnReady:             true,
-			RequiresInitialPromptAsArg: true,
-		},
-	}
+	meta := piProviderMeta
 
 	// Resolve binary path using helper
 	binaryPath, err := ResolveBinaryPath(cfg, meta)
@@ -618,4 +622,23 @@ func (p *PiProvider) CleanupSession(providerSessionID string, workDir string) er
 // removeFile is a helper to remove a file.
 func removeFile(path string) error {
 	return os.Remove(path)
+}
+
+// piPlugin implements ProviderPlugin for Pi.
+type piPlugin struct{}
+
+func (p *piPlugin) Type() ProviderType {
+	return ProviderTypePi
+}
+
+func (p *piPlugin) New(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
+	return NewPiProvider(cfg, logger)
+}
+
+func (p *piPlugin) Meta() ProviderMeta {
+	return piProviderMeta
+}
+
+func init() {
+	RegisterPlugin(&piPlugin{})
 }

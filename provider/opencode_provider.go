@@ -66,28 +66,32 @@ type OpenCodeUsage struct {
 	OutputTokens int32 `json:"output_tokens,omitempty"`
 }
 
+// openCodeProviderMeta is the shared metadata for OpenCode provider.
+// Defined once and reused by both NewOpenCodeProvider and openCodePlugin.Meta().
+var openCodeProviderMeta = ProviderMeta{
+	Type:        ProviderTypeOpenCode,
+	DisplayName: "OpenCode",
+	BinaryName:  "opencode",
+	InstallHint: "npm install -g @opencode/cli",
+	Features: ProviderFeatures{
+		SupportsResume:             false,
+		SupportsStreamJSON:         false,
+		SupportsSSE:                true,
+		SupportsHTTPAPI:            true,
+		SupportsSessionID:          false,
+		SupportsPermissions:        true,
+		MultiTurnReady:             true,
+		RequiresInitialPromptAsArg: true,
+	},
+}
+
 // NewOpenCodeProvider creates a new OpenCode provider instance.
 func NewOpenCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*OpenCodeProvider, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	meta := ProviderMeta{
-		Type:        ProviderTypeOpenCode,
-		DisplayName: "OpenCode",
-		BinaryName:  "opencode",
-		InstallHint: "go install github.com/opencode-ai/opencode@latest",
-		Features: ProviderFeatures{
-			SupportsResume:             false,
-			SupportsStreamJSON:         false,
-			SupportsSSE:                true,
-			SupportsHTTPAPI:            true,
-			SupportsSessionID:          false,
-			SupportsPermissions:        true,
-			MultiTurnReady:             true,
-			RequiresInitialPromptAsArg: true,
-		},
-	}
+	meta := openCodeProviderMeta
 
 	// Resolve binary path using helper
 	binaryPath, err := ResolveBinaryPath(cfg, meta)
@@ -402,4 +406,23 @@ func (p *OpenCodeProvider) BuildHTTPCommand(prompt string, taskInstructions stri
 	}
 	// Escape quotes for shell
 	return strings.ReplaceAll(finalPrompt, "\"", "\\\"")
+}
+
+// openCodePlugin implements ProviderPlugin for OpenCode.
+type openCodePlugin struct{}
+
+func (p *openCodePlugin) Type() ProviderType {
+	return ProviderTypeOpenCode
+}
+
+func (p *openCodePlugin) New(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
+	return NewOpenCodeProvider(cfg, logger)
+}
+
+func (p *openCodePlugin) Meta() ProviderMeta {
+	return openCodeProviderMeta
+}
+
+func init() {
+	RegisterPlugin(&openCodePlugin{})
 }

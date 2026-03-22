@@ -58,27 +58,31 @@ type ClaudeCodeProvider struct {
 	promptBuilder *PromptBuilder
 }
 
+// claudeCodeProviderMeta is the shared metadata for Claude Code provider.
+// Defined once and reused by both NewClaudeCodeProvider and claudeCodePlugin.Meta().
+var claudeCodeProviderMeta = ProviderMeta{
+	Type:        ProviderTypeClaudeCode,
+	DisplayName: "Claude Code",
+	BinaryName:  "claude",
+	InstallHint: "npm install -g @anthropic-ai/claude-code",
+	Features: ProviderFeatures{
+		SupportsResume:      true,
+		SupportsStreamJSON:  true,
+		SupportsSSE:         false,
+		SupportsHTTPAPI:     false,
+		SupportsSessionID:   true,
+		SupportsPermissions: true,
+		MultiTurnReady:      true,
+	},
+}
+
 // NewClaudeCodeProvider creates a new Claude Code provider instance.
 func NewClaudeCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*ClaudeCodeProvider, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	meta := ProviderMeta{
-		Type:        ProviderTypeClaudeCode,
-		DisplayName: "Claude Code",
-		BinaryName:  "claude",
-		InstallHint: "npm install -g @anthropic-ai/claude-code",
-		Features: ProviderFeatures{
-			SupportsResume:      true,
-			SupportsStreamJSON:  true,
-			SupportsSSE:         false,
-			SupportsHTTPAPI:     false,
-			SupportsSessionID:   true,
-			SupportsPermissions: true,
-			MultiTurnReady:      true,
-		},
-	}
+	meta := claudeCodeProviderMeta
 
 	// Resolve binary path using helper
 	binaryPath, err := ResolveBinaryPath(cfg, meta)
@@ -667,4 +671,23 @@ func mergeStringSlices(base, overlay []string) []string {
 	}
 
 	return result
+}
+
+// claudeCodePlugin implements ProviderPlugin for Claude Code.
+type claudeCodePlugin struct{}
+
+func (p *claudeCodePlugin) Type() ProviderType {
+	return ProviderTypeClaudeCode
+}
+
+func (p *claudeCodePlugin) New(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
+	return NewClaudeCodeProvider(cfg, logger)
+}
+
+func (p *claudeCodePlugin) Meta() ProviderMeta {
+	return claudeCodeProviderMeta
+}
+
+func init() {
+	RegisterPlugin(&claudeCodePlugin{})
 }
