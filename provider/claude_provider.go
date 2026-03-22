@@ -58,27 +58,31 @@ type ClaudeCodeProvider struct {
 	promptBuilder *PromptBuilder
 }
 
+// claudeCodeProviderMeta is the shared metadata for Claude Code provider.
+// Defined once and reused by both NewClaudeCodeProvider and claudeCodePlugin.Meta().
+var claudeCodeProviderMeta = ProviderMeta{
+	Type:        ProviderTypeClaudeCode,
+	DisplayName: "Claude Code",
+	BinaryName:  "claude",
+	InstallHint: "npm install -g @anthropic-ai/claude-code",
+	Features: ProviderFeatures{
+		SupportsResume:      true,
+		SupportsStreamJSON:  true,
+		SupportsSSE:         false,
+		SupportsHTTPAPI:     false,
+		SupportsSessionID:   true,
+		SupportsPermissions: true,
+		MultiTurnReady:      true,
+	},
+}
+
 // NewClaudeCodeProvider creates a new Claude Code provider instance.
 func NewClaudeCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*ClaudeCodeProvider, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	meta := ProviderMeta{
-		Type:        ProviderTypeClaudeCode,
-		DisplayName: "Claude Code",
-		BinaryName:  "claude",
-		InstallHint: "npm install -g @anthropic-ai/claude-code",
-		Features: ProviderFeatures{
-			SupportsResume:      true,
-			SupportsStreamJSON:  true,
-			SupportsSSE:         false,
-			SupportsHTTPAPI:     false,
-			SupportsSessionID:   true,
-			SupportsPermissions: true,
-			MultiTurnReady:      true,
-		},
-	}
+	meta := claudeCodeProviderMeta
 
 	// Resolve binary path using helper
 	binaryPath, err := ResolveBinaryPath(cfg, meta)
@@ -681,21 +685,7 @@ func (p *claudeCodePlugin) New(cfg ProviderConfig, logger *slog.Logger) (Provide
 }
 
 func (p *claudeCodePlugin) Meta() ProviderMeta {
-	return ProviderMeta{
-		Type:        ProviderTypeClaudeCode,
-		DisplayName: "Claude Code",
-		BinaryName:  "claude",
-		InstallHint: "npm install -g @anthropic-ai/claude-code",
-		Features: ProviderFeatures{
-			SupportsResume:      true,
-			SupportsStreamJSON:  true,
-			SupportsSSE:         false,
-			SupportsHTTPAPI:     false,
-			SupportsSessionID:   true,
-			SupportsPermissions: true,
-			MultiTurnReady:      true,
-		},
-	}
+	return claudeCodeProviderMeta
 }
 
 func init() {
