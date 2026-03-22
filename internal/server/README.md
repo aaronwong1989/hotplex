@@ -14,6 +14,7 @@ This package provides the core HTTP and WebSocket handlers that bridge web clien
 | `HotPlexWebSocket` | Native WebSocket handler |
 | `OpenCodeHTTP` | OpenCode-compatible HTTP endpoints |
 | `Observability` | Metrics and health endpoints |
+| `BridgeServer` | WebSocket gateway for external platform adapters |
 
 ## Usage
 
@@ -40,12 +41,14 @@ err := ctrl.Execute(ctx, server.ExecutionRequest{
 | `/v1/execute` | POST | OpenCode-compatible execution |
 | `/health` | GET | Health check |
 | `/metrics` | GET | Prometheus metrics |
+| `/bridge/v1/{platform}` | WebSocket | External platform adapter gateway (BridgeServer) |
 
 ## Security
 
 - **Path Validation**: Prevents directory traversal attacks
 - **Timeout Enforcement**: All requests have configurable timeouts
 - **Input Sanitization**: WorkDir paths are validated
+- **BridgeServer Token Auth**: Bridge connections authenticated via `Authorization: Bearer <token>` header (or deprecated query param `?token=`). Configured via `bridge_token` in server YAML or `HOTPLEX_BRIDGE_TOKEN` env var.
 
 ## Files
 
@@ -56,3 +59,8 @@ err := ctrl.Execute(ctx, server.ExecutionRequest{
 | `opencode_http.go` | OpenCode HTTP compatibility |
 | `observability.go` | Metrics and health |
 | `security.go` | Security utilities |
+| `bridge.go` | BridgeServer WebSocket gateway for external platform adapters |
+
+## BridgeServer and External Adapters
+
+BridgeServer exposes `/bridge/v1/{platform}` as a WebSocket endpoint. External platform adapters (e.g., DingTalk, WeChat) connect as WebSocket clients and communicate via the Bridge Wire Protocol defined in `internal/bridgewire/`. See [BridgeClient](../cmd/bridge-client/README.md) for the corresponding client-side implementation and protocol reference.

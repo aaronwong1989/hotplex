@@ -207,17 +207,110 @@ func (p *PrivacyMasker) Process(ctx context.Context, msg *base.ChatMessage) (*ba
 }
 ```
 
-### 3. Integration into `setup.go`
+### 3. Auto-Registration via `AdapterFactory`
 
-Once implemented, register your adapter in `chatapps/setup.go`:
+Each platform adapter implements `base.AdapterFactory` and registers itself via `init()`. No modification to `setup.go` is required.
+
+#### The `AdapterFactory` Interface
 
 ```go
-// 1. Add to setupPlatform calls
-setupPlatform(ctx, "whatsapp", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
-    // return whatsapp.NewAdapter(...)
-})
+// In chatapps/base/plugin.go
+type AdapterFactory interface {
+    Platform() string                        // Unique platform name (e.g., "slack", "feishu")
+    RequiredEnvVars() []string               // Env vars that must be present for this platform
+    New(pc *PlatformConfig) any              // Instantiate the adapter (returns nil if credentials missing)
+    PostSetup(ctx context.Context, adapter, setupCtx any) // Post-initialization hook
+}
+```
 
-// 2. Ensure credentials are in .env or config.yaml
+#### Phase A+: Implement the Factory
+
+```go
+// chatapps/whatsapp/factory.go
+package whatsapp
+
+type AdapterFactory struct{}
+
+var _ base.AdapterFactory = (*AdapterFactory)(nil) // Compile-time compliance check
+
+func (f *AdapterFactory) Platform() string { return "whatsapp" }
+
+func (f *AdapterFactory) RequiredEnvVars() []string {
+    return []string{"HOTPLEX_WHATSAPP_PHONE_NUMBER_ID"}
+}
+
+func (f *AdapterFactory) New(pc *base.PlatformConfig) any {
+    phoneID := os.Getenv("HOTPLEX_WHATSAPP_PHONE_NUMBER_ID")
+    if phoneID == "" {
+        return nil // Credentials absent — skip silently
+    }
+    config := &Config{
+        PhoneNumberID: phoneID,
+        AccessToken:   os.Getenv("HOTPLEX_WHATSAPP_ACCESS_TOKEN"),
+        VerifyToken:   os.Getenv("HOTPLEX_WHATSAPP_VERIFY_TOKEN"),
+    }
+    // Apply YAML config overrides if pc is provided ...
+    return NewAdapter(config, slog.Default())
+}
+
+// PostSetup is optional; implement only if the adapter needs a post-init step
+// (e.g., Slack uses it to publish AppHome capabilities).
+func (f *AdapterFactory) PostSetup(_ context.Context, _, _ any) {}
+
+// ✅ Self-registration — runs automatically when this package is imported
+func init() {
+    base.GlobalAdapterRegistry().Register(&AdapterFactory{})
+}
+```
+
+#### How It Works
+
+`setup.go` uses `base.GlobalAdapterRegistry()` to auto-discover all registered platforms at runtime:
+
+```go
+// chatapps/setup.go
+registry := base.GlobalAdapterRegistry()
+for _, platform := range registry.List() {
+    factory, _ := registry.Get(platform)
+    setupPlatform(ctx, factory, loader, manager, logger)
+}
+```
+
+**Adding a new platform adapter requires zero changes to `setup.go`** — it is discovered automatically as long as its package is imported somewhere in the application (e.g., via a blank import in `chatapps/whatsapp/whatsapp.go`).
+
+#### Webhook Registration (Phase B)
+
+Implement `base.WebhookProvider` in your adapter to automatically route webhook events:
+
+```go
+func (a *WhatsAppAdapter) WebhookHandler() http.Handler {
+    mux := http.NewServeMux()
+    mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+        // 1. Parse signature & event
+        // 2. Convert to base.ChatMessage
+        // 3. Call a.HandleMessage(r.Context(), normalizedMsg)
+    })
+    return mux
+}
+```
+
+The router in `setup.go` mounts all `WebhookProvider` adapters under `/webhook/<platform>/` automatically.
+
+#### Phase C: Advanced UI & Resiliency
+
+Implement these optional interfaces to provide a premium experience:
+
+-   **`base.StatusProvider`**: Handles "Thinking..." or "Running tool X..." visual indicators.
+-   **`base.MessageOperations`**: Supports updating/deleting existing messages (critical for streaming and UI updates).
+-   **`base.StreamWriter`**: A standard `io.Writer` interface for real-time token streaming.
+
+#### Phase D: Storage & Session Support
+
+Enable conversational persistence by implementing these hooks:
+
+```go
+func (a *WhatsAppAdapter) SetMessageStore(s *base.MessageStorePlugin) { a.store = s }
+func (a *WhatsAppAdapter) SetSessionManager(m session.SessionManager) { a.sess = m }
 ```
 
 ---
