@@ -86,16 +86,16 @@ Download from [Releases](https://github.com/hrygo/hotplex/releases):
 
 ```bash
 # Linux amd64
-curl -LO https://github.com/hrygo/hotplex/releases/download/v0.30.0/hotplex_0.30.0_linux_amd64.tar.gz
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.33.0/hotplex_0.33.0_linux_amd64.tar.gz
 
 # macOS arm64 (Apple Silicon)
-curl -LO https://github.com/hrygo/hotplex/releases/download/v0.30.0/hotplex_0.30.0_darwin_arm64.tar.gz
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.33.0/hotplex_0.33.0_darwin_arm64.tar.gz
 ```
 
 ### 2. Extract and Install
 
 ```bash
-tar -xzf hotplex_0.30.0_linux_amd64.tar.gz
+tar -xzf hotplex_0.33.0_linux_amd64.tar.gz
 sudo mv hotplexd /usr/local/bin/
 sudo chmod +x /usr/local/bin/hotplexd
 ```

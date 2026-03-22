@@ -46,9 +46,9 @@
 
 ## Configuration
 
-### Unified Configuration System (v0.30.0+)
+### Unified Configuration System (v0.33.0+)
 
-HotPlex v0.30.0 introduces a unified configuration system with:
+HotPlex v0.33.0 introduces a unified configuration system with:
 - **Instance Isolation**: Per-bot config directories for multi-bot deployments
 - **Configuration Inheritance**: Base templates with `inherits` for multi-environment setups
 - **Admin Bot Support**: Separate admin configurations in `configs/admin/`
@@ -316,7 +316,7 @@ Response:
 ```json
 {
   "status": "healthy",
-  "version": "v0.30.0",
+  "version": "v0.33.0",
   "uptime": "24h30m",
   "active_sessions": 42
 }

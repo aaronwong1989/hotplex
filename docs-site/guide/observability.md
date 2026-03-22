@@ -37,5 +37,5 @@ HotPlex is designed to play well with the modern observability stack:
 
 ```bash
 # Export traces to an OTLP collector
-hotplexd run --otel-endpoint "otel.internal.yourcorp.com:4317"
+hotplexd start --otel-endpoint "otel.internal.yourcorp.com:4317"
 ```

@@ -36,7 +36,7 @@ HotPlex uses a layered configuration system with the following priority (highest
 | **`.env`**     | Global parameters, bot credentials, secrets, persistence config |
 | **YAML files** | Platform behavior, permissions, features, AI prompts            |
 
-### Configuration Directory Structure (v0.30.0+)
+### Configuration Directory Structure (v0.33.0+)
 
 ```
 configs/
@@ -159,7 +159,7 @@ configs/
 ```yaml
 # configs/base/slack.yaml
 
-# [Required] Inherit from base configuration (v0.30.0+)
+# [Required] Inherit from base configuration (v0.33.0+)
 inherits: null  # or path to parent config
 
 # [Required] Platform identifier
@@ -276,7 +276,7 @@ If an environment variable is not set, it will be replaced with an empty string.
 
 ## Configuration Inheritance
 
-HotPlex v0.30.0+ introduces a unified configuration system with inheritance support. This allows you to extend base configurations while customizing only what you need.
+HotPlex v0.33.0+ introduces a unified configuration system with inheritance support. This allows you to extend base configurations while customizing only what you need.
 
 ### The `inherits` Field
 

@@ -35,9 +35,9 @@ HotPlex 使用分层配置系统，优先级从高到低：
 
 ---
 
-## 配置继承 (v0.30.0+)
+## 配置继承 (v0.33.0+)
 
-HotPlex v0.30.0+ 引入了统一配置系统，支持配置继承。
+HotPlex v0.33.0+ 引入了统一配置系统，支持配置继承。
 
 ### 继承字段
 
@@ -105,7 +105,7 @@ configs/
 
 ---
 
-## 角色模板 (v0.30.0+)
+## 角色模板 (v0.33.0+)
 
 预定义的角色配置模板，位于 `configs/templates/roles/`：
 
@@ -128,7 +128,7 @@ inherits: ../templates/roles/go.yaml
 
 ---
 
-## Admin 机器人配置 (v0.30.0+)
+## Admin 机器人配置 (v0.33.0+)
 
 Admin 机器人配置位于 `configs/admin/`，继承自 `configs/base/`：
 

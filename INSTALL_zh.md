@@ -90,16 +90,16 @@ curl -sL https://raw.githubusercontent.com/hrygo/hotplex/main/install.sh | bash 
 
 ```bash
 # Linux amd64
-curl -LO https://github.com/hrygo/hotplex/releases/download/v0.30.0/hotplex_0.30.0_linux_amd64.tar.gz
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.33.0/hotplex_0.33.0_linux_amd64.tar.gz
 
 # macOS arm64 (Apple Silicon)
-curl -LO https://github.com/hrygo/hotplex/releases/download/v0.30.0/hotplex_0.30.0_darwin_arm64.tar.gz
+curl -LO https://github.com/hrygo/hotplex/releases/download/v0.33.0/hotplex_0.33.0_darwin_arm64.tar.gz
 ```
 
 ### 2. 解压并安装
 
 ```bash
-tar -xzf hotplex_0.30.0_linux_amd64.tar.gz
+tar -xzf hotplex_0.33.0_linux_amd64.tar.gz
 sudo mv hotplexd /usr/local/bin/
 sudo chmod +x /usr/local/bin/hotplexd
 ```

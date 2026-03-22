@@ -12,8 +12,8 @@ var (
 	// Version can be overridden via ldflags: -X github.com/hrygo/hotplex.Version=1.2.3
 	Version      = "0.33.0"
 	VersionMajor = 0
-	VersionMinor = 32
-	VersionPatch = 2
+	VersionMinor = 33
+	VersionPatch = 0
 )
 
 // Compile-time interface verification
