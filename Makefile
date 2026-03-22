@@ -640,6 +640,7 @@ docker-sync: docker-prepare ## @docker Sync configs to all Docker instances
 			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/sessions; \
 			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/storage; \
 			printf "  ${CYAN}→${NC} Syncing ${BOLD}$$ID${NC} (bot-$$BOT_NUM)...\n"; \
+			cp "$$f" "$(HOME_DIR)/.hotplex/instances/$$ID/.env"; \
 			cp -r configs/base/* "$$INSTANCE_DIR/base/"; \
 			if [ -d "docker/matrix/configs/bot-$$BOT_NUM" ]; then \
 				cp docker/matrix/configs/bot-$$BOT_NUM/*.yaml "$$INSTANCE_DIR/" 2>/dev/null || true; \
