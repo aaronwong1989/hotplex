@@ -512,11 +512,13 @@ func (bp *BridgePlatform) SendMessage(ctx context.Context, sessionID string, msg
 	if msg == nil {
 		return nil
 	}
+	wm, _ := bp.buildWireMessage(msg)
+	return bp.writeJSON(wm)
+}
 
-	// Build wire metadata
-	meta := WireMetadata{
-		Platform: "hotplex",
-	}
+// buildWireMessage builds a Bridge WireMessage from a ChatMessage.
+func (bp *BridgePlatform) buildWireMessage(msg *base.ChatMessage) (*WireMessage, []byte) {
+	meta := WireMetadata{Platform: "hotplex"}
 	if msg.Metadata != nil {
 		if v, ok := msg.Metadata[base.KeyRoomID].(string); ok {
 			meta.RoomID = v
@@ -530,23 +532,20 @@ func (bp *BridgePlatform) SendMessage(ctx context.Context, sessionID string, msg
 	}
 	metaBytes, _ := json.Marshal(meta)
 
-	// Resolve session key
+	sessionKey := msg.SessionID
 	bp.mu.RLock()
-	sessionKey := sessionID
-	if sk, ok := bp.sessionMap[sessionID]; ok {
+	if sk, ok := bp.sessionMap[msg.SessionID]; ok {
 		sessionKey = sk
 	}
 	bp.mu.RUnlock()
 
-	wm := &WireMessage{
+	return &WireMessage{
 		Type:       BridgeMsgTypeMessage,
 		Platform:   "hotplex",
 		SessionKey: sessionKey,
 		Content:    msg.Content,
 		Metadata:   metaBytes,
-	}
-
-	return bp.writeJSON(wm)
+	}, metaBytes
 }
 
 // HandleMessage is not used for bridge platforms (they receive via WebSocket).
