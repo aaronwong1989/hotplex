@@ -1,5 +1,28 @@
 # CHANGELOG.md
 
+## [v0.33.0] - 2026-03-22
+
+### Features
+- **Agent** - Add comprehensive GitHub issue management skill (hotplex-issue-master):
+  - Automated labeling with ML-based priority detection
+  - Lifecycle management and duplicate detection
+  - GitHub Actions workflow for issue triage
+  - Label management scripts and documentation
+- **Agent** - Add comprehensive GitHub PR management skill (hotplex-pr-master):
+  - Automated PR labeling with review state tracking
+  - CI/CD monitoring and conflict detection
+  - Incremental management and batch operations
+- **CI** - Add issue-triage workflow for automatic labeling on opened/edited issues
+
+### Bug Fixes
+- **ChatApps** - Fix status display overwrite issue (see v0.32.2)
+
+### Maintenance
+- **Scripts** - Remove obsolete verification and test scripts
+
+### Documentation
+- **GitHub** - Add comprehensive GitHub labels documentation
+
 ## [v0.32.2] - 2026-03-22
 
 ### Features
