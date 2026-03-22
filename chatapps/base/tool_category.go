@@ -32,26 +32,26 @@ const (
 // Status label templates for internationalization support.
 // These can be replaced with i18n lookup in the future.
 var (
-	StatusLabelFileRead    = "📄 正在读取文件 [%s]..."
-	StatusLabelFileWrite   = "📝 正在写入文件 [%s]..."
-	StatusLabelFileEdit    = "✂️ 正在编辑文件 [%s]..."
-	StatusLabelBash        = "⚡ 正在执行命令 [%s]..."
-	StatusLabelSearch      = "🔍 正在搜索 [%s]..."
-	StatusLabelWebFetch    = "🔗 正在请求网络 [%s]..."
-	StatusLabelList        = "📋 正在列出文件 [%s]..."
-	StatusLabelAgent       = "🎯 正在委派任务 [%s]..."
-	StatusLabelSkill       = "🧩 正在调用技能 [%s]..."
-	StatusLabelNotebook    = "📊 正在操作笔记本 [%s]..."
-	StatusLabelGit         = "🐙 正在操作 GitHub [%s]..."
-	StatusLabelTest        = "✅ 正在运行测试 [%s]..."
-	StatusLabelDebug       = "🔧 正在调试 [%s]..."
-	StatusLabelBrowser     = "🌎 正在浏览网页 [%s]..."
-	StatusLabelAPI         = "📡 正在调用API [%s]..."
-	StatusLabelDatabase    = "🗄 正在查询数据 [%s]..."
-	StatusLabelThink       = "🧠 正在思考分析 [%s]..."
-	StatusLabelLSP         = "💡 正在分析代码 [%s]..."
-	StatusLabelSchedule    = "⏰ 正在调度任务 [%s]..."
-	StatusLabelUnknown     = "⚙️ 正在执行 [%s]..."
+	StatusLabelFileRead    = "📄 正在读取文件 [%s]"
+	StatusLabelFileWrite   = "📝 正在写入文件 [%s]"
+	StatusLabelFileEdit    = "✂️ 正在编辑文件 [%s]"
+	StatusLabelBash        = "⚡ 正在执行命令 [%s]"
+	StatusLabelSearch      = "🔍 正在搜索 [%s]"
+	StatusLabelWebFetch    = "🔗 正在请求网络 [%s]"
+	StatusLabelList        = "📋 正在列出文件 [%s]"
+	StatusLabelAgent       = "🎯 正在委派任务 [%s]"
+	StatusLabelSkill       = "🧩 正在调用技能 [%s]"
+	StatusLabelNotebook    = "📊 正在操作笔记本 [%s]"
+	StatusLabelGit         = "🐙 正在操作 GitHub [%s]"
+	StatusLabelTest        = "✅ 正在运行测试 [%s]"
+	StatusLabelDebug       = "🔧 正在调试 [%s]"
+	StatusLabelBrowser     = "🌎 正在浏览网页 [%s]"
+	StatusLabelAPI         = "📡 正在调用API [%s]"
+	StatusLabelDatabase    = "🗄 正在查询数据 [%s]"
+	StatusLabelThink       = "🧠 正在思考分析 [%s]"
+	StatusLabelLSP         = "💡 正在分析代码 [%s]"
+	StatusLabelSchedule    = "⏰ 正在调度任务 [%s]"
+	StatusLabelUnknown     = "⚙️ 正在执行 [%s]"
 	StatusLabelUnknownTool = "未知工具"
 )
 
@@ -179,7 +179,7 @@ func CategoryEmoji(cat ToolCategory) string {
 }
 
 // CategoryStatusLabel returns the status label template for a tool category.
-// Template format: "<emoji> <action> [%s]..." where %s is replaced by tool name.
+// Template format: "<emoji> <action> [%s]" where %s is replaced by tool name.
 func CategoryStatusLabel(cat ToolCategory) string {
 	if meta, ok := categoryMetadata[cat]; ok {
 		return *meta.statusLabel
