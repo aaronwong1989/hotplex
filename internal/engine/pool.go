@@ -307,6 +307,16 @@ func (sm *SessionPool) cleanupSessionLocked(sessionID string) error {
 	// Force kill if needed (pass jobHandle for Windows Job Object termination)
 	sys.KillProcessGroup(sess.cmd, sess.jobHandle)
 
+	// Synchronously reap the zombie process so the OS process-table entry is
+	// cleared before this function returns. Without this, the zombie persists
+	// until the SafeGo deferred cleanup runs asynchronously (after this function
+	// returns), causing "already in use" errors when the next startSession
+	// attempt reuses the same providerSessionID. cmd.Wait() is safe to call
+	// multiple times (subsequent calls return immediately after the first).
+	if sess.cmd != nil {
+		_ = sess.cmd.Wait() //nolint:errcheck
+	}
+
 	return nil
 }
 
