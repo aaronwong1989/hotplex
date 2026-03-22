@@ -2,6 +2,7 @@ package slack
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
+	"github.com/stretchr/testify/assert"
 )
 
 // generateSignature creates a valid Slack signature for testing
@@ -613,4 +615,29 @@ func TestIsSupportedCommand(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProbeAssistantCapability(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ctx := context.Background()
+
+	t.Run("AssistantAPIEnabled_false_skips", func(t *testing.T) {
+		a := NewAdapter(&Config{
+			BotToken:           "xoxb-test",
+			AppToken:           "xapp-test",
+			AssistantAPIEnabled: func() *bool { v := false; return &v }(),
+		}, logger, base.WithoutServer())
+		result := a.ProbeAssistantCapability(ctx)
+		assert.False(t, result, "should return false when AssistantAPIEnabled=false")
+	})
+
+	t.Run("nil_client_returns_false", func(t *testing.T) {
+		// AssistantAPIEnabled defaults to true but client is nil
+		a := NewAdapter(&Config{
+			BotToken: "xoxb-test",
+			AppToken: "xapp-test",
+		}, logger, base.WithoutServer())
+		result := a.ProbeAssistantCapability(ctx)
+		assert.False(t, result, "should return false when client is nil")
+	})
 }

@@ -154,6 +154,11 @@ type Config struct {
 	// AppHome configuration for the Capability Center (optional)
 	// When enabled, provides a form-based interface in Slack App Home tab
 	AppHome *AppHomeConfig `yaml:"apphome"`
+
+	// AssistantAPIEnabled controls whether to attempt native Assistant API first.
+	// When true (default): probe capability at startup, fall back to emoji if unavailable.
+	// When false: always use emoji reaction fallback.
+	AssistantAPIEnabled *bool `yaml:"assistant_api_enabled"`
 }
 
 // AppHomeConfig holds configuration for the Slack App Home Capability Center.

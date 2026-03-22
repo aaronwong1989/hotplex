@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -407,21 +408,75 @@ func (a *Adapter) SetAssistantStatus(ctx context.Context, channelID, threadTS, s
 	return err
 }
 
-// SetStatus implements base.StatusProvider
-// Exclusively uses native Slack Assistant Status API. No fallback.
+// SetStatus implements base.StatusProvider.
+// Tries native Assistant API first (if capable), falls back to emoji reactions.
 func (a *Adapter) SetStatus(ctx context.Context, channelID, threadTS string, status base.StatusType, text string) error {
 	if a.client == nil {
 		return fmt.Errorf("slack client not initialized")
 	}
-	return a.SetAssistantStatus(ctx, channelID, threadTS, text)
+
+	// Try native Assistant API if capable
+	if a.isAssistantCapable.Load() {
+		err := a.SetAssistantStatus(ctx, channelID, threadTS, text)
+		if err == nil {
+			return nil
+		}
+		// If it's a capability error, fall back to emoji
+		if isAssistantCapabilityError(err) {
+			a.Logger().Warn("Assistant API no longer available, switching to emoji fallback",
+				slog.String("error", err.Error()))
+			a.isAssistantCapable.Store(false) // Don't retry native API
+		} else {
+			// Other error - still try fallback
+			a.Logger().Debug("Assistant API call failed, trying emoji fallback",
+				slog.String("error", err.Error()))
+		}
+	}
+
+	// Fallback: use emoji reactions
+	return a.setStatusWithEmojiFallback(ctx, channelID, threadTS, status)
 }
 
-// ClearStatus implements base.StatusProvider
+// setStatusWithEmojiFallback uses emoji reactions as status indicator.
+// This is used when Assistant API is not available (e.g., Free workspace).
+func (a *Adapter) setStatusWithEmojiFallback(ctx context.Context, channelID, threadTS string, status base.StatusType) error {
+	emoji, ok := base.StatusEmojiMap[status]
+	if !ok || emoji == "" {
+		return nil // No emoji for this status
+	}
+
+	// For status feedback, we need a message to react to.
+	// If threadTS is empty, we can't react - skip
+	if threadTS == "" {
+		a.Logger().Debug("No thread_ts for emoji fallback, skipping")
+		return nil
+	}
+
+	return a.client.AddReactionContext(ctx, emoji, slack.ItemRef{
+		Channel:   channelID,
+		Timestamp: threadTS,
+	})
+}
+
+// ClearStatus implements base.StatusProvider.
 func (a *Adapter) ClearStatus(ctx context.Context, channelID, threadTS string) error {
 	if a.client == nil {
 		return fmt.Errorf("slack client not initialized")
 	}
-	return a.SetAssistantStatus(ctx, channelID, threadTS, "")
+
+	if a.isAssistantCapable.Load() {
+		err := a.SetAssistantStatus(ctx, channelID, threadTS, "")
+		if err == nil {
+			return nil
+		}
+		if isAssistantCapabilityError(err) {
+			a.isAssistantCapable.Store(false)
+		}
+		// Other errors: fall through to no-op
+	}
+
+	// Fallback: no-op. Emoji reactions don't need explicit clearing.
+	return nil
 }
 
 // StartStream starts a native streaming message and returns message_ts as anchor for subsequent updates

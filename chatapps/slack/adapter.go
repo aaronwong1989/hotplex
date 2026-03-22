@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hrygo/hotplex/brain"
@@ -72,6 +73,11 @@ type Adapter struct {
 	socketModeCancel  context.CancelFunc // Socket Mode cancel function
 	socketModeRunning bool               // Whether Socket Mode is running
 	socketModeMu      sync.Mutex         // Protects socketModeRunning
+
+	// isAssistantCapable indicates if the workspace supports Assistant API (paid plan).
+	// Probed once at startup via ProbeAssistantCapability.
+	// Uses atomic.Bool for thread-safe concurrent access.
+	isAssistantCapable atomic.Bool
 }
 
 // Compile-time check: ensure Adapter implements StatusProvider
@@ -174,6 +180,19 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 			"ttl", config.GetThreadOwnershipTTL(),
 			"persist", persist)
 	}
+
+	// Probe assistant capability at startup (async, non-blocking)
+	go func() {
+		probeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		capable := a.ProbeAssistantCapability(probeCtx)
+		a.isAssistantCapable.Store(capable)
+		if capable {
+			a.Logger().Info("Assistant API capability confirmed (paid workspace)")
+		} else {
+			a.Logger().Info("Assistant API not available, using emoji reaction fallback")
+		}
+	}()
 
 	return a
 }
@@ -787,6 +806,52 @@ func (a *Adapter) ClaimThreadOwnership(channelID, threadTS string) {
 	}
 	threadKey := NewThreadKey(channelID, threadTS)
 	a.ownershipTracker.Claim(threadKey)
+}
+
+// ProbeAssistantCapability attempts a lightweight Assistant API call to determine
+// if the workspace supports it. Returns true if native Assistant API is available.
+//
+// Behavior:
+//   - AssistantAPIEnabled is true (default): probe capability; fall back to emoji on not_allowed
+//   - AssistantAPIEnabled is false: skip probe, always use emoji
+//   - client is nil: skip probe, always use emoji
+func (a *Adapter) ProbeAssistantCapability(ctx context.Context) bool {
+	if !BoolValue(a.config.AssistantAPIEnabled, true) {
+		a.Logger().Debug("Assistant API disabled via config, using emoji fallback")
+		return false
+	}
+
+	if a.client == nil {
+		a.Logger().Debug("No Slack client, using emoji fallback")
+		return false
+	}
+
+	// Attempt a no-op status call to probe capability
+	params := slack.AssistantThreadsSetStatusParameters{Status: ""}
+	err := a.client.SetAssistantThreadsStatusContext(ctx, params)
+	if err != nil {
+		if isAssistantCapabilityError(err) {
+			a.Logger().Warn("Assistant API not available (free workspace?), falling back to emoji reactions",
+				slog.String("error", err.Error()))
+			return false
+		}
+		// Other errors may be transient; treat as capable so runtime retries
+		a.Logger().Warn("Assistant API probe returned unexpected error, treating as capable",
+			slog.String("error", err.Error()))
+		return true
+	}
+	return true
+}
+
+// isAssistantCapabilityError returns true if the error indicates the Assistant API
+// is not available for this workspace (e.g., free workspace).
+func isAssistantCapabilityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "not_allowed") ||
+		strings.Contains(errStr, "not_allowed_token_type")
 }
 
 // stripBotMention removes bot mention from text
