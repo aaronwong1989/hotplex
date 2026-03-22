@@ -619,3 +619,37 @@ func (p *PiProvider) CleanupSession(providerSessionID string, workDir string) er
 func removeFile(path string) error {
 	return os.Remove(path)
 }
+
+// piPlugin implements ProviderPlugin for Pi.
+type piPlugin struct{}
+
+func (p *piPlugin) Type() ProviderType {
+	return ProviderTypePi
+}
+
+func (p *piPlugin) New(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
+	return NewPiProvider(cfg, logger)
+}
+
+func (p *piPlugin) Meta() ProviderMeta {
+	return ProviderMeta{
+		Type:        ProviderTypePi,
+		DisplayName: "Pi (pi-coding-agent)",
+		BinaryName:  "pi",
+		InstallHint: "npm install -g @mariozechner/pi-coding-agent",
+		Features: ProviderFeatures{
+			SupportsResume:             true,
+			SupportsStreamJSON:         true,
+			SupportsSSE:                false,
+			SupportsHTTPAPI:            false,
+			SupportsSessionID:          true,
+			SupportsPermissions:        false,
+			MultiTurnReady:             true,
+			RequiresInitialPromptAsArg: true,
+		},
+	}
+}
+
+func init() {
+	RegisterPlugin(&piPlugin{})
+}

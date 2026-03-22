@@ -43,18 +43,11 @@ func NewProviderFactory(logger *slog.Logger) *ProviderFactory {
 		logger:   logger,
 	}
 
-	// Register built-in providers
-	f.Register(ProviderTypeClaudeCode, func(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
-		return NewClaudeCodeProvider(cfg, logger)
-	})
-
-	f.Register(ProviderTypeOpenCode, func(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
-		return NewOpenCodeProvider(cfg, logger)
-	})
-
-	f.Register(ProviderTypePi, func(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
-		return NewPiProvider(cfg, logger)
-	})
+	// Register all plugins from the global registry (populated via init() by each provider)
+	// This replaces the previous manual registration approach.
+	for _, p := range globalPluginRegistry.plugins {
+		f.registerPlugin(p)
+	}
 
 	return f
 }
