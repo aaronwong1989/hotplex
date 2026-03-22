@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,7 +38,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		{"Configuration Files", checkConfigFiles},
 		{"Environment Variables", checkEnvVars},
 		{"Port Availability (8080)", checkPortAvailable("8080")},
-		{"Port Availability (9080)", checkPortAvailable("9080")},
+		{"Admin API Health (9080)", checkAdminAPIHealth},
 		{"Database (SQLite)", checkDatabase},
 	}
 
@@ -146,4 +148,43 @@ func checkDatabase() (bool, string) {
 	}
 
 	return true, "database accessible"
+}
+
+// checkAdminAPIHealth verifies the Admin API server is responding.
+// Unlike checkPortAvailable which only tests port reachability, this makes
+// an actual HTTP request to confirm the Admin API is operational.
+func checkAdminAPIHealth() (bool, string) {
+	adminPort := os.Getenv("HOTPLEX_ADMIN_PORT")
+	if adminPort == "" {
+		adminPort = "9080"
+	}
+
+	url := "http://localhost:" + adminPort + "/admin/v1/health"
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false, "failed to create request"
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// Provide actionable diagnostics based on error type
+		if strings.Contains(err.Error(), "connection refused") {
+			return false, "connection refused — is the daemon running? (hotplexd start)"
+		}
+		if strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "timeout") {
+			return false, "timeout — daemon may still be starting, try again shortly"
+		}
+		return false, "request failed: " + err.Error()
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 200))
+		return false, fmt.Sprintf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return true, "Admin API is healthy"
 }
