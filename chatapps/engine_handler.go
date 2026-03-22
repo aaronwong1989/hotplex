@@ -745,15 +745,15 @@ func (c *StreamCallback) handleToolUse(data any) error {
 	category := base.CategorizeTool(toolName)
 	baseLabel := fmt.Sprintf(base.CategoryStatusLabel(category), toolName)
 
-	// Enhance status with context (target: ~50 chars)
+	// Enhance status with context (target: ~90 chars total)
 	var statusText string
 	if filePath != "" {
 		// Truncate file path to avoid excessive length
-		displayPath := strutil.Truncate(filePath, 30)
+		displayPath := strutil.Truncate(filePath, 50)
 		statusText = fmt.Sprintf("%s: %s", baseLabel, displayPath)
 	} else if inputSummary != "" {
-		// Truncate input summary to ~25 chars
-		displaySummary := strutil.Truncate(inputSummary, 25)
+		// Truncate input summary to ~50 chars
+		displaySummary := strutil.Truncate(inputSummary, 50)
 		statusText = fmt.Sprintf("%s: %s", baseLabel, displaySummary)
 	} else {
 		statusText = baseLabel
@@ -822,15 +822,15 @@ func (c *StreamCallback) handleToolResult(data any) error {
 		// Build base success message
 		baseMsg := fmt.Sprintf("%s 完成执行 [%s]", emoji, toolName)
 
-		// Add context info (target: ~50 chars total)
+		// Add context info (target: ~85 chars total)
 		var contextInfo string
 		if lineCount > 0 && filePath != "" {
 			// File edit context: show line count
-			displayPath := strutil.Truncate(filePath, 20)
+			displayPath := strutil.Truncate(filePath, 50)
 			contextInfo = fmt.Sprintf(" (%d行, %s)", lineCount, displayPath)
 		} else if outputSummary != "" {
-			// Output summary context: truncate to ~25 chars
-			displaySummary := strutil.Truncate(outputSummary, 25)
+			// Output summary context: truncate to ~50 chars
+			displaySummary := strutil.Truncate(outputSummary, 50)
 			contextInfo = fmt.Sprintf(": %s", displaySummary)
 		} else if durationMs > 0 {
 			// Duration context
