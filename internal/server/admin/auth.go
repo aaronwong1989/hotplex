@@ -8,9 +8,16 @@ import (
 
 // AdminAuthMiddleware creates an HTTP middleware that validates the X-Admin-Key header.
 // It uses constant-time comparison to prevent timing attacks.
+// If adminKey is empty, authentication is bypassed (no auth required).
 func AdminAuthMiddleware(adminKey string, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Skip auth if no admin key is configured
+			if adminKey == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			key := r.Header.Get("X-Admin-Key")
 
 			// Empty key check
