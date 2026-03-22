@@ -1,5 +1,20 @@
 # CHANGELOG.md
 
+## [v0.33.1] - 2026-03-22
+
+### Features
+- feat(agent): add hotplex-doc-sync skill for documentation consistency (Refs #)
+
+### Bug Fixes
+- fix(docs): sync all documentation to v0.33.0
+- fix(ci): add should_build condition to build-artifacts job
+
+### Maintenance
+- chore(chatapps): update Git status label emoji
+- chore(chatapps/base): update tests to match current Git emoji and label
+- chore: add doc-sync workspace to gitignore
+- Makefile: improve install target with explicit build and copy steps
+
 ## [v0.33.0] - 2026-03-22
 
 ### Features

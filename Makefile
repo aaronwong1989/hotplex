@@ -61,7 +61,7 @@ NC            := $(shell printf '\033[0m')
 BINARY_NAME   := hotplexd
 CMD_PATH      := ./cmd/hotplexd
 DIST_DIR      := dist
-VERSION       ?= 0.33.0
+VERSION       ?= 0.33.1
 COMMIT        ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -131,9 +131,12 @@ build: fmt vet tidy ## @build Compile the hotplexd daemon
 # =============================================================================
 # 🔧 INSTALL
 # =============================================================================
-install: build config-info ## @runtime Install and run with config info
-	@printf "${PURPLE}🔥 Starting HotPlex Daemon...${NC}\n"
-	@./$(DIST_DIR)/$(BINARY_NAME)
+install: config-info ## @runtime Build and install hotplexd to /usr/local/bin
+	@printf "${PURPLE}📦 Building HotPlex Daemon...${NC}\n"
+	go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_PATH)
+	@printf "${PURPLE}📦 Installing to /usr/local/bin...${NC}\n"
+	cp $(DIST_DIR)/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
+	@printf "${GREEN}✅ Installed: /usr/local/bin/hotplexd${NC}\n"
 
 config-info: ## @util Display current configuration status
 	@printf "\n${BOLD}${CYAN}╭─ 🔧 Configuration Files ─────────────────────────────${NC}\n"
