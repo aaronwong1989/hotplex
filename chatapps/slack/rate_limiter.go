@@ -28,6 +28,7 @@ type SlashCommandRateLimiter struct {
 	rate     rate.Limit
 	burst    int
 	done     chan struct{} // Signal to stop cleanup goroutine
+	stopOnce sync.Once     // Prevent double-close panic
 }
 
 // NewSlashCommandRateLimiter creates a new rate limiter with default settings
@@ -61,8 +62,11 @@ func NewSlashCommandRateLimiterWithConfig(rps float64, burst int) *SlashCommandR
 }
 
 // Stop gracefully stops the rate limiter cleanup goroutine
+// It is safe to call multiple times.
 func (r *SlashCommandRateLimiter) Stop() {
-	close(r.done)
+	r.stopOnce.Do(func() {
+		close(r.done)
+	})
 }
 
 // Allow checks if a request from the given user is allowed
