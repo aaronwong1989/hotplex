@@ -20,6 +20,7 @@ import (
 	"github.com/hrygo/hotplex/cmd/hotplexd/cmd"
 	"github.com/hrygo/hotplex/cmd/hotplexd/cmd/session"
 	"github.com/hrygo/hotplex/internal/admin"
+	adminwebhook "github.com/hrygo/hotplex/internal/server/admin"
 	"github.com/hrygo/hotplex/internal/config"
 	"github.com/hrygo/hotplex/internal/server"
 	"github.com/hrygo/hotplex/internal/sys"
@@ -120,7 +121,7 @@ func runDaemon() {
 	engine, adminToken := createEngine(logger, serverCfg)
 
 	// 7. Setup HTTP handlers
-	mainRouter, chatappsMgr := setupHTTPHandlers(engine, logger, serverCfg)
+	mainRouter, chatappsMgr := setupHTTPHandlers(engine, adminToken, logger, serverCfg)
 
 	// 7.1 Initialize BridgeServer for external platform adapters
 	var bridgeServer *server.BridgeServer
@@ -392,7 +393,7 @@ func createEngine(logger *slog.Logger, serverCfg *config.ServerLoader) (*hotplex
 	return engine, adminToken
 }
 
-func setupHTTPHandlers(engine *hotplex.Engine, logger *slog.Logger, serverCfg *config.ServerLoader) (*mux.Router, *chatapps.AdapterManager) {
+func setupHTTPHandlers(engine *hotplex.Engine, adminToken string, logger *slog.Logger, serverCfg *config.ServerLoader) (*mux.Router, *chatapps.AdapterManager) {
 	r := mux.NewRouter()
 
 	// WebSocket handler
@@ -426,6 +427,14 @@ func setupHTTPHandlers(engine *hotplex.Engine, logger *slog.Logger, serverCfg *c
 	r.Handle("/health/ready", readyHandler)
 	r.Handle("/health/live", liveHandler)
 	r.Handle("/metrics", metricsHandler)
+
+	// Enhanced Admin Webhook API (internal/server/admin) at /api/v1/admin/
+	adminServer := adminwebhook.NewAdminServer(adminwebhook.AdminServerOptions{
+		Engine:   engine,
+		AdminKey: adminToken,
+		Logger:   logger,
+	})
+	r.Handle("/api/v1/admin/", adminServer)
 
 	// ChatApps adapters
 	configDir := os.Getenv("HOTPLEX_CHATAPPS_CONFIG_DIR")

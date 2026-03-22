@@ -7,7 +7,7 @@ import (
 )
 
 func TestAuthMiddleware_NoToken(t *testing.T) {
-	m := NewMiddleware("")
+	m := NewMiddleware("", nil)
 	handler := m.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -22,7 +22,7 @@ func TestAuthMiddleware_NoToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_MissingHeader(t *testing.T) {
-	m := NewMiddleware("secret-token")
+	m := NewMiddleware("secret-token", nil)
 	handler := m.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -37,7 +37,7 @@ func TestAuthMiddleware_MissingHeader(t *testing.T) {
 }
 
 func TestAuthMiddleware_InvalidFormat(t *testing.T) {
-	m := NewMiddleware("secret-token")
+	m := NewMiddleware("secret-token", nil)
 	handler := m.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -53,23 +53,23 @@ func TestAuthMiddleware_InvalidFormat(t *testing.T) {
 }
 
 func TestAuthMiddleware_InvalidToken(t *testing.T) {
-	m := NewMiddleware("secret-token")
+	m := NewMiddleware("secret-token", nil)
 	handler := m.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Authorization", "Bearer wrong-token-longer")
+	req.Header.Set("Authorization", "Bearer wrong-token")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusForbidden {
-		t.Errorf("expected status 403, got %d", rr.Code)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", rr.Code)
 	}
 }
 
 func TestAuthMiddleware_ValidToken(t *testing.T) {
-	m := NewMiddleware("secret-token")
+	m := NewMiddleware("secret-token", nil)
 	handler := m.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -85,7 +85,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 }
 
 func TestNewMiddleware(t *testing.T) {
-	m := NewMiddleware("test-token")
+	m := NewMiddleware("test-token", nil)
 	if m.adminToken != "test-token" {
 		t.Errorf("expected adminToken 'test-token', got '%s'", m.adminToken)
 	}

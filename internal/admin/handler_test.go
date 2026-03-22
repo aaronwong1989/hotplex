@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/hrygo/hotplex/internal/adminapi"
 	"github.com/hrygo/hotplex/internal/sys"
 )
 
@@ -22,9 +23,8 @@ func (m *mockLogger) Warn(msg string, args ...any)  {}
 func (m *mockLogger) Error(msg string, args ...any) {}
 
 func TestWriteJSON(t *testing.T) {
-	h := &Handler{logger: &mockLogger{}}
 	rr := httptest.NewRecorder()
-	h.writeJSON(rr, http.StatusOK, map[string]string{"key": "value"})
+	adminapi.WriteJSON(rr, http.StatusOK, map[string]string{"key": "value"})
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", rr.Code)
@@ -36,7 +36,7 @@ func TestWriteJSON(t *testing.T) {
 
 func TestWriteError(t *testing.T) {
 	rr := httptest.NewRecorder()
-	writeError(rr, http.StatusNotFound, ErrCodeNotFound, "not found")
+	adminapi.WriteError(rr, http.StatusNotFound, ErrCodeNotFound, "not found")
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected status 404, got %d", rr.Code)
@@ -209,10 +209,9 @@ func TestGetSessionLogs_HomeDirError(t *testing.T) {
 
 func TestHandler_WriteJSONEncodeError(t *testing.T) {
 	// Test that writeJSON handles encoding errors gracefully
-	h := &Handler{logger: &mockLogger{}}
 	rr := httptest.NewRecorder()
 	// This should not panic
-	h.writeJSON(rr, http.StatusOK, "plain string")
+	adminapi.WriteJSON(rr, http.StatusOK, "plain string")
 }
 
 func TestListSessions_NilEngine(t *testing.T) {
@@ -298,7 +297,7 @@ func TestCheckDatabaseHealth_NoDB(t *testing.T) {
 func TestWriteError_EncodeFailure(t *testing.T) {
 	// Test that writeError handles encoding failures gracefully
 	rr := &writerFailsRecorder{}
-	writeError(rr, http.StatusInternalServerError, ErrCodeServerError, "test error")
+	adminapi.WriteError(rr, http.StatusInternalServerError, ErrCodeServerError, "test error")
 	// Should not panic
 }
 
