@@ -1,8 +1,31 @@
 package admin
 
-import "time"
+import (
+	"time"
 
-// SessionInfo represents a session in admin API responses.
+	"github.com/hrygo/hotplex/internal/adminapi"
+)
+
+type (
+	// ErrorCode is an alias to the shared domain error code.
+	ErrorCode = adminapi.ErrorCode
+	// ErrorResponse is an alias to the shared domain error response.
+	ErrorResponse = adminapi.ErrorResponse
+	// ErrorDetail is an alias to the shared domain error detail.
+	ErrorDetail = adminapi.ErrorDetail
+)
+
+// Re-export shared domain constants under the local package name
+// so callers can use admin.ErrCodeAuthFailed etc.
+const (
+	ErrCodeAuthFailed     = ErrorCode(adminapi.ErrCodeAuthFailed)
+	ErrCodeForbidden     = ErrorCode(adminapi.ErrCodeForbidden)
+	ErrCodeNotFound      = ErrorCode(adminapi.ErrCodeNotFound)
+	ErrCodeInvalidRequest = ErrorCode(adminapi.ErrCodeInvalidRequest)
+	ErrCodeServerError   = ErrorCode(adminapi.ErrCodeServerError)
+)
+
+// SessionInfo represents a session in admin CLI responses.
 type SessionInfo struct {
 	ID           string    `json:"id"`
 	Status       string    `json:"status"`
@@ -19,7 +42,7 @@ type SessionInfo struct {
 // SessionListResponse is the response for GET /admin/v1/sessions.
 type SessionListResponse struct {
 	Sessions []*SessionInfo `json:"sessions"`
-	Total    int            `json:"total"`
+	Total    int           `json:"total"`
 }
 
 // SessionDetailResponse is the response for GET /admin/v1/sessions/:id.
@@ -41,7 +64,7 @@ type SessionConfig struct {
 
 // SessionStats contains session statistics.
 type SessionStats struct {
-	InputTokens  int64 `json:"input_tokens"`
+	InputTokens   int64 `json:"input_tokens"`
 	OutputTokens int64 `json:"output_tokens"`
 	DurationSecs int64 `json:"duration_seconds"`
 }
@@ -101,27 +124,4 @@ type HealthDetails struct {
 	DatabaseLatencyMs int    `json:"database_latency_ms"`
 	CliVersion        string `json:"cli_version"`
 	ConfigFile        string `json:"config_file"`
-}
-
-// ErrorCode represents admin API error codes.
-type ErrorCode string
-
-const (
-	ErrCodeAuthFailed     ErrorCode = "AUTH_FAILED"
-	ErrCodeForbidden      ErrorCode = "FORBIDDEN"
-	ErrCodeNotFound       ErrorCode = "NOT_FOUND"
-	ErrCodeInvalidRequest ErrorCode = "INVALID_REQUEST"
-	ErrCodeServerError    ErrorCode = "SERVER_ERROR"
-)
-
-// ErrorResponse is the standard error response format.
-type ErrorResponse struct {
-	Error ErrorDetail `json:"error"`
-}
-
-// ErrorDetail contains error details.
-type ErrorDetail struct {
-	Code    ErrorCode              `json:"code"`
-	Message string                 `json:"message"`
-	Details map[string]interface{} `json:"details,omitempty"`
 }

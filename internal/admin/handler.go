@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/hrygo/hotplex/engine"
 	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/internal/adminapi"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/internal/telemetry"
 	"github.com/hrygo/hotplex/provider"
@@ -53,13 +54,13 @@ func NewHandler(eng *engine.Engine, startTime time.Time, logger Logger) *Handler
 // listSessions handles GET /admin/v1/sessions.
 func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 	if h.engine == nil {
-		writeError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Engine not initialized")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Engine not initialized")
 		return
 	}
 
 	manager := h.engine.GetSessionManager()
 	if manager == nil {
-		writeError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Session manager not available")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Session manager not available")
 		return
 	}
 
@@ -68,7 +69,7 @@ func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 	for _, sess := range sessions {
 		infos = append(infos, &SessionInfo{
 			ID:         sess.ID,
-			Status:     string(sess.Status),
+			Status:     adminapi.MapSessionStatus(sess.Status),
 			CreatedAt:  sess.CreatedAt,
 			LastActive: sess.GetLastActive(),
 		})
@@ -78,7 +79,7 @@ func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 		Sessions: infos,
 		Total:    len(infos),
 	}
-	h.writeJSON(w, http.StatusOK, resp)
+	adminapi.WriteJSON(w, http.StatusOK, resp)
 }
 
 // getSession handles GET /admin/v1/sessions/:id.
@@ -87,25 +88,25 @@ func (h *Handler) getSession(w http.ResponseWriter, r *http.Request) {
 	sessionID := vars["id"]
 
 	if h.engine == nil {
-		writeError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Engine not initialized")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Engine not initialized")
 		return
 	}
 
 	manager := h.engine.GetSessionManager()
 	if manager == nil {
-		writeError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Session manager not available")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Session manager not available")
 		return
 	}
 
 	sess, ok := manager.GetSession(sessionID)
 	if !ok {
-		writeError(w, http.StatusNotFound, ErrCodeNotFound, "Session not found: "+sessionID)
+		adminapi.WriteError(w, http.StatusNotFound, ErrCodeNotFound, "Session not found: "+sessionID)
 		return
 	}
 
 	resp := SessionDetailResponse{
 		ID:         sess.ID,
-		Status:     string(sess.Status),
+		Status:     adminapi.MapSessionStatus(sess.Status),
 		CreatedAt:  sess.CreatedAt,
 		LastActive: sess.GetLastActive(),
 		Config: SessionConfig{
@@ -123,7 +124,7 @@ func (h *Handler) getSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.writeJSON(w, http.StatusOK, resp)
+	adminapi.WriteJSON(w, http.StatusOK, resp)
 }
 
 // deleteSession handles DELETE /admin/v1/sessions/:id.
@@ -132,27 +133,27 @@ func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request) {
 	sessionID := vars["id"]
 
 	if h.engine == nil {
-		writeError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Engine not initialized")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Engine not initialized")
 		return
 	}
 
 	manager := h.engine.GetSessionManager()
 	if manager == nil {
-		writeError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Session manager not available")
+		adminapi.WriteError(w, http.StatusServiceUnavailable, ErrCodeServerError, "Session manager not available")
 		return
 	}
 
 	if _, ok := manager.GetSession(sessionID); !ok {
-		writeError(w, http.StatusNotFound, ErrCodeNotFound, "Session not found: "+sessionID)
+		adminapi.WriteError(w, http.StatusNotFound, ErrCodeNotFound, "Session not found: "+sessionID)
 		return
 	}
 
 	if err := h.engine.StopSession(sessionID, "admin-terminated"); err != nil {
-		writeError(w, http.StatusInternalServerError, ErrCodeServerError, "Failed to terminate session: "+err.Error())
+		adminapi.WriteError(w, http.StatusInternalServerError, ErrCodeServerError, "Failed to terminate session: "+err.Error())
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, SessionDeleteResponse{
+	adminapi.WriteJSON(w, http.StatusOK, SessionDeleteResponse{
 		Success: true,
 		Message: "Session " + sessionID + " terminated",
 	})
@@ -165,7 +166,7 @@ func (h *Handler) getSessionLogs(w http.ResponseWriter, r *http.Request) {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, ErrCodeServerError, "Failed to determine home directory")
+		adminapi.WriteError(w, http.StatusInternalServerError, ErrCodeServerError, "Failed to determine home directory")
 		return
 	}
 
@@ -175,14 +176,14 @@ func (h *Handler) getSessionLogs(w http.ResponseWriter, r *http.Request) {
 	info, err := os.Stat(logPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			writeError(w, http.StatusNotFound, ErrCodeNotFound, "Log file not found for session: "+sessionID)
+			adminapi.WriteError(w, http.StatusNotFound, ErrCodeNotFound, "Log file not found for session: "+sessionID)
 			return
 		}
-		writeError(w, http.StatusInternalServerError, ErrCodeServerError, "Failed to read log file")
+		adminapi.WriteError(w, http.StatusInternalServerError, ErrCodeServerError, "Failed to read log file")
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, SessionLogsResponse{
+	adminapi.WriteJSON(w, http.StatusOK, SessionLogsResponse{
 		SessionID:    sessionID,
 		LogPath:      logPath,
 		SizeBytes:    info.Size(),
@@ -222,14 +223,14 @@ func (h *Handler) getStats(w http.ResponseWriter, r *http.Request) {
 		CpuUsagePercent: 0,
 	}
 
-	h.writeJSON(w, http.StatusOK, resp)
+	adminapi.WriteJSON(w, http.StatusOK, resp)
 }
 
 // validateConfig handles POST /admin/v1/config/validate.
 func (h *Handler) validateConfig(w http.ResponseWriter, r *http.Request) {
 	var req ConfigValidateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Invalid JSON body")
+		adminapi.WriteError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Invalid JSON body")
 		return
 	}
 
@@ -239,7 +240,7 @@ func (h *Handler) validateConfig(w http.ResponseWriter, r *http.Request) {
 		Errors: errors,
 	}
 
-	h.writeJSON(w, http.StatusOK, resp)
+	adminapi.WriteJSON(w, http.StatusOK, resp)
 }
 
 // getHealthDetailed handles GET /admin/v1/health/detailed.
@@ -268,33 +269,11 @@ func (h *Handler) getHealthDetailed(w http.ResponseWriter, r *http.Request) {
 		status = "degraded"
 	}
 
-	h.writeJSON(w, http.StatusOK, HealthDetailedResponse{
+	adminapi.WriteJSON(w, http.StatusOK, HealthDetailedResponse{
 		Status:  status,
 		Checks:  checks,
 		Details: details,
 	})
-}
-
-func (h *Handler) writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		h.logger.Error("failed to encode JSON response", "error", err)
-	}
-}
-
-func writeError(w http.ResponseWriter, status int, code ErrorCode, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	resp := ErrorResponse{
-		Error: ErrorDetail{
-			Code:    code,
-			Message: message,
-		},
-	}
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		slog.Error("failed to encode error response", "error", err)
-	}
 }
 
 func countWebsocketConnections() int {

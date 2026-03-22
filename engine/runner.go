@@ -41,6 +41,10 @@ type Engine struct {
 	permissionMatcher *permission.PermissionMatcher
 	// mu protects runtime configuration updates (AllowedTools, DisallowedTools)
 	mu sync.RWMutex
+	// drainMu and draining protect drain mode state
+	drainMu   sync.RWMutex
+	draining  bool
+	drainMsg  string
 }
 
 // GetOptions returns the current engine options.
@@ -117,6 +121,42 @@ func (r *Engine) Close() error {
 // GetSessionManager returns the underlying session manager for admin operations.
 func (r *Engine) GetSessionManager() intengine.SessionManager {
 	return r.manager
+}
+
+// IsDraining returns true if the engine is in drain mode.
+func (r *Engine) IsDraining() bool {
+	r.drainMu.RLock()
+	defer r.drainMu.RUnlock()
+	return r.draining
+}
+
+// GetDrainMessage returns the current drain message.
+func (r *Engine) GetDrainMessage() string {
+	r.drainMu.RLock()
+	defer r.drainMu.RUnlock()
+	if r.drainMsg == "" {
+		return "Service is in drain mode"
+	}
+	return r.drainMsg
+}
+
+// EnterDrain puts the engine into drain mode.
+// New sessions will be rejected while existing sessions continue.
+func (r *Engine) EnterDrain(msg string) {
+	r.drainMu.Lock()
+	r.draining = true
+	r.drainMsg = msg
+	r.drainMu.Unlock()
+	r.logger.Info("Engine entering drain mode", "message", msg)
+}
+
+// ExitDrain exits drain mode.
+func (r *Engine) ExitDrain() {
+	r.drainMu.Lock()
+	r.draining = false
+	r.drainMsg = ""
+	r.drainMu.Unlock()
+	r.logger.Info("Engine exiting drain mode")
 }
 
 // Execute runs Claude Code CLI with the given configuration and streams
