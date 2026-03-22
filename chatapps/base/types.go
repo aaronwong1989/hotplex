@@ -216,6 +216,17 @@ type StatusProvider interface {
 	ClearStatus(ctx context.Context, channelID, threadTS string) error
 }
 
+// StatusEmojiMap maps StatusType to Slack emoji name for fallback
+// when native Assistant API is not available (e.g., Free workspace).
+var StatusEmojiMap = map[StatusType]string{
+	StatusInitializing: "hourglass_flowing_sand",
+	StatusThinking:     "brain",
+	StatusToolUse:     "gear",
+	StatusToolResult:   "wrench",
+	StatusAnswering:    "pencil",
+	StatusIdle:         "white_circle",
+}
+
 // MessageTypeToStatusType converts MessageType to StatusType for status notification
 // Returns StatusIdle for unrecognized types
 func MessageTypeToStatusType(msgType MessageType) StatusType {

@@ -72,6 +72,11 @@ type Adapter struct {
 	socketModeCancel  context.CancelFunc // Socket Mode cancel function
 	socketModeRunning bool               // Whether Socket Mode is running
 	socketModeMu      sync.Mutex         // Protects socketModeRunning
+
+	// isAssistantCapable indicates if the workspace supports Assistant API (paid plan).
+	// Probed once at startup via ProbeAssistantCapability.
+	isAssistantCapable     bool
+	isAssistantCapableOnce sync.Once
 }
 
 // Compile-time check: ensure Adapter implements StatusProvider
@@ -174,6 +179,18 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 			"ttl", config.GetThreadOwnershipTTL(),
 			"persist", persist)
 	}
+
+	// Probe assistant capability at startup (async, non-blocking)
+	go func() {
+		probeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		a.isAssistantCapable = a.ProbeAssistantCapability(probeCtx)
+		if a.isAssistantCapable {
+			a.Logger().Info("Assistant API capability confirmed (paid workspace)")
+		} else {
+			a.Logger().Info("Assistant API not available, using emoji reaction fallback")
+		}
+	}()
 
 	return a
 }
@@ -787,6 +804,49 @@ func (a *Adapter) ClaimThreadOwnership(channelID, threadTS string) {
 	}
 	threadKey := NewThreadKey(channelID, threadTS)
 	a.ownershipTracker.Claim(threadKey)
+}
+
+// ProbeAssistantCapability attempts a lightweight Assistant API call to determine
+// if the workspace supports it. Returns true if native Assistant API is available.
+// Config-driven: respects AssistantAPIEnabled and ForceAssistantFallback.
+func (a *Adapter) ProbeAssistantCapability(ctx context.Context) bool {
+	// Respect ForceAssistantFallback config
+	if a.config.ForceAssistantFallback != nil && *a.config.ForceAssistantFallback {
+		a.Logger().Debug("Assistant capability probe skipped: ForceAssistantFallback=true")
+		return false
+	}
+
+	// Respect AssistantAPIEnabled config (default true if not set)
+	if a.config.AssistantAPIEnabled != nil && !*a.config.AssistantAPIEnabled {
+		a.Logger().Debug("Assistant capability probe skipped: AssistantAPIEnabled=false")
+		return false
+	}
+
+	if a.client == nil {
+		a.Logger().Debug("Assistant capability probe skipped: no Slack client")
+		return false
+	}
+
+	// Try a no-op status set to check capability
+	params := slack.AssistantThreadsSetStatusParameters{
+		Status: "", // Clear any status (no-op)
+	}
+	err := a.client.SetAssistantThreadsStatusContext(ctx, params)
+	if err != nil {
+		// Check if it's a paid-plan error
+		if strings.Contains(err.Error(), "not_allowed") ||
+			strings.Contains(err.Error(), "not_allowed_token_type") {
+			a.Logger().Warn("Assistant API not available (free workspace?), falling back to emoji reactions",
+				slog.String("error", err.Error()))
+			return false
+		}
+		// Other errors might be transient - log but don't treat as incapable
+		a.Logger().Warn("Assistant API probe returned unexpected error, treating as capable",
+			slog.String("error", err.Error()))
+		// Return true so we still try the native API at runtime
+		return true
+	}
+	return true
 }
 
 // stripBotMention removes bot mention from text
