@@ -45,7 +45,8 @@ x-hotplex-common: &hotplex-common
     # Admin API (Default: port 9080)
     # ─────────────────────────────────────────────────────────────────
     HOTPLEX_ADMIN_PORT: ${HOTPLEX_ADMIN_PORT:-9080}
-    HOTPLEX_API_KEY: ${HOTPLEX_API_KEY:-}
+    # HOTPLEX_API_KEY and HOTPLEX_ADMIN_API_KEY are loaded from env_file (.env-01/.env-02/.env-03)
+    # Do NOT reference them here to avoid host environment variable override
     # ─────────────────────────────────────────────────────────────────
     # Engine Timeouts (Convention: sensible defaults)
     # ─────────────────────────────────────────────────────────────────
