@@ -140,7 +140,7 @@ func TestClientSendMessage(t *testing.T) {
 
 	cancel()
 	time.Sleep(50 * time.Millisecond)
-	client.Close()
+	_ = client.Close()
 }
 
 func TestClientOnMessageHandler(t *testing.T) {
@@ -187,7 +187,7 @@ func TestClientOnMessageHandler(t *testing.T) {
 
 	cancel()
 	time.Sleep(50 * time.Millisecond)
-	client.Close()
+	_ = client.Close()
 }
 
 func TestClientTyping(t *testing.T) {
@@ -226,7 +226,7 @@ func TestClientTyping(t *testing.T) {
 
 	cancel()
 	time.Sleep(50 * time.Millisecond)
-	client.Close()
+	_ = client.Close()
 }
 
 func TestClientClose(t *testing.T) {
