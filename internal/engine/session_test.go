@@ -108,6 +108,64 @@ func TestSession_SetCallback(t *testing.T) {
 	}
 }
 
+func TestSession_GetCallback(t *testing.T) {
+	cb := func(eventType string, data any) error { return nil }
+	sess := &Session{
+		callback: cb,
+	}
+
+	got := sess.GetCallback()
+	if got == nil {
+		t.Error("GetCallback() returned nil")
+	}
+}
+
+func TestSession_GetLastActive(t *testing.T) {
+	now := time.Now()
+	sess := &Session{
+		LastActive: now,
+	}
+
+	got := sess.GetLastActive()
+	if !got.Equal(now) {
+		t.Errorf("GetLastActive() = %v, want %v", got, now)
+	}
+}
+
+func TestSession_GetStatusChange(t *testing.T) {
+	ch := make(chan SessionStatus, 10)
+	sess := &Session{
+		statusChange: ch,
+	}
+
+	got := sess.GetStatusChange()
+	if got == nil {
+		t.Error("GetStatusChange() returned nil")
+	}
+}
+
+func TestSession_SetExt_GetExt(t *testing.T) {
+	sess := &Session{}
+
+	// Set extension data
+	data := map[string]string{"key": "value"}
+	sess.SetExt(data)
+
+	// Get extension data
+	got := sess.GetExt()
+	if got == nil {
+		t.Error("GetExt() returned nil")
+	}
+
+	gotMap, ok := got.(map[string]string)
+	if !ok {
+		t.Fatalf("GetExt() returned wrong type: %T", got)
+	}
+	if gotMap["key"] != "value" {
+		t.Errorf("GetExt() = %v, want {key: value}", gotMap)
+	}
+}
+
 func TestSession_WriteInput_InvalidJSON(t *testing.T) {
 	sess := &Session{
 		Status:       SessionStatusReady,
