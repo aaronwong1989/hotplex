@@ -56,6 +56,25 @@ func (m *AdapterManager) Unregister(platform string) error {
 	return nil
 }
 
+// RegisterOrReplace registers an adapter, replacing any existing one for the same platform.
+// This is used by BridgeServer to re-register bridge adapters on reconnect.
+func (m *AdapterManager) RegisterOrReplace(adapter ChatAdapter) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	platform := adapter.Platform()
+	if existing, ok := m.adapters[platform]; ok {
+		if existing != adapter {
+			if err := existing.Stop(); err != nil {
+				m.logger.Warn("Failed to stop existing adapter", "platform", platform, "error", err)
+			}
+			m.logger.Info("Adapter replaced", "platform", platform)
+		}
+	}
+	m.adapters[platform] = adapter
+	m.logger.Info("Adapter registered (or replaced)", "platform", platform)
+}
+
 func (m *AdapterManager) GetAdapter(platform string) (ChatAdapter, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

@@ -123,18 +123,28 @@ const (
 	OrderChunk ProcessorOrder = 50
 )
 
-// NewDefaultProcessorChain creates a default processor chain with all standard processors
-func NewDefaultProcessorChain(ctx context.Context, logger *slog.Logger) *ProcessorChain {
+// ProcessorChainOptions holds optional dependencies for the processor chain.
+type ProcessorChainOptions struct {
+	FormatConverter base.ContentConverter // Platform-specific content converter
+	Chunker        base.Chunker        // Platform-specific text chunker
+}
+
+// NewDefaultProcessorChain creates a default processor chain with all standard processors.
+// Platform-specific converters and chunkers can be injected via options.
+func NewDefaultProcessorChain(ctx context.Context, logger *slog.Logger, opts ProcessorChainOptions) *ProcessorChain {
 	filter := NewMessageFilterProcessor(logger)
 
 	thread := NewThreadProcessor(logger, ThreadProcessorOptions{
 		TTL: 30 * time.Minute,
 	})
 
-	formatConv := NewFormatConversionProcessor(logger)
+	formatConv := NewFormatConversionProcessor(logger, FormatProcessorOptions{
+		Converter: opts.FormatConverter,
+	})
 
 	chunk := NewChunkProcessor(logger, ChunkProcessorOptions{
 		MaxChars: 4000,
+		Chunker:  opts.Chunker,
 	})
 
 	return NewProcessorChain(

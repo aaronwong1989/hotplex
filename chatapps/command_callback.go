@@ -141,7 +141,8 @@ func (c *CommandCallback) sendOrUpdate(msg *base.ChatMessage) error {
 	// If we have a message TS, update; otherwise create new
 	if c.messageTS != "" && c.channelID != "" {
 		msg.Metadata["message_ts"] = c.messageTS
-		msg.Metadata["channel_id"] = c.channelID
+		msg.Metadata[base.KeyRoomID] = c.channelID
+		msg.Metadata["channel_id"] = c.channelID // Backward compat for adapters reading Slack-specific key
 	}
 
 	// Convert base.ChatMessage to ChatMessage for adapter

@@ -6,13 +6,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/hrygo/hotplex/chatapps/base"
-	"github.com/hrygo/hotplex/chatapps/slack"
 )
 
 // ChunkProcessor splits long messages into chunks that fit within platform limits.
-// It uses the Slack chunker for Markdown-aware splitting.
+// It delegates platform-specific chunking to an injected Chunker.
 type ChunkProcessor struct {
 	logger   *slog.Logger
+	chunker  base.Chunker
 	maxChars int
 }
 
@@ -27,6 +27,7 @@ type ChunkInfo struct {
 // ChunkProcessorOptions configures the ChunkProcessor.
 type ChunkProcessorOptions struct {
 	MaxChars int // Maximum characters per chunk (default: 4000 for Slack)
+	Chunker  base.Chunker
 }
 
 // NewChunkProcessor creates a new ChunkProcessor.
@@ -35,14 +36,15 @@ func NewChunkProcessor(logger *slog.Logger, opts ChunkProcessorOptions) *ChunkPr
 		logger = slog.Default()
 	}
 
-	// Set defaults
-	if opts.MaxChars == 0 {
-		opts.MaxChars = slack.SlackTextLimit
+	chunker := opts.Chunker
+	if chunker == nil {
+		chunker = base.NewDefaultChunker(opts.MaxChars)
 	}
 
 	return &ChunkProcessor{
 		logger:   logger,
-		maxChars: opts.MaxChars,
+		chunker:  chunker,
+		maxChars: chunker.MaxChars(),
 	}
 }
 
@@ -84,31 +86,16 @@ func (p *ChunkProcessor) Process(ctx context.Context, msg *base.ChatMessage) (*b
 		"content_len", contentLen,
 		"max_chars", p.maxChars)
 
-	// Get thread_ts and channel_id from metadata for all chunks
-	threadTS := ""
-	channelID := ""
+	// Get thread_ts and channel_id from metadata for all chunks (unified keys with Slack fallback)
+	channelID, threadTS, _ := base.SlackMetadata(msg.Metadata)
 
-	if msg.Metadata != nil {
-		if ts, ok := msg.Metadata["thread_ts"].(string); ok {
-			threadTS = ts
-		}
-		if ch, ok := msg.Metadata["channel_id"].(string); ok {
-			channelID = ch
-		}
-	}
-
-	// Use the existing chunkMessageMarkdown function
-	chunks := slack.ChunkMessageMarkdown(content, p.maxChars)
+	// Delegate to injected chunker for platform-specific logic
+	chunks := p.chunker.ChunkText(content, p.maxChars)
 
 	if len(chunks) == 1 {
 		// Should not happen, but handle gracefully
 		return msg, nil
 	}
-
-	// Create chunked messages
-	// Note: We return the first chunk as the primary message and add remaining to metadata
-	// for the adapter to send. This is a design decision - alternatively we could
-	// return []*base.ChatMessage but that requires changing the Processor interface.
 
 	firstChunk := chunks[0]
 	extraChunks := chunks[1:]

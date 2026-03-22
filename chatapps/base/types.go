@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/hrygo/hotplex/types"
 )
 
 // ErrNotSupported is returned by optional interface methods when the platform
@@ -22,55 +24,59 @@ var (
 	ErrMissingContent           = errors.New("content is required")
 )
 
-// MessageType defines the normalized message types across all chat platforms
-type MessageType string
+// MessageType is a type alias for types.MessageType, providing a unified message type
+// definition across all chat platforms. All constants are re-exported from the types
+// package to maintain backward compatibility with existing code.
+type MessageType = types.MessageType
 
+// MessageType constants — re-exported from types package for backward compatibility.
+// Code should prefer importing "github.com/hrygo/hotplex/types" directly when possible.
 const (
 	// MessageTypeThinking indicates the AI is reasoning or thinking
-	MessageTypeThinking MessageType = "thinking"
+	MessageTypeThinking MessageType = types.MessageTypeThinking
 	// MessageTypeAnswer indicates text output from the AI
-	MessageTypeAnswer MessageType = "answer"
+	MessageTypeAnswer MessageType = types.MessageTypeAnswer
 	// MessageTypeToolUse indicates a tool invocation is starting
-	MessageTypeToolUse MessageType = "tool_use"
+	MessageTypeToolUse MessageType = types.MessageTypeToolUse
 	// MessageTypeToolResult indicates a tool execution result
-	MessageTypeToolResult MessageType = "tool_result"
+	MessageTypeToolResult MessageType = types.MessageTypeToolResult
 	// MessageTypeError indicates an error occurred
-	MessageTypeError MessageType = "error"
+	MessageTypeError MessageType = types.MessageTypeError
 	// MessageTypePlanMode indicates AI is in plan mode and generating a plan
-	MessageTypePlanMode MessageType = "plan_mode"
+	MessageTypePlanMode MessageType = types.MessageTypePlanMode
 	// MessageTypeExitPlanMode indicates AI completed planning and requests user approval
-	MessageTypeExitPlanMode MessageType = "exit_plan_mode"
+	MessageTypeExitPlanMode MessageType = types.MessageTypeExitPlanMode
 	// MessageTypeAskUserQuestion indicates AI is asking a clarifying question
-	MessageTypeAskUserQuestion MessageType = "ask_user_question"
+	MessageTypeAskUserQuestion MessageType = types.MessageTypeAskUserQuestion
 	// MessageTypeDangerBlock indicates a dangerous operation confirmation block
-	MessageTypeDangerBlock MessageType = "danger_block"
+	MessageTypeDangerBlock MessageType = types.MessageTypeDangerBlock
 	// MessageTypeSessionStats indicates session statistics
-	MessageTypeSessionStats MessageType = "session_stats"
+	MessageTypeSessionStats MessageType = types.MessageTypeSessionStats
 	// MessageTypeCommandProgress indicates a slash command is executing with progress updates
-	MessageTypeCommandProgress MessageType = "command_progress"
+	MessageTypeCommandProgress MessageType = types.MessageTypeCommandProgress
 	// MessageTypeCommandComplete indicates a slash command has completed
-	MessageTypeCommandComplete MessageType = "command_complete"
+	MessageTypeCommandComplete MessageType = types.MessageTypeCommandComplete
 	// MessageTypeSystem indicates a system-level message
-	MessageTypeSystem MessageType = "system"
+	MessageTypeSystem MessageType = types.MessageTypeSystem
 	// MessageTypeUser indicates a user message reflection
-	MessageTypeUser MessageType = "user"
+	MessageTypeUser MessageType = types.MessageTypeUser
 	// MessageTypeStepStart indicates a new step/milestone (OpenCode specific)
-	MessageTypeStepStart MessageType = "step_start"
+	MessageTypeStepStart MessageType = types.MessageTypeStepStart
 	// MessageTypeStepFinish indicates a step/milestone completed (OpenCode specific)
-	MessageTypeStepFinish MessageType = "step_finish"
+	MessageTypeStepFinish MessageType = types.MessageTypeStepFinish
 	// MessageTypeRaw indicates unparsed raw output (fallback)
-	MessageTypeRaw MessageType = "raw"
+	MessageTypeRaw MessageType = types.MessageTypeRaw
 	// MessageTypeSessionStart indicates a new session is starting (cold start)
-	MessageTypeSessionStart MessageType = "session_start"
+	MessageTypeSessionStart MessageType = types.MessageTypeSessionStart
 	// MessageTypeEngineStarting indicates the engine is starting up
-	MessageTypeEngineStarting MessageType = "engine_starting"
+	MessageTypeEngineStarting MessageType = types.MessageTypeEngineStarting
 	// MessageTypeUserMessageReceived indicates user message has been received
-	MessageTypeUserMessageReceived MessageType = "user_message_received"
+	MessageTypeUserMessageReceived MessageType = types.MessageTypeUserMessageReceived
 	// MessageTypePermissionRequest indicates a permission request from Claude Code
-	MessageTypePermissionRequest MessageType = "permission_request"
+	MessageTypePermissionRequest MessageType = types.MessageTypePermissionRequest
 	// MessageTypePermissionDenials indicates a dangerous operation intercepted by WAF
 	// awaiting user permission decision via interactive card.
-	MessageTypePermissionDenials MessageType = "permission_denials"
+	MessageTypePermissionDenials MessageType = types.MessageTypePermissionDenials
 )
 
 type ChatMessage struct {

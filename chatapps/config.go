@@ -9,135 +9,65 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/hrygo/hotplex/internal/config"
 	"github.com/hrygo/hotplex/provider"
 	"gopkg.in/yaml.v3"
 )
 
-type PlatformConfig struct {
-	Inherits         string                  `yaml:"inherits"` // Path to parent config file (relative or absolute)
-	Platform         string                  `yaml:"platform"`
-	Mode             string                  `yaml:"mode"`
-	SystemPrompt     string                  `yaml:"system_prompt"`
-	TaskInstructions string                  `yaml:"task_instructions"`
-	Engine           EngineConfig            `yaml:"engine"`
-	Provider         provider.ProviderConfig `yaml:"provider"`
-	Security         SecurityConfig          `yaml:"security"`
-	Features         FeaturesConfig          `yaml:"features"`
-	Session          SessionConfig           `yaml:"session"`
-	MessageStore     MessageStoreConfig      `yaml:"message_store,omitempty"`
-	Options          map[string]any          `yaml:"options,omitempty"`
-	SourceFile       string                  `yaml:"-"` // Tracks which file this config was loaded from
-}
+// PlatformConfig is a type alias for base.PlatformConfig for backward compatibility.
+// The canonical definition lives in chatapps/base/plugin.go.
+type PlatformConfig = base.PlatformConfig
 
-type SecurityConfig struct {
-	VerifySignature *bool            `yaml:"verify_signature"`
-	Permission      PermissionConfig `yaml:"permission"`
-	Owner           *OwnerConfig     `yaml:"owner,omitempty"`
-}
+// SecurityConfig is a type alias for base.SecurityConfig.
+type SecurityConfig = base.SecurityConfig
 
-type PermissionConfig struct {
-	DMPolicy              string                 `yaml:"dm_policy"`
-	GroupPolicy           string                 `yaml:"group_policy"`
-	BotUserID             string                 `yaml:"bot_user_id"`
-	BroadcastResponse     string                 `yaml:"broadcast_response"` // Response for broadcast messages (multibot mode)
-	AllowedUsers          []string               `yaml:"allowed_users"`
-	BlockedUsers          []string               `yaml:"blocked_users"`
-	SlashCommandRateLimit float64                `yaml:"slash_command_rate_limit"`
-	ThreadOwnership       *ThreadOwnershipConfig `yaml:"thread_ownership,omitempty"`
-}
+// PermissionConfig is a type alias for base.PermissionConfig.
+type PermissionConfig = base.PermissionConfig
 
-// FeaturesConfig contains feature toggles for UI/UX experience.
-type FeaturesConfig struct {
-	Chunking  ChunkingConfig  `yaml:"chunking"`
-	Threading ThreadingConfig `yaml:"threading"`
-	RateLimit RateLimitConfig `yaml:"rate_limit"`
-	Markdown  MarkdownConfig  `yaml:"markdown"`
-}
+// FeaturesConfig is a type alias for base.FeaturesConfig.
+type FeaturesConfig = base.FeaturesConfig
 
-type ChunkingConfig struct {
-	Enabled  *bool `yaml:"enabled"`
-	MaxChars int   `yaml:"max_chars"`
-}
+// ChunkingConfig is a type alias for base.ChunkingConfig.
+type ChunkingConfig = base.ChunkingConfig
 
-type ThreadingConfig struct {
-	Enabled *bool `yaml:"enabled"`
-}
+// ThreadingConfig is a type alias for base.ThreadingConfig.
+type ThreadingConfig = base.ThreadingConfig
 
-type RateLimitConfig struct {
-	Enabled     *bool `yaml:"enabled"`
-	MaxAttempts int   `yaml:"max_attempts"`
-	BaseDelayMs int   `yaml:"base_delay_ms"`
-	MaxDelayMs  int   `yaml:"max_delay_ms"`
-}
+// RateLimitConfig is a type alias for base.RateLimitConfig.
+type RateLimitConfig = base.RateLimitConfig
 
-type MarkdownConfig struct {
-	Enabled *bool `yaml:"enabled"`
-}
+// MarkdownConfig is a type alias for base.MarkdownConfig.
+type MarkdownConfig = base.MarkdownConfig
 
-// OwnerConfig defines bot ownership and access control (Phase 1: Bot Behavior Spec)
-type OwnerConfig struct {
-	Primary string   `yaml:"primary"` // slack user ID
-	Trusted []string `yaml:"trusted_users"`
-	Policy  string   `yaml:"policy"` // owner_only | trusted | public
-}
+// OwnerConfig is a type alias for base.OwnerConfig.
+type OwnerConfig = base.OwnerConfig
 
-// ThreadOwnershipConfig defines thread ownership tracking behavior (Phase 1: Bot Behavior Spec)
-type ThreadOwnershipConfig struct {
-	Enabled *bool         `yaml:"enabled"`
-	TTL     time.Duration `yaml:"ttl"`
-	Persist *bool         `yaml:"persist"`
-}
+// ThreadOwnershipConfig is a type alias for base.ThreadOwnershipConfig.
+type ThreadOwnershipConfig = base.ThreadOwnershipConfig
 
-type SessionConfig struct {
-	Timeout         time.Duration `yaml:"timeout"`
-	CleanupInterval time.Duration `yaml:"cleanup_interval"`
-}
+// SessionConfig is a type alias for base.SessionConfig.
+type SessionConfig = base.SessionConfig
 
-type EngineConfig struct {
-	Timeout         time.Duration `yaml:"timeout"`
-	IdleTimeout     time.Duration `yaml:"idle_timeout"`
-	WorkDir         string        `yaml:"work_dir"`
-	AllowedTools    []string      `yaml:"allowed_tools"`
-	DisallowedTools []string      `yaml:"disallowed_tools"`
-}
+// EngineConfig is a type alias for base.EngineConfig.
+type EngineConfig = base.EngineConfig
 
-// MessageStoreConfig 消息存储配置 (Phase 3)
-type MessageStoreConfig struct {
-	Enabled   *bool           `yaml:"enabled"`
-	Type      string          `yaml:"type"` // sqlite | postgres | memory
-	SQLite    SQLiteConfig    `yaml:"sqlite"`
-	Postgres  PostgresConfig  `yaml:"postgres"`
-	Strategy  string          `yaml:"strategy"`
-	Streaming StreamingConfig `yaml:"streaming"`
-}
+// MessageStoreConfig is a type alias for base.MessageStoreConfig.
+type MessageStoreConfig = base.MessageStoreConfig
 
-type SQLiteConfig struct {
-	Path      string `yaml:"path"`
-	MaxSizeMB int    `yaml:"max_size_mb"`
-}
+// SQLiteConfig is a type alias for base.SQLiteConfig.
+type SQLiteConfig = base.SQLiteConfig
 
-type PostgresConfig struct {
-	DSN            string `yaml:"dsn"`
-	MaxConnections int    `yaml:"max_connections"`
-	Level          int    `yaml:"level"` // 1=百万级，2=亿级
-}
+// PostgresConfig is a type alias for base.PostgresConfig.
+type PostgresConfig = base.PostgresConfig
 
-type StreamingConfig struct {
-	Enabled       *bool         `yaml:"enabled"`
-	BufferSize    int           `yaml:"buffer_size"`
-	Timeout       time.Duration `yaml:"timeout"`
-	StoragePolicy string        `yaml:"storage_policy"` // complete_only | all_chunks
-}
+// StreamingConfig is a type alias for base.StreamingConfig.
+type StreamingConfig = base.StreamingConfig
 
-// BoolValue returns the value of a bool pointer if not nil, otherwise returns defaultVal.
+// BoolValue is a type alias for base.BoolValue.
 func BoolValue(pb *bool, defaultVal bool) bool {
-	if pb == nil {
-		return defaultVal
-	}
-	return *pb
+	return base.BoolValue(pb, defaultVal)
 }
 
 type Logger = slog.Logger

@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
-	"github.com/hrygo/hotplex/chatapps/feishu"
-	"github.com/hrygo/hotplex/chatapps/slack"
-	"github.com/hrygo/hotplex/chatapps/slack/apphome"
 	"github.com/hrygo/hotplex/engine"
 	"github.com/hrygo/hotplex/internal/permission"
 	"github.com/hrygo/hotplex/internal/sys"
@@ -97,147 +94,12 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 
 	manager := NewAdapterManager(logger)
 
-	// Slack
-	setupPlatform(ctx, "slack", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
-		token := os.Getenv("HOTPLEX_SLACK_BOT_TOKEN")
-		if token == "" {
-			return nil
-		}
-
-		mode := os.Getenv("HOTPLEX_SLACK_MODE")
-		if mode == "" {
-			mode = "http" // default to http
-		}
-		config := &slack.Config{
-			BotToken:      token,
-			AppToken:      os.Getenv("HOTPLEX_SLACK_APP_TOKEN"),
-			SigningSecret: os.Getenv("HOTPLEX_SLACK_SIGNING_SECRET"),
-			Mode:          mode,
-			ServerAddr:    os.Getenv("HOTPLEX_SLACK_SERVER_ADDR"),
-		}
-
-		// Apply YAML config if available
-		if pc != nil {
-			config.SystemPrompt = pc.SystemPrompt
-
-			// Map Security & Permission from YAML
-			config.BotUserID = pc.Security.Permission.BotUserID
-			config.VerifySignature = pc.Security.VerifySignature
-			config.DMPolicy = pc.Security.Permission.DMPolicy
-			config.GroupPolicy = pc.Security.Permission.GroupPolicy
-			config.AllowedUsers = pc.Security.Permission.AllowedUsers
-			config.BlockedUsers = pc.Security.Permission.BlockedUsers
-			config.SlashCommandRateLimit = pc.Security.Permission.SlashCommandRateLimit
-
-			// Map Owner Configuration (Phase 1: Bot Behavior Spec)
-			if pc.Security.Owner != nil {
-				config.Owner = &slack.OwnerConfig{
-					Primary: pc.Security.Owner.Primary,
-					Trusted: pc.Security.Owner.Trusted,
-					Policy:  slack.OwnerPolicy(pc.Security.Owner.Policy),
-				}
-			}
-
-			// Map Thread Ownership Configuration (Phase 1: Bot Behavior Spec)
-			if pc.Security.Permission.ThreadOwnership != nil {
-				config.ThreadOwnership = &slack.ThreadOwnershipConfig{
-					Enabled: pc.Security.Permission.ThreadOwnership.Enabled,
-					TTL:     pc.Security.Permission.ThreadOwnership.TTL,
-					Persist: pc.Security.Permission.ThreadOwnership.Persist,
-				}
-			}
-
-			// Map Features (Phase 2)
-			config.Features = slack.FeaturesConfig{
-				Chunking: slack.ChunkingConfig{
-					Enabled:  pc.Features.Chunking.Enabled,
-					MaxChars: pc.Features.Chunking.MaxChars,
-				},
-				Threading: slack.ThreadingConfig{
-					Enabled: pc.Features.Threading.Enabled,
-				},
-				RateLimit: slack.RateLimitConfig{
-					Enabled:     pc.Features.RateLimit.Enabled,
-					MaxAttempts: pc.Features.RateLimit.MaxAttempts,
-					BaseDelayMs: pc.Features.RateLimit.BaseDelayMs,
-					MaxDelayMs:  pc.Features.RateLimit.MaxDelayMs,
-				},
-				Markdown: slack.MarkdownConfig{
-					Enabled: pc.Features.Markdown.Enabled,
-				},
-			}
-
-			// Map Message Storage (Phase 3)
-			if pc.MessageStore.Enabled != nil {
-				config.Storage = &slack.StorageConfig{
-					Enabled:       pc.MessageStore.Enabled,
-					Type:          pc.MessageStore.Type,
-					SQLitePath:    pc.MessageStore.SQLite.Path,
-					PostgreSQLURL: pc.MessageStore.Postgres.DSN,
-					StreamEnabled: pc.MessageStore.Streaming.Enabled,
-					StreamTimeout: pc.MessageStore.Streaming.Timeout,
-				}
-			}
-
-			// Debug: Log GroupPolicy value
-			logger.Info("Slack config loaded from YAML",
-				"group_policy", config.GroupPolicy,
-				"bot_user_id", config.BotUserID,
-				"dm_policy", config.DMPolicy,
-				"owner_policy", config.GetOwnerPolicy(),
-				"thread_ownership", config.IsThreadOwnershipEnabled())
-
-			// Set broadcast response for multibot mode (Empty string means silence)
-			config.SetBroadcastResponse(pc.Security.Permission.BroadcastResponse)
-
-			// AppToken fallback
-			if config.AppToken == "" && pc.Options != nil {
-				if appToken, ok := pc.Options["app_token"].(string); ok {
-					config.AppToken = os.ExpandEnv(appToken)
-				}
-			}
-
-			// Mode from YAML overrides env var (if set)
-			if pc.Mode != "" {
-				config.Mode = pc.Mode
-			}
-		}
-
-		var opts []base.AdapterOption
-		if pc != nil {
-			opts = append(opts, base.WithSessionTimeout(pc.Session.Timeout))
-			opts = append(opts, base.WithCleanupInterval(pc.Session.CleanupInterval))
-		}
-		opts = append(opts, base.WithoutServer())
-		return slack.NewAdapter(config, logger, opts...)
-	}, "HOTPLEX_SLACK_BOT_TOKEN")
-	// Feishu
-	setupPlatform(ctx, "feishu", loader, manager, logger, func(pc *PlatformConfig) ChatAdapter {
-		appID := os.Getenv("HOTPLEX_FEISHU_APP_ID")
-		if appID == "" {
-			return nil
-		}
-		config := &feishu.Config{
-			AppID:             appID,
-			AppSecret:         os.Getenv("HOTPLEX_FEISHU_APP_SECRET"),
-			VerificationToken: os.Getenv("HOTPLEX_FEISHU_VERIFICATION_TOKEN"),
-			EncryptKey:        os.Getenv("HOTPLEX_FEISHU_ENCRYPT_KEY"),
-			ServerAddr:        os.Getenv("HOTPLEX_FEISHU_SERVER_ADDR"),
-		}
-
-		if pc != nil {
-			config.SystemPrompt = pc.SystemPrompt
-		}
-
-		var opts []base.AdapterOption
-		if pc != nil {
-			opts = append(opts, base.WithSessionTimeout(pc.Session.Timeout))
-			opts = append(opts, base.WithCleanupInterval(pc.Session.CleanupInterval))
-		}
-		opts = append(opts, base.WithoutServer())
-		adapter, _ := feishu.NewAdapter(config, logger, opts...)
-		return adapter
-	}, "HOTPLEX_FEISHU_APP_ID")
+	// Auto-discover platforms from the global registry
+	registry := base.GlobalAdapterRegistry()
+	for _, platform := range registry.List() {
+		factory, _ := registry.Get(platform)
+		setupPlatform(ctx, factory, loader, manager, logger)
+	}
 
 	if err := manager.StartAll(ctx); err != nil {
 		return nil, nil, fmt.Errorf("start all adapters: %w", err)
@@ -297,27 +159,17 @@ func resolveWorkDir(configuredPath, platform string, logger *slog.Logger) WorkDi
 
 func setupPlatform(
 	_ context.Context,
-	platform string,
+	factory base.AdapterFactory,
 	loader *ConfigLoader,
 	manager *AdapterManager,
 	logger *slog.Logger,
-	adapterFactory func(*PlatformConfig) ChatAdapter,
-	requiredEnvVars ...string,
 ) {
+	platform := factory.Platform()
+
 	// Early exit if required environment variables are not set
-	// This avoids unnecessary YAML config loading and engine creation
-	if len(requiredEnvVars) > 0 {
-		missing := false
-		for _, envVar := range requiredEnvVars {
-			if os.Getenv(envVar) == "" {
-				missing = true
-				break
-			}
-		}
-		if missing {
-			logger.Info("Platform skipped (missing required env vars)", "platform", platform, "required", requiredEnvVars)
-			return
-		}
+	if required := factory.RequiredEnvVars(); len(required) > 0 && !base.HasRequiredEnvVars(required) {
+		logger.Info("Platform skipped (missing required env vars)", "platform", platform, "required", required)
+		return
 	}
 
 	var pc *PlatformConfig
@@ -337,54 +189,49 @@ func setupPlatform(
 	manager.RegisterEngine(eng)
 
 	// 2. Create PermissionMatcher and inject into engine
-	// Use HOTPLEX_PERMISSION_STORE_DIR for absolute path, falling back to platform-relative dir.
-	// This ensures deterministic file paths in Docker/systemd deployments.
 	permBaseDir := os.Getenv("HOTPLEX_PERMISSION_STORE_DIR")
 	if permBaseDir == "" {
-		permBaseDir = platform // fallback to relative path (platform name)
+		permBaseDir = platform
 	}
 	permissionMatcher := permission.NewPermissionMatcher(permBaseDir)
 	eng.SetPermissionMatcher(permissionMatcher)
 
-	// 3. Create Adapter
-	adapter := adapterFactory(pc)
-	if adapter == nil {
+	// 3. Create Adapter via factory
+	rawAdapter := factory.New(pc)
+	if rawAdapter == nil {
 		logger.Info("Platform not initialized (likely missing credentials)", "platform", platform)
+		return
+	}
+	adapter, ok := rawAdapter.(ChatAdapter)
+	if !ok {
+		logger.Error("Factory returned non-ChatAdapter", "platform", platform)
 		return
 	}
 
 	// 4. Wire up Engine for slash command support (platform-agnostic via interface)
-	// Only adapters that implement EngineSupport will receive the engine
 	if engineSupport, ok := adapter.(base.EngineSupport); ok {
 		engineSupport.SetEngine(eng)
-		logger.Info("Engine injected", "platform", platform)
-	} else {
-		logger.Info("Adapter does not implement EngineSupport", "platform", platform)
+		logger.Debug("Engine injected", "platform", platform)
 	}
 
-	// 5. For Feishu adapters, also inject botID for permission management
-	if feishuSupport, ok := adapter.(base.FeishuEngineSupport); ok {
-		feishuSupport.SetEngineWithBotID(eng, pc.Security.Permission.BotUserID)
-		logger.Info("Feishu botID injected", "platform", platform, "bot_id", pc.Security.Permission.BotUserID)
+	// 5. For adapters that need botID for permission management
+	if botIDSupport, ok := adapter.(base.EngineSupportWithBotID); ok {
+		botIDSupport.SetBotID(pc.Security.Permission.BotUserID)
+		logger.Debug("BotID injected for permission management", "platform", platform, "bot_id", pc.Security.Permission.BotUserID)
 	}
 
-	// 3. Create EngineMessageHandler
-	// Wrap engine.Engine to implement chatapps.Engine interface
+	// 6. Create EngineMessageHandler
 	wrappedEng := &engineWrapper{eng: eng}
 
-	// Resolve work directory once at setup time to avoid repeated path expansion
-	// and log noise on every message (Issue #294)
 	workDirResult := resolveWorkDir(pc.Engine.WorkDir, platform, logger)
 
 	msgHandler := NewEngineMessageHandler(wrappedEng, manager,
 		WithConfigLoader(loader),
 		WithLogger(logger),
 		WithWorkDirFn(func(sessionID string) string {
-			// Return cached resolved path if configured
 			if workDirResult.ResolvedPath != "" {
 				return workDirResult.ResolvedPath
 			}
-			// Default: use temp directory with platform/session isolation
 			defaultDir := filepath.Join("/tmp/hotplex-chatapps", workDirResult.PlatformName, sessionID)
 			logger.Debug("Using default temp work_dir",
 				"platform", workDirResult.PlatformName,
@@ -395,36 +242,37 @@ func setupPlatform(
 		}),
 	)
 
-	// 4. Link everything
+	// 7. Link everything
 	adapter.SetHandler(msgHandler.Handle)
 
+	// 8. Register adapter
 	if err := manager.Register(adapter); err != nil {
 		logger.Error("Failed to register adapter", "platform", platform, "error", err)
-	} else {
-		// Setup AppHome capability center for Slack after registration
-		if platform == "slack" {
-			if slackAdapter, ok := adapter.(*slack.Adapter); ok {
-				client := slackAdapter.GetSlackClient()
-				if client != nil {
-					appHomeConfig := apphome.Config{
-						Enabled:          true,
-						CapabilitiesPath: os.Getenv("HOTPLEX_SLACK_CAPABILITIES_PATH"),
-					}
-					// Pass nil for brain - can be set later if needed
-					handler, _, _ := apphome.Setup(client, nil, appHomeConfig, logger)
-					if handler != nil {
-						slackAdapter.SetAppHomeHandler(handler)
-						logger.Info("AppHome capability center initialized", "platform", platform)
-					}
-				}
-			}
-		}
+		return
+	}
 
-		if pc != nil && pc.SourceFile != "" {
-			logger.Info("Platform successfully initialized from configuration file", "platform", platform, "file", pc.SourceFile)
-		} else {
-			logger.Info("Platform successfully initialized from environment variables", "platform", platform)
-		}
+	// 9. Call factory PostSetup hook (e.g., AppHome for Slack)
+	setupCtx := &base.SetupContext{
+		Manager:  manager,
+		Loader:   loader,
+		Engine:   eng,
+		PermDir:  permBaseDir,
+		Logger:   logger,
+		Platform: platform,
+		PlatformConfig: pc,
+		WorkDirFn: func(sessionID string) string {
+			if workDirResult.ResolvedPath != "" {
+				return workDirResult.ResolvedPath
+			}
+			return filepath.Join("/tmp/hotplex-chatapps", platform, sessionID)
+		},
+	}
+	factory.PostSetup(context.Background(), adapter, setupCtx)
+
+	if pc.SourceFile != "" {
+		logger.Info("Platform successfully initialized from configuration file", "platform", platform, "file", pc.SourceFile)
+	} else {
+		logger.Info("Platform successfully initialized from environment variables", "platform", platform)
 	}
 }
 

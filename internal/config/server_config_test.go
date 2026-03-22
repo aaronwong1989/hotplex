@@ -83,6 +83,8 @@ func TestNewServerLoader_InvalidYAML(t *testing.T) {
 }
 
 func TestServerLoader_Get(t *testing.T) {
+	// Isolate from HOTPLEX_PORT env var
+	t.Setenv("HOTPLEX_PORT", "")
 	tmpFile, err := os.CreateTemp("", "server-*.yaml")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -168,6 +170,8 @@ func TestServerLoader_GetTimeout_Default(t *testing.T) {
 }
 
 func TestServerLoader_GetTimeout_Custom(t *testing.T) {
+	// Isolate from HOTPLEX_EXECUTION_TIMEOUT env var
+	t.Setenv("HOTPLEX_EXECUTION_TIMEOUT", "")
 	tmpFile, err := os.CreateTemp("", "server-*.yaml")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -303,6 +307,8 @@ security:
 }
 
 func TestValidate_InvalidLogLevel(t *testing.T) {
+	// Isolate from HOTPLEX_LOG_LEVEL env var
+	t.Setenv("HOTPLEX_LOG_LEVEL", "")
 	content := `
 server:
   log_level: invalid_level
@@ -327,6 +333,8 @@ server:
 }
 
 func TestValidate_TimeoutTooLarge(t *testing.T) {
+	// Isolate from HOTPLEX_EXECUTION_TIMEOUT env var
+	t.Setenv("HOTPLEX_EXECUTION_TIMEOUT", "")
 	content := `
 engine:
   timeout: 25h

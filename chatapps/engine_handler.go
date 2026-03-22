@@ -10,6 +10,7 @@ import (
 
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/hrygo/hotplex/chatapps/internal"
+	"github.com/hrygo/hotplex/chatapps/slack"
 	"github.com/hrygo/hotplex/engine"
 	"github.com/hrygo/hotplex/event"
 	intengine "github.com/hrygo/hotplex/internal/engine"
@@ -334,6 +335,13 @@ func NewStreamCallback(
 	sessionOps SessionOperations,
 	streamingDisabled bool,
 ) *StreamCallback {
+	// Inject platform-specific converters and chunkers
+	chainOpts := ProcessorChainOptions{}
+	if platform == "slack" {
+		chainOpts.FormatConverter = slack.NewContentConverter()
+		chainOpts.Chunker = slack.NewSlackChunker()
+	}
+
 	cb := &StreamCallback{
 		ctx:               ctx,
 		sessionID:         sessionID,
@@ -348,7 +356,7 @@ func NewStreamCallback(
 		sessionOps:        sessionOps,
 		lastStatusUpdate:  time.Now(),
 		streamingDisabled: streamingDisabled,
-		processor:         NewDefaultProcessorChain(ctx, logger),
+		processor:         NewDefaultProcessorChain(ctx, logger, chainOpts),
 	}
 
 	// Initialize StatusManager if StatusProvider is available
@@ -666,10 +674,9 @@ func (c *StreamCallback) updateStatusMessageViaManager(statusType base.MessageTy
 	// Convert MessageType to StatusType
 	status := base.MessageTypeToStatusType(statusType)
 
-	// Get channel and thread info from metadata
+	// Get channel and thread info from metadata (uses unified keys with Slack fallback)
 	c.mu.Lock()
-	channelID, _ := c.metadata["channel_id"].(string)
-	threadTS, _ := c.metadata["thread_ts"].(string)
+	channelID, threadTS, _ := base.SlackMetadata(c.metadata)
 
 	// Throttle repetitive status updates
 	// Note: StatusManager also handles deduplication internally
@@ -879,25 +886,12 @@ func (c *StreamCallback) handleAnswer(data any) error {
 	// Skip streaming initialization for long-running tasks (Loki Mode, etc.)
 	if c.streamingDisabled {
 		c.logger.Debug("Streaming disabled for long-running task, using fallback mode",
-			"channel_id", c.metadata["channel_id"])
+			base.KeyRoomID, c.metadata[base.KeyRoomID])
 		c.mu.Unlock()
 		return nil
 	}
 	if !c.streamWriterActive && c.streamWriter == nil {
-		channelID := ""
-		threadTS := ""
-		userID := ""
-		if c.metadata != nil {
-			if ch, ok := c.metadata["channel_id"].(string); ok {
-				channelID = ch
-			}
-			if ts, ok := c.metadata["thread_ts"].(string); ok {
-				threadTS = ts
-			}
-			if uid, ok := c.metadata["user_id"].(string); ok {
-				userID = uid
-			}
-		}
+		channelID, threadTS, userID := base.SlackMetadata(c.metadata)
 		if channelID != "" {
 			c.streamWriter = c.adapters.NewStreamWriter(c.ctx, c.platform, userID, channelID, threadTS)
 			if c.streamWriter != nil {
@@ -1349,33 +1343,27 @@ func (c *StreamCallback) handleStepFinish(data any) error {
 	return c.buildChatMessage(base.MessageTypeStepFinish, content, metadata)
 }
 
-// mergeMetadata merges the callback's stored metadata with the provided metadata
+// mergeMetadata merges the callback's stored metadata with the provided metadata.
 // NOTE: message_ts is intentionally NOT copied because it refers to the user's message,
-// not the bot's message. Copying it causes Slack API errors (cant_update_message).
+// not the bot's message. Copying it causes platform API errors (cant_update_message).
 func (c *StreamCallback) mergeMetadata(metadata map[string]any) map[string]any {
 	result := make(map[string]any)
 	for k, v := range metadata {
 		result[k] = v
 	}
 
-	// Copy over important metadata from stored metadata
+	// Use base.MergeMetadata for unified keys (room_id, thread_id, user_id)
+	// with backward-compatible fallback to Slack-specific keys.
 	if c.metadata != nil {
-		if channelID, ok := c.metadata["channel_id"]; ok {
-			result["channel_id"] = channelID
+		result = base.MergeMetadata(result, c.metadata)
+
+		// Pass through platform-specific keys that are not in the unified set.
+		if v, ok := c.metadata["channel_type"]; ok {
+			result["channel_type"] = v
 		}
-		if channelType, ok := c.metadata["channel_type"]; ok {
-			result["channel_type"] = channelType
+		if v, ok := c.metadata["message_id"]; ok {
+			result["message_id"] = v
 		}
-		if threadTS, ok := c.metadata["thread_ts"]; ok {
-			result["thread_ts"] = threadTS
-		}
-		if userID, ok := c.metadata["user_id"]; ok {
-			result["user_id"] = userID
-		}
-		if messageID, ok := c.metadata["message_id"]; ok {
-			result["message_id"] = messageID
-		}
-		// Do NOT copy message_ts - it refers to the user's message, not the bot's message.
 	}
 	return result
 }

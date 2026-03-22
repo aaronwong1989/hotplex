@@ -32,6 +32,8 @@ const (
 	MessageTypeUserMessageReceived MessageType = "user_message_received"
 	MessageTypePermissionRequest   MessageType = "permission_request"
 	MessageTypeAnswer              MessageType = "answer"
+	// PermissionDenials indicates permission was denied by user (DangerBlock flow)
+	MessageTypePermissionDenials MessageType = "permission_denials"
 )
 
 // IsStorable 判断消息类型是否可存储 (单一事实来源)

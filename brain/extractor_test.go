@@ -8,6 +8,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestNewClaudeCodeExtractor tests the constructor
+func TestNewClaudeCodeExtractor(t *testing.T) {
+	extractor := NewClaudeCodeExtractor()
+	if extractor == nil {
+		t.Fatal("NewClaudeCodeExtractor() returned nil")
+	}
+	if extractor.ConfigPath == "" {
+		t.Error("ConfigPath should not be empty")
+	}
+}
+
+// TestNewOpenCodeExtractor tests the constructor
+func TestNewOpenCodeExtractor(t *testing.T) {
+	extractor := NewOpenCodeExtractor()
+	if extractor == nil {
+		t.Fatal("NewOpenCodeExtractor() returned nil")
+	}
+	// configPath may be empty if os.UserHomeDir fails, but should work in tests
+}
+
 func TestClaudeCodeExtractor_Extract(t *testing.T) {
 	// Create a temporary config file
 	tmpDir, err := os.MkdirTemp("", "claude-test")

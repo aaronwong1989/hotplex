@@ -5,10 +5,15 @@ import (
 	"testing"
 
 	"github.com/hrygo/hotplex/chatapps/base"
+	"github.com/hrygo/hotplex/chatapps/slack"
 )
 
 func TestProcessorChain_Process(t *testing.T) {
-	chain := NewDefaultProcessorChain(context.Background(), nil)
+	slackOpts := ProcessorChainOptions{
+		FormatConverter: slack.NewContentConverter(),
+		Chunker:        slack.NewSlackChunker(),
+	}
+	chain := NewDefaultProcessorChain(context.Background(), nil, slackOpts)
 
 	msg := &base.ChatMessage{
 		Platform:  "slack",
@@ -38,7 +43,11 @@ func TestProcessorChain_Process(t *testing.T) {
 }
 
 func TestProcessorChain_ProcessNilMessage(t *testing.T) {
-	chain := NewDefaultProcessorChain(context.Background(), nil)
+	slackOpts := ProcessorChainOptions{
+		FormatConverter: slack.NewContentConverter(),
+		Chunker:        slack.NewSlackChunker(),
+	}
+	chain := NewDefaultProcessorChain(context.Background(), nil, slackOpts)
 
 	processed, err := chain.Process(context.Background(), nil)
 	if err != nil {
@@ -51,7 +60,11 @@ func TestProcessorChain_ProcessNilMessage(t *testing.T) {
 }
 
 func TestDefaultProcessorChain_Creation(t *testing.T) {
-	chain := NewDefaultProcessorChain(context.Background(), nil)
+	slackOpts := ProcessorChainOptions{
+		FormatConverter: slack.NewContentConverter(),
+		Chunker:        slack.NewSlackChunker(),
+	}
+	chain := NewDefaultProcessorChain(context.Background(), nil, slackOpts)
 
 	if chain == nil {
 		t.Fatal("NewDefaultProcessorChain returned nil")
@@ -85,7 +98,7 @@ func TestDefaultProcessorChain_Creation(t *testing.T) {
 func TestProcessorChain_AddProcessor(t *testing.T) {
 	chain := NewProcessorChain()
 
-	chain.AddProcessor(NewFormatConversionProcessor(nil))
+	chain.AddProcessor(NewFormatConversionProcessor(nil, FormatProcessorOptions{}))
 	chain.AddProcessor(NewMessageFilterProcessor(nil))
 
 	if len(chain.processors) != 2 {
@@ -99,7 +112,9 @@ func TestProcessorChain_AddProcessor(t *testing.T) {
 
 // TestFormatConversionProcessor_CodeBlockProtection tests that code blocks are preserved
 func TestFormatConversionProcessor_CodeBlockProtection(t *testing.T) {
-	processor := NewFormatConversionProcessor(nil)
+	processor := NewFormatConversionProcessor(nil, FormatProcessorOptions{
+		Converter: slack.NewContentConverter(),
+	})
 
 	tests := []struct {
 		name     string
