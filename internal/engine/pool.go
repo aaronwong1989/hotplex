@@ -307,15 +307,10 @@ func (sm *SessionPool) cleanupSessionLocked(sessionID string) error {
 	// Force kill if needed (pass jobHandle for Windows Job Object termination)
 	sys.KillProcessGroup(sess.cmd, sess.jobHandle)
 
-	// Use reapOnce so that only the first caller (synchronous cleanup or async
-	// SafeGo goroutine) actually executes cmd.Wait(). The other caller is a no-op.
-	// This eliminates the theoretical lock contention where the goroutine's
-	// cmd.Wait() call would block waiting for the exec.Cmd internal mutex.
-	sess.reapOnce.Do(func() {
-		if sess.cmd != nil {
-			_ = sess.cmd.Wait() //nolint:errcheck
-		}
-	})
+	// Reap the zombie process so the OS process-table entry is cleared.
+	// sess.Wait() uses sync.Once to ensure only one reaper executes,
+	// eliminating double-wait races between sync and async paths.
+	_ = sess.Wait()
 
 	return nil
 }
@@ -471,15 +466,7 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 	go sess.ReadStderr()
 
 	panicx.SafeGo(sessLog, func() {
-		// Use reapOnce so that if cleanupSessionLocked already called cmd.Wait()
-		// (via its own reapOnce.Do()), this goroutine gets the cached exit status
-		// immediately without contending for the exec.Cmd internal lock.
-		var err error
-		sess.reapOnce.Do(func() {
-			if sess.cmd != nil {
-				err = sess.cmd.Wait() //nolint:errcheck
-			}
-		})
+		err := sess.Wait()
 		if sess.GetStatus() != SessionStatusDead {
 			sessLog.Warn("Session OS process exited unexpectedly", "exit_error", err, "is_resuming", isResuming)
 			// If this was a resume attempt that failed, delete the stale marker and CLI session file

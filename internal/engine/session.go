@@ -45,11 +45,9 @@ type Session struct {
 	Status       SessionStatus
 	statusChange chan SessionStatus
 
-	// reapOnce ensures the process is reaped exactly once. Both the synchronous
-	// cleanup path (cleanupSessionLocked) and the async SafeGo goroutine
-	// (startSession) call cmd.Wait() — using a Once eliminates the theoretical
-	// lock contention where the goroutine's call would block waiting for
-	// the synchronous caller's internal exec.Cmd mutex.
+	// reapOnce ensures cmd.Wait() is called exactly once — both the synchronous
+	// cleanup path (cleanupSessionLocked) and the async SafeGo goroutine call
+	// Wait(), and sync.Once guarantees only the first caller executes.
 	reapOnce sync.Once
 
 	mu     sync.RWMutex
@@ -67,6 +65,21 @@ func (s *Session) IsAlive() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.isAliveLocked()
+}
+
+// Wait reaps the process exactly once using sync.Once. Both the synchronous
+// cleanup path (cleanupSessionLocked) and the async SafeGo goroutine (startSession)
+// call this method; sync.Once ensures only the first call executes cmd.Wait(),
+// and subsequent calls return immediately without contending for the
+// exec.Cmd internal mutex or duplicating the reap.
+func (s *Session) Wait() error {
+	var err error
+	s.reapOnce.Do(func() {
+		if s.cmd != nil {
+			err = s.cmd.Wait() //nolint:errcheck
+		}
+	})
+	return err
 }
 
 // isAliveLocked checks if the process is still running. Caller must hold lock.
