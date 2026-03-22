@@ -69,7 +69,7 @@ func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
 	for _, sess := range sessions {
 		infos = append(infos, &SessionInfo{
 			ID:         sess.ID,
-			Status:     string(sess.Status),
+			Status:     adminapi.MapSessionStatus(sess.Status),
 			CreatedAt:  sess.CreatedAt,
 			LastActive: sess.GetLastActive(),
 		})
@@ -106,7 +106,7 @@ func (h *Handler) getSession(w http.ResponseWriter, r *http.Request) {
 
 	resp := SessionDetailResponse{
 		ID:         sess.ID,
-		Status:     string(sess.Status),
+		Status:     adminapi.MapSessionStatus(sess.Status),
 		CreatedAt:  sess.CreatedAt,
 		LastActive: sess.GetLastActive(),
 		Config: SessionConfig{

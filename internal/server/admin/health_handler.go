@@ -157,7 +157,7 @@ func (h *HealthHandler) enterDrain(w http.ResponseWriter, r *http.Request) {
 	var req DrainRequest
 	if r.ContentLength > 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body")
+			adminapi.WriteError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Invalid JSON body")
 			return
 		}
 	}
@@ -197,7 +197,7 @@ func (h *HealthHandler) exitDrain(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !wasDraining {
-		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Service is not in drain mode")
+		adminapi.WriteError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Service is not in drain mode")
 		return
 	}
 

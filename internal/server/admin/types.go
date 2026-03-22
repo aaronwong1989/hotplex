@@ -66,17 +66,26 @@ type SubsystemHealth struct {
 	Latency string `json:"latency,omitempty"`
 }
 
-// AdminError represents a uniform error envelope.
-type AdminError struct {
-	Error ErrorDetail `json:"error"`
-}
+// Re-export shared error types from adminapi for convenience.
+type (
+	ErrorCode     = adminapi.ErrorCode
+	ErrorResponse = adminapi.ErrorResponse
+	ErrorDetail   = adminapi.ErrorDetail
+)
 
-// ErrorDetail contains error details.
-type ErrorDetail struct {
-	Code    string                 `json:"code"`
-	Message string                 `json:"message"`
-	Details map[string]interface{} `json:"details,omitempty"`
-}
+// Error code constants re-exported from adminapi.
+const (
+	ErrCodeAuthFailed          = adminapi.ErrCodeAuthFailed
+	ErrCodeForbidden           = adminapi.ErrCodeForbidden
+	ErrCodeNotFound            = adminapi.ErrCodeNotFound
+	ErrCodeInvalidRequest      = adminapi.ErrCodeInvalidRequest
+	ErrCodeServerError         = adminapi.ErrCodeServerError
+	ErrCodeUnauthorized        = adminapi.ErrCodeUnauthorized
+	ErrCodeEngineNotInitialized = adminapi.ErrCodeEngineNotInitialized
+)
+
+// AdminError is an alias for the shared ErrorResponse.
+type AdminError = ErrorResponse
 
 // BatchStopRequest is the request body for batch session stop.
 type BatchStopRequest struct {
@@ -161,24 +170,15 @@ type ConfigResponse struct {
 }
 
 // NewAdminError creates a new AdminError with the given code and message.
-func NewAdminError(code, message string) AdminError {
-	return AdminError{
-		Error: ErrorDetail{
-			Code:    code,
-			Message: message,
-		},
-	}
+// Deprecated: Use adminapi.NewError directly.
+func NewAdminError(code ErrorCode, message string) AdminError {
+	return adminapi.NewError(code, message)
 }
 
 // NewAdminErrorWithDetails creates a new AdminError with details.
-func NewAdminErrorWithDetails(code, message string, details map[string]interface{}) AdminError {
-	return AdminError{
-		Error: ErrorDetail{
-			Code:    code,
-			Message: message,
-			Details: details,
-		},
-	}
+// Deprecated: Use adminapi.NewErrorWithDetails directly.
+func NewAdminErrorWithDetails(code ErrorCode, message string, details map[string]interface{}) AdminError {
+	return adminapi.NewErrorWithDetails(code, message, details)
 }
 
 // MapSessionToAdminSession converts an internal engine.Session to AdminSession.

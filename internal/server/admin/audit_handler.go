@@ -85,13 +85,13 @@ func (h *AuditHandler) getEvents(w http.ResponseWriter, r *http.Request) {
 func (h *AuditHandler) getTranscript(w http.ResponseWriter, r *http.Request) {
 	sessionID := extractSessionID(r)
 	if sessionID == "" {
-		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
+		adminapi.WriteError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Missing session ID")
 		return
 	}
 
 	sess, ok := h.sessionPool.GetSession(sessionID)
 	if !ok {
-		adminapi.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
+		adminapi.WriteError(w, http.StatusNotFound, ErrCodeNotFound, "Session not found")
 		return
 	}
 

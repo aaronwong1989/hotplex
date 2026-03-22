@@ -36,12 +36,13 @@ import (
 type ErrorCode string
 
 const (
-	ErrCodeAuthFailed     ErrorCode = "AUTH_FAILED"
-	ErrCodeForbidden      ErrorCode = "FORBIDDEN"
-	ErrCodeNotFound       ErrorCode = "NOT_FOUND"
-	ErrCodeInvalidRequest ErrorCode = "INVALID_REQUEST"
-	ErrCodeServerError    ErrorCode = "SERVER_ERROR"
-	ErrCodeUnauthorized   ErrorCode = "UNAUTHORIZED"
+	ErrCodeAuthFailed          ErrorCode = "AUTH_FAILED"
+	ErrCodeForbidden           ErrorCode = "FORBIDDEN"
+	ErrCodeNotFound            ErrorCode = "NOT_FOUND"
+	ErrCodeInvalidRequest      ErrorCode = "INVALID_REQUEST"
+	ErrCodeServerError         ErrorCode = "SERVER_ERROR"
+	ErrCodeUnauthorized        ErrorCode = "UNAUTHORIZED"
+	ErrCodeEngineNotInitialized ErrorCode = "ENGINE_NOT_INITIALIZED"
 )
 
 // ErrorResponse is the standard error envelope shared by all admin APIs.

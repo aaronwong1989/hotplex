@@ -8,9 +8,6 @@ import (
 	"github.com/hrygo/hotplex/internal/adminapi"
 )
 
-// ErrCodeUnauthorized is the error code for missing or invalid auth credentials.
-const ErrCodeUnauthorized = adminapi.ErrorCode("UNAUTHORIZED")
-
 // AdminAuthMiddleware creates an HTTP middleware that validates the X-Admin-Key header.
 // It uses constant-time comparison to prevent timing attacks.
 // If adminKey is empty, authentication is bypassed (no auth required).

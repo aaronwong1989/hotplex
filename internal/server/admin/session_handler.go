@@ -80,13 +80,13 @@ func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 func (h *SessionHandler) GetSession(w http.ResponseWriter, r *http.Request) {
 	sessionID := extractSessionID(r)
 	if sessionID == "" {
-		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
+		adminapi.WriteError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Missing session ID")
 		return
 	}
 
 	sess, ok := h.pool.GetSession(sessionID)
 	if !ok {
-		adminapi.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
+		adminapi.WriteError(w, http.StatusNotFound, ErrCodeNotFound, "Session not found")
 		return
 	}
 
@@ -98,7 +98,7 @@ func (h *SessionHandler) GetSession(w http.ResponseWriter, r *http.Request) {
 func (h *SessionHandler) StopSession(w http.ResponseWriter, r *http.Request) {
 	sessionID := extractSessionID(r)
 	if sessionID == "" {
-		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Missing session ID")
+		adminapi.WriteError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Missing session ID")
 		return
 	}
 
@@ -109,7 +109,7 @@ func (h *SessionHandler) StopSession(w http.ResponseWriter, r *http.Request) {
 
 	_, ok := h.pool.GetSession(sessionID)
 	if !ok {
-		adminapi.WriteError(w, http.StatusNotFound, "NOT_FOUND", "Session not found")
+		adminapi.WriteError(w, http.StatusNotFound, ErrCodeNotFound, "Session not found")
 		return
 	}
 
@@ -135,12 +135,12 @@ func (h *SessionHandler) StopSession(w http.ResponseWriter, r *http.Request) {
 func (h *SessionHandler) BatchStopSessions(w http.ResponseWriter, r *http.Request) {
 	var req BatchStopRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
+		adminapi.WriteError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Invalid request body")
 		return
 	}
 
 	if len(req.SessionIDs) == 0 {
-		adminapi.WriteError(w, http.StatusBadRequest, "INVALID_REQUEST", "No session IDs provided")
+		adminapi.WriteError(w, http.StatusBadRequest, ErrCodeInvalidRequest, "No session IDs provided")
 		return
 	}
 
