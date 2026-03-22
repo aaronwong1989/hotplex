@@ -42,7 +42,7 @@ var (
 	StatusLabelAgent       = "🎯 正在委派任务 [%s]..."
 	StatusLabelSkill       = "🧩 正在调用技能 [%s]..."
 	StatusLabelNotebook    = "📊 正在操作笔记本 [%s]..."
-	StatusLabelGit         = "🌿 正在版本控制 [%s]..."
+	StatusLabelGit         = "🐙 正在操作 GitHub [%s]..."
 	StatusLabelTest        = "✅ 正在运行测试 [%s]..."
 	StatusLabelDebug       = "🔧 正在调试 [%s]..."
 	StatusLabelBrowser     = "🌎 正在浏览网页 [%s]..."
@@ -144,7 +144,7 @@ var categoryMetadata = map[ToolCategory]struct {
 	ToolCategoryAgent:     {"🎯", &StatusLabelAgent},
 	ToolCategorySkill:     {"🧩", &StatusLabelSkill},
 	ToolCategoryNotebook:  {"📊", &StatusLabelNotebook},
-	ToolCategoryGit:       {"🌿", &StatusLabelGit},
+	ToolCategoryGit:       {"🐙", &StatusLabelGit},
 	ToolCategoryTest:      {"✅", &StatusLabelTest},
 	ToolCategoryDebug:     {"🔧", &StatusLabelDebug},
 	ToolCategoryBrowser:   {"🌎", &StatusLabelBrowser},
