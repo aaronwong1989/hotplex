@@ -130,6 +130,7 @@ jobs:
   # 二进制构建阶段 (Artifacts)
   build-artifacts:
     needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
