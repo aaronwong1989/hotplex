@@ -1,5 +1,27 @@
 # CHANGELOG.md
 
+## [v0.35.0] - 2026-03-22
+
+### Features
+- feat(cron-relay): Phase 0 infrastructure — types, interfaces, WireMessage extension (#344)
+- feat(provider): init() self-registration for built-in agents (closes #322) (#343)
+- feat(admin): implement Admin Webhook API - full RESTful management interface (#342)
+- feat(slack): multi-stage typing indicator with Assistant API fallback (#340)
+
+### Bug Fixes
+- fix: Admin API health check, Slack streaming errors, App Home graceful degradation (#341)
+
+### Maintenance
+- chore: upgrade Go version to 1.26 and cleanup status labels
+
+### Documentation
+- docs: move cron-relay spec to docs/superpowers/specs
+- docs: add Cron Relay design spec as release artifact
+- docs: address spec review findings - 4 critical + 6 major issues fixed
+- docs: expand cron-relay research with multi-agent best practices
+- docs: 竞品调研报告 - Cron调度器 & Bot-to-Bot Relay
+- docs: sync v0.34.0 docs for Platform Registry and BridgeServer
+
 ## [v0.34.0] - 2026-03-22
 
 ### Features
