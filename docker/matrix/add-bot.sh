@@ -70,8 +70,9 @@ if [ -f ".env-01" ]; then
     DEFAULT_IMAGE=$(grep "^HOTPLEX_IMAGE=" .env-01 2>/dev/null | cut -d= -f2 | tr -d ' ' | tr -d '\r')
 fi
 
-# Generate API Key
+# Generate API Keys
 NEW_API_KEY=$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom | head -c 64)
+NEW_ADMIN_API_KEY=$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom | head -c 64)
 
 printf "  ${GREEN}✓${NC} Bot Index: ${BOLD}${BOT_INDEX}${NC}\n"
 printf "  ${GREEN}✓${NC} Role: ${BOLD}${BOT_ROLE}${NC}\n"
@@ -80,6 +81,7 @@ printf "  ${GREEN}✓${NC} Admin Port: ${BOLD}${ADMIN_PORT}${NC}\n"
 printf "  ${GREEN}✓${NC} Claude Volume: ${BOLD}${CLAUDE_VOLUME}${NC}\n"
 printf "  ${GREEN}✓${NC} Build Cache Volume: ${BOLD}${BUILD_VOLUME}${NC}\n"
 printf "  ${GREEN}✓${NC} Generated API Key: ${BOLD}${NEW_API_KEY:0:8}...${NC}\n"
+printf "  ${GREEN}✓${NC} Generated Admin API Key: ${BOLD}${NEW_ADMIN_API_KEY:0:8}...${NC}\n"
 
 # --- 2. Interactive Prompts ---
 printf "\n${BOLD}${BLUE}⌨️  Step 2: Configuration (Mandatory)${NC}\n"
@@ -164,6 +166,7 @@ HOTPLEX_BOT_ID=$HOTPLEX_BOT_ID
 # --- Core Server ---
 HOTPLEX_PORT=8080
 HOTPLEX_API_KEY=$NEW_API_KEY
+HOTPLEX_ADMIN_API_KEY=$NEW_ADMIN_API_KEY
 HOTPLEX_LOG_LEVEL=$HOTPLEX_LOG_LEVEL
 
 # --- CORS (Optional - for Web UI access) ---

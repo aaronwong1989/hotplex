@@ -1,4 +1,5 @@
 # HotPlex Capability Center - Predefined Capabilities
+platform: slack
 
 capabilities:
   - id: code_review
