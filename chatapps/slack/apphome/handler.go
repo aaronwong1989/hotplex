@@ -95,6 +95,13 @@ func (h *Handler) HandleHomeOpened(ctx context.Context, event *HomeOpenedEvent) 
 		},
 	)
 	if err != nil {
+		// not_enabled means the App Home feature is not enabled in the Slack App config.
+		// This is a configuration issue, not a system failure — degrade gracefully.
+		if isAppHomeNotEnabled(err) {
+			h.logger.Info("App Home feature not enabled, skipping Home Tab update",
+				"user", event.User)
+			return nil
+		}
 		h.logger.Error("Failed to publish Home Tab view",
 			"user", event.User,
 			"error", err)
@@ -282,5 +289,27 @@ func (h *Handler) HandleHomeRefresh(ctx context.Context, userID string) error {
 			View:   *view,
 		},
 	)
-	return err
+	if err != nil {
+		// not_enabled means the App Home feature is not enabled in the Slack App config.
+		if isAppHomeNotEnabled(err) {
+			h.logger.Info("App Home feature not enabled, skipping Home Tab refresh",
+				"user", userID)
+			return nil
+		}
+		h.logger.Error("Failed to refresh Home Tab view",
+			"user", userID,
+			"error", err)
+		return fmt.Errorf("publish view: %w", err)
+	}
+	return nil
+}
+
+// isAppHomeNotEnabled checks if the error indicates App Home is not enabled
+// in the Slack App configuration.
+func isAppHomeNotEnabled(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "not_enabled")
 }
