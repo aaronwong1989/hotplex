@@ -89,9 +89,7 @@ func (a *enginePoolAdapter) ListActiveSessions() []*intengine.Session {
 	}
 	sessions := a.manager.ListActiveSessions()
 	result := make([]*intengine.Session, len(sessions))
-	for i, sess := range sessions {
-		result[i] = sess
-	}
+	copy(result, sessions)
 	return result
 }
 

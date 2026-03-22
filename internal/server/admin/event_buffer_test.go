@@ -84,7 +84,7 @@ func TestEventBuffer_Pagination(t *testing.T) {
 	}
 
 	// Get last page (partial)
-	events, total = buf.GetEventsPaginated(5, 8)
+	events, _ = buf.GetEventsPaginated(5, 8)
 	if len(events) != 2 {
 		t.Errorf("expected 2 events, got %d", len(events))
 	}

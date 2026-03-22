@@ -14,7 +14,7 @@ func TestAdminAuthMiddleware_ValidKey(t *testing.T) {
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)

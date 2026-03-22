@@ -59,8 +59,7 @@ func keyPrefix(key string) string {
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	resp := NewAdminError(code, message)
+	_ = NewAdminError(code, message)
 	// Simple JSON encoding without importing encoding/json
-	w.Write([]byte(`{"error":{"code":"` + code + `","message":"` + message + `"}}`))
-	_ = resp // Just for documentation
+	_, _ = w.Write([]byte(`{"error":{"code":"` + code + `","message":"` + message + `"}}`))
 }
