@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	intengine "github.com/hrygo/hotplex/internal/engine"
@@ -151,4 +152,37 @@ func WriteError(w http.ResponseWriter, status int, code ErrorCode, message strin
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("adminapi: failed to encode error response", "error", err)
 	}
+}
+
+// ParsePagination extracts pagination parameters (limit and offset) from the request URL query.
+// It provides sensible defaults and enforces maximum limits to prevent abuse.
+//
+// Default values:
+//   - limit: 100 (max: 1000)
+//   - offset: 0
+//
+// Invalid values are silently ignored and replaced with defaults.
+func ParsePagination(r *http.Request) (limit, offset int) {
+	// Default values
+	limit = 100
+	offset = 0
+
+	// Parse limit
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+			if limit > 1000 {
+				limit = 1000 // Enforce maximum to prevent abuse
+			}
+		}
+	}
+
+	// Parse offset
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	return
 }

@@ -87,10 +87,7 @@ func (a *enginePoolAdapter) ListActiveSessions() []*intengine.Session {
 	if a.manager == nil {
 		return []*intengine.Session{}
 	}
-	sessions := a.manager.ListActiveSessions()
-	result := make([]*intengine.Session, len(sessions))
-	copy(result, sessions)
-	return result
+	return a.manager.ListActiveSessions()
 }
 
 func (a *enginePoolAdapter) GetSession(sessionID string) (*intengine.Session, bool) {

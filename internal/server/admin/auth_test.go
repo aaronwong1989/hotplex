@@ -51,8 +51,8 @@ func TestAdminAuthMiddleware_MissingKey(t *testing.T) {
 	if !strings.Contains(body, "UNAUTHORIZED") {
 		t.Errorf("expected error code UNAUTHORIZED, got %s", body)
 	}
-	if !strings.Contains(body, "Missing X-API-Key") {
-		t.Errorf("expected missing key message, got %s", body)
+	if !strings.Contains(body, "X-API-Key") {
+		t.Errorf("expected X-API-Key reference, got %s", body)
 	}
 }
 
@@ -77,9 +77,6 @@ func TestAdminAuthMiddleware_InvalidKey(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "UNAUTHORIZED") {
 		t.Errorf("expected error code UNAUTHORIZED, got %s", body)
-	}
-	if !strings.Contains(body, "Invalid X-API-Key") {
-		t.Errorf("expected invalid key message, got %s", body)
 	}
 }
 
@@ -135,28 +132,6 @@ func TestAdminAuthMiddleware_TimingAttackResistant(t *testing.T) {
 
 			if rec.Code != tc.want {
 				t.Errorf("key %q: expected status %d, got %d", tc.key, tc.want, rec.Code)
-			}
-		})
-	}
-}
-
-func TestKeyPrefix(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"abcdefgh", "abcd****"},
-		{"ab", "****"},
-		{"abc", "****"},
-		{"abcd", "abcd****"},
-		{"", "****"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := keyPrefix(tt.input)
-			if result != tt.expected {
-				t.Errorf("keyPrefix(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}

@@ -28,30 +28,12 @@ func NewAuditHandler(eventBuffer *EventBuffer, sessionPool interface {
 
 // getEvents handles GET /api/v1/admin/events.
 func (h *AuditHandler) getEvents(w http.ResponseWriter, r *http.Request) {
-	limitStr := r.URL.Query().Get("limit")
-	offsetStr := r.URL.Query().Get("offset")
-	cursorStr := r.URL.Query().Get("cursor")
-
-	limit := 100
-	offset := 0
-
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-			if limit > 1000 {
-				limit = 1000
-			}
-		}
-	}
+	limit, offset := adminapi.ParsePagination(r)
 
 	// cursor takes precedence over offset (cursor-based pagination)
-	if cursorStr != "" {
+	if cursorStr := r.URL.Query().Get("cursor"); cursorStr != "" {
 		if c, err := strconv.Atoi(cursorStr); err == nil && c >= 0 {
 			offset = c
-		}
-	} else if offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
-			offset = o
 		}
 	}
 

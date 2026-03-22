@@ -142,16 +142,6 @@ func TestFormatUptime(t *testing.T) {
 	}
 }
 
-func TestStringsBuilder(t *testing.T) {
-	var sb stringsBuilder
-	sb.WriteString("hello")
-	sb.WriteString(" world")
-	result := sb.String()
-	if result != "hello world" {
-		t.Errorf("expected 'hello world', got %q", result)
-	}
-}
-
 func stringsContain(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {

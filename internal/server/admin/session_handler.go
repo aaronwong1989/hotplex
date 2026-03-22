@@ -3,7 +3,6 @@ package admin
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/hrygo/hotplex/internal/adminapi"
 	intengine "github.com/hrygo/hotplex/internal/engine"
@@ -28,25 +27,7 @@ func NewSessionHandler(pool SessionPoolInterface) *SessionHandler {
 
 // ListSessions handles GET /api/v1/sessions
 func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
-	limitStr := r.URL.Query().Get("limit")
-	offsetStr := r.URL.Query().Get("offset")
-
-	limit := 100
-	offset := 0
-
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-			if limit > 1000 {
-				limit = 1000
-			}
-		}
-	}
-	if offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
-			offset = o
-		}
-	}
+	limit, offset := adminapi.ParsePagination(r)
 
 	sessions := h.pool.ListActiveSessions()
 	total := len(sessions)

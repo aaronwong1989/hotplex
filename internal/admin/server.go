@@ -28,7 +28,7 @@ func NewServer(eng *engine.Engine, port, token string, startTime time.Time, logg
 	}
 
 	handler := NewHandler(eng, startTime, logger)
-	mw := NewMiddleware(token)
+	mw := NewMiddleware(token, logger)
 
 	router := mux.NewRouter()
 	router.Use(mw.AuthMiddleware)

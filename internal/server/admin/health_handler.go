@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hrygo/hotplex"
@@ -100,7 +101,7 @@ func (h *HealthHandler) getHealth(w http.ResponseWriter, r *http.Request) {
 // getMetrics handles GET /api/v1/admin/metrics.
 // Returns Prometheus-compatible text format.
 func (h *HealthHandler) getMetrics(w http.ResponseWriter, r *http.Request) {
-	var sb stringsBuilder
+	var sb strings.Builder
 	sb.WriteString("# HELP hotplex_uptime_seconds Uptime in seconds\n")
 	sb.WriteString("# TYPE hotplex_uptime_seconds gauge\n")
 	sb.WriteString("hotplex_uptime_seconds " + strconv.FormatFloat(time.Since(h.startTime).Seconds(), 'f', 3, 64) + "\n")
@@ -212,18 +213,18 @@ func (h *HealthHandler) exitDrain(w http.ResponseWriter, r *http.Request) {
 
 // getDrainStatus handles GET /api/v1/admin/drain.
 func (h *HealthHandler) getDrainStatus(w http.ResponseWriter, r *http.Request) {
-	draining := false
-	if h.engine != nil {
-		draining = h.engine.IsDraining()
+	// Handle nil engine case early
+	if h.engine == nil {
+		response := DrainResponse{Status: "active"}
+		adminapi.WriteJSON(w, http.StatusOK, response)
+		return
 	}
 
+	draining := h.engine.IsDraining()
 	if draining {
-		msg := ""
-		if h.engine != nil {
-			msg = h.engine.GetDrainMessage()
-		}
+		msg := h.engine.GetDrainMessage()
 		activeSessions := 0
-		if h.engine != nil && h.engine.GetSessionManager() != nil {
+		if h.engine.GetSessionManager() != nil {
 			activeSessions = len(h.engine.GetSessionManager().ListActiveSessions())
 		}
 		response := DrainResponse{
@@ -307,19 +308,6 @@ func formatUptime(d time.Duration) string {
 		return strconv.Itoa(m) + "m " + strconv.Itoa(s) + "s"
 	}
 	return strconv.Itoa(s) + "s"
-}
-
-// stringsBuilder is a simple strings.Builder replacement.
-type stringsBuilder struct {
-	b []byte
-}
-
-func (sb *stringsBuilder) WriteString(s string) {
-	sb.b = append(sb.b, s...)
-}
-
-func (sb *stringsBuilder) String() string {
-	return string(sb.b)
 }
 
 // Ensure intengine.Session type compatibility
