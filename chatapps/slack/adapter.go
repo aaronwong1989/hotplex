@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hrygo/hotplex/brain"
@@ -75,7 +76,8 @@ type Adapter struct {
 
 	// isAssistantCapable indicates if the workspace supports Assistant API (paid plan).
 	// Probed once at startup via ProbeAssistantCapability.
-	isAssistantCapable bool
+	// Uses atomic.Bool for thread-safe concurrent access.
+	isAssistantCapable atomic.Bool
 }
 
 // Compile-time check: ensure Adapter implements StatusProvider
@@ -183,8 +185,9 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 	go func() {
 		probeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		a.isAssistantCapable = a.ProbeAssistantCapability(probeCtx)
-		if a.isAssistantCapable {
+		capable := a.ProbeAssistantCapability(probeCtx)
+		a.isAssistantCapable.Store(capable)
+		if capable {
 			a.Logger().Info("Assistant API capability confirmed (paid workspace)")
 		} else {
 			a.Logger().Info("Assistant API not available, using emoji reaction fallback")
@@ -827,8 +830,7 @@ func (a *Adapter) ProbeAssistantCapability(ctx context.Context) bool {
 	params := slack.AssistantThreadsSetStatusParameters{Status: ""}
 	err := a.client.SetAssistantThreadsStatusContext(ctx, params)
 	if err != nil {
-		if strings.Contains(err.Error(), "not_allowed") ||
-			strings.Contains(err.Error(), "not_allowed_token_type") {
+		if isAssistantCapabilityError(err) {
 			a.Logger().Warn("Assistant API not available (free workspace?), falling back to emoji reactions",
 				slog.String("error", err.Error()))
 			return false
@@ -839,6 +841,17 @@ func (a *Adapter) ProbeAssistantCapability(ctx context.Context) bool {
 		return true
 	}
 	return true
+}
+
+// isAssistantCapabilityError returns true if the error indicates the Assistant API
+// is not available for this workspace (e.g., free workspace).
+func isAssistantCapabilityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "not_allowed") ||
+		strings.Contains(errStr, "not_allowed_token_type")
 }
 
 // stripBotMention removes bot mention from text

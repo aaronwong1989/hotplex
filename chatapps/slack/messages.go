@@ -416,17 +416,16 @@ func (a *Adapter) SetStatus(ctx context.Context, channelID, threadTS string, sta
 	}
 
 	// Try native Assistant API if capable
-	if a.isAssistantCapable {
+	if a.isAssistantCapable.Load() {
 		err := a.SetAssistantStatus(ctx, channelID, threadTS, text)
 		if err == nil {
 			return nil
 		}
 		// If it's a capability error, fall back to emoji
-		if strings.Contains(err.Error(), "not_allowed") ||
-			strings.Contains(err.Error(), "not_allowed_token_type") {
+		if isAssistantCapabilityError(err) {
 			a.Logger().Warn("Assistant API no longer available, switching to emoji fallback",
 				slog.String("error", err.Error()))
-			a.isAssistantCapable = false // Don't retry native API
+			a.isAssistantCapable.Store(false) // Don't retry native API
 		} else {
 			// Other error - still try fallback
 			a.Logger().Debug("Assistant API call failed, trying emoji fallback",
@@ -465,14 +464,13 @@ func (a *Adapter) ClearStatus(ctx context.Context, channelID, threadTS string) e
 		return fmt.Errorf("slack client not initialized")
 	}
 
-	if a.isAssistantCapable {
+	if a.isAssistantCapable.Load() {
 		err := a.SetAssistantStatus(ctx, channelID, threadTS, "")
 		if err == nil {
 			return nil
 		}
-		if strings.Contains(err.Error(), "not_allowed") ||
-			strings.Contains(err.Error(), "not_allowed_token_type") {
-			a.isAssistantCapable = false
+		if isAssistantCapabilityError(err) {
+			a.isAssistantCapable.Store(false)
 		}
 		// Other errors: fall through to no-op
 	}

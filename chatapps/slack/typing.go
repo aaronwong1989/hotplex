@@ -4,6 +4,7 @@ package slack
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -85,19 +86,23 @@ func (ti *TypingIndicator) Start(ctx context.Context) {
 func (ti *TypingIndicator) runStages(ctx context.Context) {
 	for i := 1; i < len(ti.stages); i++ {
 		stage := ti.stages[i]
+		timer := time.NewTimer(stage.After)
 		select {
-		case <-time.After(stage.After):
+		case <-timer.C:
 			ti.mu.Lock()
 			if ti.done {
 				ti.mu.Unlock()
+				timer.Stop()
 				return
 			}
 			emoji := stage.Emoji
 			ti.mu.Unlock()
 			ti.doAddReaction(ctx, emoji)
 		case <-ti.stopCh:
+			timer.Stop()
 			return
 		case <-ctx.Done():
+			timer.Stop()
 			return
 		}
 	}
@@ -182,7 +187,7 @@ func NewActiveIndicators() *ActiveIndicators {
 }
 
 func (ai *ActiveIndicators) key(channelID, messageTS string) string {
-	return channelID + ":" + messageTS
+	return fmt.Sprintf("%s:%s", channelID, messageTS)
 }
 
 // Start creates and starts a new typing indicator for the given channel+message.
