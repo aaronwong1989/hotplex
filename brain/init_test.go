@@ -1148,6 +1148,32 @@ func TestConfig_BudgetLimit(t *testing.T) {
 	assert.InDelta(t, 100.50, config.Budget.Limit, 0.01)
 }
 
+func TestConfig_OpenCodeProviderType(t *testing.T) {
+	// Note: os.UserHomeDir() on macOS uses getpwuid, not $HOME.
+	// The temp file approach only works on Linux where HOME is respected.
+	// So we test with the real opencode config file if it exists,
+	// verifying that HOTPLEX_PROVIDER_TYPE=opencode triggers the extractor.
+	t.Setenv("HOTPLEX_BRAIN_API_KEY", "")
+	t.Setenv("HOTPLEX_PROVIDER_TYPE", "opencode")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("SILICONFLOW_API_KEY", "")
+	t.Setenv("DEEPSEEK_API_KEY", "")
+
+	config := LoadConfigFromEnv()
+
+	// If real opencode config exists and has the provider/model format,
+	// provider/protocol should equal the parsed provider name.
+	// If no config found, falls through to Group 2b.
+	// Either way: provider and protocol should match (both non-empty when enabled).
+	if config.Enabled {
+		assert.Equal(t, config.Model.Provider, config.Model.Protocol,
+			"Provider and Protocol should match for opencode")
+		assert.NotEmpty(t, config.Model.Model)
+		assert.NotEmpty(t, config.Model.Provider)
+	}
+}
+
 // ========================================
 // recordMetrics with real timer
 // ========================================

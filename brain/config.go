@@ -266,27 +266,48 @@ func LoadConfigFromEnv() Config {
 		providerType = "openai"
 	}
 
-	// Try CLI Extractor (e.g., ~/.claude/settings.json).
+	// Try CLI Extractor (e.g., ~/.claude/settings.json, ~/.config/opencode/opencode.json).
 	var extracted *ExtractedConfig
-	if providerType == "claude-code" || providerType == "anthropic" {
+	switch providerType {
+	case "claude-code", "anthropic":
 		extracted, _ = NewClaudeCodeExtractor().Extract()
+	case "opencode":
+		extracted, _ = NewOpenCodeExtractor().Extract()
 	}
 
 	// Group 2a: CLI Extractor succeeded.
 	if extracted != nil && extracted.APIKey != "" {
 		apiKey = extracted.APIKey
-		provider = "anthropic"
-		protocol = "anthropic"
+		endpoint = os.Getenv("HOTPLEX_BRAIN_ENDPOINT")
+		if endpoint == "" {
+			endpoint = extracted.Endpoint
+		}
 		model = os.Getenv("HOTPLEX_PROVIDER_MODEL")
 		if model == "" {
 			model = extracted.Model
 		}
-		if model == "" {
-			model = "claude-3-7-sonnet-latest"
-		}
-		endpoint = os.Getenv("HOTPLEX_BRAIN_ENDPOINT")
-		if endpoint == "" {
-			endpoint = extracted.Endpoint
+		// Determine provider/protocol from model string or providerType.
+		// ClaudeCodeExtractor: always anthropic.
+		// OpenCodeExtractor: model follows "provider/model" format (e.g., "anthropic/claude-3-7-sonnet-latest").
+		// HOTPLEX_PROVIDER_MODEL overrides everything.
+		if providerType == "claude-code" || providerType == "anthropic" {
+			provider = "anthropic"
+			protocol = "anthropic"
+			if model == "" {
+				model = "claude-3-7-sonnet-latest"
+			}
+		} else {
+			// opencode or other: parse provider from "provider/model" in model string.
+			if strings.Contains(model, "/") {
+				parts := strings.SplitN(model, "/", 2)
+				provider = parts[0]
+			} else {
+				provider = providerType
+			}
+			protocol = provider
+			if model == "" {
+				model = "gpt-4o"
+			}
 		}
 		return buildConfig(apiKey, provider, protocol, model, endpoint)
 	}

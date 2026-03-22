@@ -89,9 +89,12 @@ type OpenCodeExtractor struct {
 var _ ConfigExtractor = (*OpenCodeExtractor)(nil)
 
 // NewOpenCodeExtractor creates a new extractor for OpenCode CLI.
-func NewOpenCodeExtractor() *OpenCodeExtractor {
+// An optional homeDir can be passed to override os.UserHomeDir() for testing.
+func NewOpenCodeExtractor(homeDir ...string) *OpenCodeExtractor {
 	var configPath string
-	if home, err := os.UserHomeDir(); err == nil {
+	if len(homeDir) > 0 {
+		configPath = filepath.Join(homeDir[0], ".config", "opencode", "opencode.json")
+	} else if home, err := os.UserHomeDir(); err == nil {
 		configPath = filepath.Join(home, ".config", "opencode", "opencode.json")
 	}
 
