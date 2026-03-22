@@ -668,3 +668,36 @@ func mergeStringSlices(base, overlay []string) []string {
 
 	return result
 }
+
+// claudeCodePlugin implements ProviderPlugin for Claude Code.
+type claudeCodePlugin struct{}
+
+func (p *claudeCodePlugin) Type() ProviderType {
+	return ProviderTypeClaudeCode
+}
+
+func (p *claudeCodePlugin) New(cfg ProviderConfig, logger *slog.Logger) (Provider, error) {
+	return NewClaudeCodeProvider(cfg, logger)
+}
+
+func (p *claudeCodePlugin) Meta() ProviderMeta {
+	return ProviderMeta{
+		Type:        ProviderTypeClaudeCode,
+		DisplayName: "Claude Code",
+		BinaryName:  "claude",
+		InstallHint: "npm install -g @anthropic-ai/claude-code",
+		Features: ProviderFeatures{
+			SupportsResume:      true,
+			SupportsStreamJSON:  true,
+			SupportsSSE:         false,
+			SupportsHTTPAPI:     false,
+			SupportsSessionID:   true,
+			SupportsPermissions: true,
+			MultiTurnReady:      true,
+		},
+	}
+}
+
+func init() {
+	RegisterPlugin(&claudeCodePlugin{})
+}
