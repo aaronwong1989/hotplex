@@ -1,5 +1,13 @@
 # CHANGELOG.md
 
+## [v0.34.0] - 2026-03-22
+
+### Features
+- feat: Phase 2 platform registry + BridgeServer WebSocket gateway (#334)
+
+### Maintenance
+- refactor: polish Bridge infrastructure and adapter code
+
 ## [v0.33.1] - 2026-03-22
 
 ### Features

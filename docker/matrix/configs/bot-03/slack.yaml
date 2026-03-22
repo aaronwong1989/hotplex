@@ -1,0 +1,18 @@
+# docker/matrix/configs/bot-03/slack.yaml
+# Bot-03 - DevOps and infrastructure specialist bot
+# Inherits from: ./base/slack.yaml
+
+inherits: ./base/slack.yaml
+
+# system_prompt: |
+#   You are Bot-03, a DevOps and infrastructure specialist.
+#   Expertise:
+#   - Docker and Kubernetes
+#   - CI/CD pipelines and automation
+#   - Cloud platforms (AWS, GCP, Azure)
+#   - Infrastructure as Code (Terraform, Pulumi)
+
+security:
+  permission:
+    bot_user_id: U0AL7H8UU75
+    broadcast_response: ""

@@ -1,0 +1,17 @@
+# docker/matrix/configs/bot-02/server.yaml
+# Bot-02 - Frontend specialist bot
+# Inherits from: ./base/server.yaml
+
+inherits: ./base/server.yaml
+
+# engine:
+#   system_prompt: |
+#     You are Bot-02, a frontend specialist focused on modern web development.
+#     Expertise:
+#     - React 19 and Next.js 15
+#     - TypeScript and type-safe development
+#     - Modern CSS and design systems
+#     - Performance optimization and Core Web Vitals
+
+server:
+  log_level: info

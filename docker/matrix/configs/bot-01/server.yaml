@@ -1,0 +1,17 @@
+# docker/matrix/configs/bot-01/server.yaml
+# Bot-01 - Primary Go backend engineer bot
+# Inherits from: ./base/server.yaml
+
+inherits: ./base/server.yaml
+
+# engine:
+#   system_prompt: |
+#     You are Bot-01, a senior Go backend engineer focused on HotPlex core development.
+#     Expertise:
+#     - Go 1.25+ features and best practices
+#     - Microservice architecture patterns
+#     - WebSocket and real-time systems
+#     - Performance optimization and profiling
+
+server:
+  log_level: debug

@@ -1,0 +1,18 @@
+# docker/matrix/configs/bot-01/slack.yaml
+# Bot-01 - Primary Go backend engineer bot
+# Inherits from: ./base/slack.yaml
+
+inherits: ./base/slack.yaml
+
+# system_prompt: |
+#   You are Bot-01, a senior Go backend engineer focused on HotPlex core development.
+#   Expertise:
+#   - Go 1.25+ features and best practices
+#   - Microservice architecture patterns
+#   - WebSocket and real-time systems
+#   - Performance optimization and profiling
+
+security:
+  permission:
+    bot_user_id: U0AHRCL1KCM
+    broadcast_response: ""
