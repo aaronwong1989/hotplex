@@ -8,7 +8,7 @@ import (
 	"github.com/hrygo/hotplex/internal/adminapi"
 )
 
-// AdminAuthMiddleware creates an HTTP middleware that validates the X-Admin-Key header.
+// AdminAuthMiddleware creates an HTTP middleware that validates the X-API-Key header.
 // It uses constant-time comparison to prevent timing attacks.
 // If adminKey is empty, authentication is bypassed (no auth required).
 func AdminAuthMiddleware(adminKey string, logger *slog.Logger) func(http.Handler) http.Handler {
@@ -20,7 +20,7 @@ func AdminAuthMiddleware(adminKey string, logger *slog.Logger) func(http.Handler
 				return
 			}
 
-			key := r.Header.Get("X-Admin-Key")
+			key := r.Header.Get("X-API-Key")
 
 			// Empty key check
 			if key == "" {
@@ -28,7 +28,7 @@ func AdminAuthMiddleware(adminKey string, logger *slog.Logger) func(http.Handler
 					"remote_addr", r.RemoteAddr,
 					"path", r.URL.Path,
 				)
-				adminapi.WriteError(w, http.StatusUnauthorized, ErrCodeUnauthorized, "Missing X-Admin-Key header")
+				adminapi.WriteError(w, http.StatusUnauthorized, ErrCodeUnauthorized, "Missing X-API-Key header")
 				return
 			}
 
@@ -39,7 +39,7 @@ func AdminAuthMiddleware(adminKey string, logger *slog.Logger) func(http.Handler
 					"path", r.URL.Path,
 					"key_prefix", keyPrefix(key),
 				)
-				adminapi.WriteError(w, http.StatusUnauthorized, ErrCodeUnauthorized, "Invalid X-Admin-Key")
+				adminapi.WriteError(w, http.StatusUnauthorized, ErrCodeUnauthorized, "Invalid X-API-Key")
 				return
 			}
 

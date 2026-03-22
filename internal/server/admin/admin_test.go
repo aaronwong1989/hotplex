@@ -52,7 +52,7 @@ func TestAdminServer_ServeHTTP_Health(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", nil)
-	req.Header.Set("X-Admin-Key", "test-key-123")
+	req.Header.Set("X-API-Key", "test-key-123")
 	rec := httptest.NewRecorder()
 
 	server.ServeHTTP(rec, req)
@@ -92,7 +92,7 @@ func TestAdminServer_ServeHTTP_Health_InvalidKey(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/health", nil)
-	req.Header.Set("X-Admin-Key", "wrong-key")
+	req.Header.Set("X-API-Key", "wrong-key")
 	rec := httptest.NewRecorder()
 
 	server.ServeHTTP(rec, req)
@@ -108,7 +108,7 @@ func TestAdminServer_ServeHTTP_Events(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/events", nil)
-	req.Header.Set("X-Admin-Key", "test-key-123")
+	req.Header.Set("X-API-Key", "test-key-123")
 	rec := httptest.NewRecorder()
 
 	server.ServeHTTP(rec, req)
@@ -133,7 +133,7 @@ func TestAdminServer_ServeHTTP_Sessions(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/sessions", nil)
-	req.Header.Set("X-Admin-Key", "test-key-123")
+	req.Header.Set("X-API-Key", "test-key-123")
 	rec := httptest.NewRecorder()
 
 	server.ServeHTTP(rec, req)
@@ -178,7 +178,7 @@ func TestAdminServer_DrainEnterAndStatus(t *testing.T) {
 
 	// Enter drain
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/drain", nil)
-	req.Header.Set("X-Admin-Key", "drain-key")
+	req.Header.Set("X-API-Key", "drain-key")
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 
@@ -188,7 +188,7 @@ func TestAdminServer_DrainEnterAndStatus(t *testing.T) {
 
 	// Get drain status
 	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/admin/drain", nil)
-	req2.Header.Set("X-Admin-Key", "drain-key")
+	req2.Header.Set("X-API-Key", "drain-key")
 	rec2 := httptest.NewRecorder()
 	server.ServeHTTP(rec2, req2)
 
@@ -204,7 +204,7 @@ func TestAdminServer_ExitDrain_NotDraining(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/drain", nil)
-	req.Header.Set("X-Admin-Key", "drain-key")
+	req.Header.Set("X-API-Key", "drain-key")
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 
@@ -219,7 +219,7 @@ func TestAdminServer_ConfigEndpoints(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/config", nil)
-	req.Header.Set("X-Admin-Key", "config-key")
+	req.Header.Set("X-API-Key", "config-key")
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 
@@ -234,7 +234,7 @@ func TestAdminServer_Metrics(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/metrics", nil)
-	req.Header.Set("X-Admin-Key", "metrics-key")
+	req.Header.Set("X-API-Key", "metrics-key")
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 

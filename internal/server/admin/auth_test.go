@@ -20,7 +20,7 @@ func TestAdminAuthMiddleware_ValidKey(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-Admin-Key", "test-secret-key")
+	req.Header.Set("X-API-Key", "test-secret-key")
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -51,7 +51,7 @@ func TestAdminAuthMiddleware_MissingKey(t *testing.T) {
 	if !strings.Contains(body, "UNAUTHORIZED") {
 		t.Errorf("expected error code UNAUTHORIZED, got %s", body)
 	}
-	if !strings.Contains(body, "Missing X-Admin-Key") {
+	if !strings.Contains(body, "Missing X-API-Key") {
 		t.Errorf("expected missing key message, got %s", body)
 	}
 }
@@ -65,7 +65,7 @@ func TestAdminAuthMiddleware_InvalidKey(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-Admin-Key", "wrong-key")
+	req.Header.Set("X-API-Key", "wrong-key")
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -78,7 +78,7 @@ func TestAdminAuthMiddleware_InvalidKey(t *testing.T) {
 	if !strings.Contains(body, "UNAUTHORIZED") {
 		t.Errorf("expected error code UNAUTHORIZED, got %s", body)
 	}
-	if !strings.Contains(body, "Invalid X-Admin-Key") {
+	if !strings.Contains(body, "Invalid X-API-Key") {
 		t.Errorf("expected invalid key message, got %s", body)
 	}
 }
@@ -93,7 +93,7 @@ func TestAdminAuthMiddleware_PartialKey(t *testing.T) {
 
 	// Only first part of the key matches
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-Admin-Key", "test")
+	req.Header.Set("X-API-Key", "test")
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -127,7 +127,7 @@ func TestAdminAuthMiddleware_TimingAttackResistant(t *testing.T) {
 		t.Run(tc.key, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			if tc.key != "" {
-				req.Header.Set("X-Admin-Key", tc.key)
+				req.Header.Set("X-API-Key", tc.key)
 			}
 			rec := httptest.NewRecorder()
 
