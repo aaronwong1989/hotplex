@@ -76,7 +76,7 @@ func NewOpenCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*OpenCodeProv
 		Type:        ProviderTypeOpenCode,
 		DisplayName: "OpenCode",
 		BinaryName:  "opencode",
-		InstallHint: "go install github.com/opencode-ai/opencode@latest",
+		InstallHint: "npm install -g @opencode/cli",
 		Features: ProviderFeatures{
 			SupportsResume:             false,
 			SupportsStreamJSON:         false,
@@ -420,7 +420,7 @@ func (p *openCodePlugin) Meta() ProviderMeta {
 		Type:        ProviderTypeOpenCode,
 		DisplayName: "OpenCode",
 		BinaryName:  "opencode",
-		InstallHint: "go install github.com/opencode-ai/opencode@latest",
+		InstallHint: "npm install -g @opencode/cli",
 		Features: ProviderFeatures{
 			SupportsResume:             false,
 			SupportsStreamJSON:         false,
