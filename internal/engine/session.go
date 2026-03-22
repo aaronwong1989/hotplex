@@ -45,6 +45,13 @@ type Session struct {
 	Status       SessionStatus
 	statusChange chan SessionStatus
 
+	// reapOnce ensures the process is reaped exactly once. Both the synchronous
+	// cleanup path (cleanupSessionLocked) and the async SafeGo goroutine
+	// (startSession) call cmd.Wait() — using a Once eliminates the theoretical
+	// lock contention where the goroutine's call would block waiting for
+	// the synchronous caller's internal exec.Cmd mutex.
+	reapOnce sync.Once
+
 	mu     sync.RWMutex
 	closed bool
 
