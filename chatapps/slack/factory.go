@@ -29,19 +29,23 @@ func (f *AdapterFactory) New(pc *base.PlatformConfig) any {
 		return nil
 	}
 
+	// Mode: YAML config takes precedence; env var is override.
+	// Empty mode defaults to Socket Mode (handled by Validate/IsSocketMode).
 	mode := os.Getenv("HOTPLEX_SLACK_MODE")
-	if mode == "" {
-		mode = "http"
-	}
 	config := &Config{
 		BotToken:      token,
 		AppToken:      os.Getenv("HOTPLEX_SLACK_APP_TOKEN"),
 		SigningSecret: os.Getenv("HOTPLEX_SLACK_SIGNING_SECRET"),
-		Mode:          mode,
 		ServerAddr:    os.Getenv("HOTPLEX_SLACK_SERVER_ADDR"),
 	}
 
 	if pc != nil {
+		// YAML config is the SSOT for platform settings
+		if pc.Mode != "" {
+			config.Mode = pc.Mode
+		} else if mode != "" {
+			config.Mode = mode
+		}
 		config.SystemPrompt = pc.SystemPrompt
 		config.BotUserID = pc.Security.Permission.BotUserID
 		config.VerifySignature = pc.Security.VerifySignature
@@ -105,9 +109,6 @@ func (f *AdapterFactory) New(pc *base.PlatformConfig) any {
 			}
 		}
 
-		if pc.Mode != "" {
-			config.Mode = pc.Mode
-		}
 	}
 
 	var opts []base.AdapterOption

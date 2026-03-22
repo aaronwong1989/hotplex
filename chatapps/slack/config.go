@@ -219,7 +219,9 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Mode {
-	case "", "http":
+	case "":
+		// Empty mode defaults to Socket Mode (no signing secret required)
+	case "http":
 		// HTTP Mode requires SigningSecret
 		if c.SigningSecret == "" {
 			return fmt.Errorf("signing secret is required for HTTP mode")
@@ -252,9 +254,10 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// IsSocketMode returns true if Socket Mode is enabled
+// IsSocketMode returns true if Socket Mode is enabled.
+// Empty mode defaults to Socket Mode.
 func (c *Config) IsSocketMode() bool {
-	return c.Mode == "socket"
+	return c.Mode == "" || c.Mode == "socket"
 }
 
 // IsUserAllowed checks if a user is allowed to interact with the bot

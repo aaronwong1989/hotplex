@@ -233,122 +233,142 @@ type Config struct {
 // LoadConfigFromEnv loads the brain configuration from environment variables.
 //
 // Configuration priority (per group, not per field):
-//  1. HOTPLEX_BRAIN_*   - Brain's own config (highest)
-//  2. HOTPLEX_PROVIDER_* + CLI Extractor - Provider-level config
-//  3. System env vars  - System defaults (lowest)
+//  1. HOTPLEX_BRAIN_* - Brain's own config. Must be complete (gate: API_KEY).
+//  2. HOTPLEX_PROVIDER_* + CLI Extractor - Can mix within this group.
+//  3. System env vars - Final fallback. Cannot mix with groups 1 or 2.
 //
-// If a group is incomplete, the ENTIRE group is discarded and falls back to the next.
-// Mixing across groups is forbidden to ensure consistency.
+// If a group's gate is missing, the ENTIRE group is skipped and falls back.
 func LoadConfigFromEnv() Config {
 	var apiKey, provider, protocol, model, endpoint string
 
+	// ─────────────────────────────────────────────────────────
 	// Group 1: Brain's own configuration (HOTPLEX_BRAIN_*)
-	// Use this group ONLY if HOTPLEX_BRAIN_API_KEY is explicitly set.
-	brainAPIKey := os.Getenv("HOTPLEX_BRAIN_API_KEY")
-	if brainAPIKey != "" {
-		// Brain config group is complete (API key is the gate).
-		// Use all fields from this group.
-		apiKey = brainAPIKey
+	// Gate: HOTPLEX_BRAIN_API_KEY must be present.
+	// ─────────────────────────────────────────────────────────
+	if apiKey = os.Getenv("HOTPLEX_BRAIN_API_KEY"); apiKey != "" {
 		provider = getEnv("HOTPLEX_BRAIN_PROVIDER", "openai")
 		protocol = getEnv("HOTPLEX_BRAIN_PROTOCOL", "openai")
 		model = os.Getenv("HOTPLEX_BRAIN_MODEL")
 		endpoint = os.Getenv("HOTPLEX_BRAIN_ENDPOINT")
-		// Fall back to defaults within this group if fields are empty.
 		if model == "" {
 			model = "gpt-4o"
 		}
-	} else {
-		// Group 1 is incomplete (no HOTPLEX_BRAIN_API_KEY).
-		// Fall back to Group 2: Provider config + CLI Extractor.
-
-		// Determine provider type first.
-		providerType := os.Getenv("HOTPLEX_PROVIDER_TYPE")
-
-		// Try CLI Extractor (e.g., ~/.claude/settings.json).
-		var extracted *ExtractedConfig
-		if providerType == "" {
-			providerType = "openai" // default
-		}
-		if providerType == "claude-code" || providerType == "anthropic" {
-			extracted, _ = NewClaudeCodeExtractor().Extract()
-		}
-
-		if extracted != nil && extracted.APIKey != "" {
-			// Group 2a: CLI Extractor succeeded.
-			apiKey = extracted.APIKey
-			provider = "anthropic"
-			protocol = "anthropic"
-			model = os.Getenv("HOTPLEX_PROVIDER_MODEL")
-			if model == "" {
-				model = extracted.Model
-			}
-			if model == "" {
-				model = "claude-3-7-sonnet-latest"
-			}
-			if endpoint == "" {
-				endpoint = extracted.Endpoint
-			}
-		} else {
-			// Group 2b: CLI Extractor failed or no provider type.
-			// Fall back to HOTPLEX_PROVIDER_* + System env vars.
-			model = os.Getenv("HOTPLEX_PROVIDER_MODEL")
-			if model == "" && providerType != "" {
-				// Provider type is set but no explicit model: use CLI extractor with system fallback.
-				if providerType == "claude-code" || providerType == "anthropic" {
-					if extracted != nil {
-						model = extracted.Model
-					}
-					if model == "" {
-						model = "claude-3-7-sonnet-latest"
-					}
-				}
-			}
-
-			// Group 3: System environment variables (final fallback).
-			if apiKey == "" {
-				switch providerType {
-				case "claude-code", "anthropic":
-					apiKey = os.Getenv("ANTHROPIC_API_KEY")
-					provider = "anthropic"
-					protocol = "anthropic"
-					if endpoint == "" {
-						endpoint = os.Getenv("ANTHROPIC_BASE_URL")
-					}
-				case "siliconflow":
-					apiKey = os.Getenv("SILICONFLOW_API_KEY")
-					provider = "openai"
-					protocol = "openai"
-					if model == "" {
-						model = "deepseek-ai/DeepSeek-V3"
-					}
-					if endpoint == "" {
-						endpoint = getEnv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
-					}
-				case "deepseek":
-					apiKey = os.Getenv("DEEPSEEK_API_KEY")
-					provider = "openai"
-					protocol = "openai"
-					if model == "" {
-						model = "deepseek-chat"
-					}
-					if endpoint == "" {
-						endpoint = getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-					}
-				default:
-					apiKey = os.Getenv("OPENAI_API_KEY")
-					provider = "openai"
-					protocol = "openai"
-					if model == "" {
-						model = "gpt-4o"
-					}
-					if endpoint == "" {
-						endpoint = os.Getenv("OPENAI_BASE_URL")
-					}
-				}
-			}
-		}
+		return buildConfig(apiKey, provider, protocol, model, endpoint)
 	}
 
+	// ─────────────────────────────────────────────────────────
+	// Group 2: Provider config (HOTPLEX_PROVIDER_*) + CLI Extractor
+	// Gate: CLI extractor succeeds, or any system API key is present.
+	// Within this group, PROVIDER_* and CLI-extracted values can mix.
+	// ─────────────────────────────────────────────────────────
+	providerType := os.Getenv("HOTPLEX_PROVIDER_TYPE")
+	if providerType == "" {
+		providerType = "openai"
+	}
+
+	// Try CLI Extractor (e.g., ~/.claude/settings.json).
+	var extracted *ExtractedConfig
+	if providerType == "claude-code" || providerType == "anthropic" {
+		extracted, _ = NewClaudeCodeExtractor().Extract()
+	}
+
+	// Group 2a: CLI Extractor succeeded.
+	if extracted != nil && extracted.APIKey != "" {
+		apiKey = extracted.APIKey
+		provider = "anthropic"
+		protocol = "anthropic"
+		model = os.Getenv("HOTPLEX_PROVIDER_MODEL")
+		if model == "" {
+			model = extracted.Model
+		}
+		if model == "" {
+			model = "claude-3-7-sonnet-latest"
+		}
+		endpoint = os.Getenv("HOTPLEX_BRAIN_ENDPOINT")
+		if endpoint == "" {
+			endpoint = extracted.Endpoint
+		}
+		return buildConfig(apiKey, provider, protocol, model, endpoint)
+	}
+
+	// Group 2b: Provider type is set (explicitly or via default).
+	// Use system env vars matching provider type.
+	// Group 2b is the final fallback for both HOTPLEX_PROVIDER_TYPE and
+	// HOTPLEX_BRAIN_PROVIDER. HOTPLEX_BRAIN_PROVIDER is checked here so that
+	// Group 2b handles the "openai" default even when HOTPLEX_PROVIDER_TYPE is
+	// not set (prevents fall-through to Group 3 which would match SILICONFLOW_*).
+	model = os.Getenv("HOTPLEX_PROVIDER_MODEL")
+	explicitProvider := os.Getenv("HOTPLEX_PROVIDER_TYPE") != "" || os.Getenv("HOTPLEX_BRAIN_PROVIDER") != ""
+	if explicitProvider {
+		// Explicit provider type set: Group 2b is final fallback.
+		switch providerType {
+		case "claude-code", "anthropic":
+			if apiKey = os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
+				if model == "" {
+					model = "claude-3-7-sonnet-latest"
+				}
+				return buildConfig(apiKey, "anthropic", "anthropic", model, os.Getenv("ANTHROPIC_BASE_URL"))
+			}
+		case "siliconflow":
+			if apiKey = os.Getenv("SILICONFLOW_API_KEY"); apiKey != "" {
+				if model == "" {
+					model = "deepseek-ai/DeepSeek-V3"
+				}
+				return buildConfig(apiKey, "openai", "openai", model,
+					getEnv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1"))
+			}
+		case "deepseek":
+			if apiKey = os.Getenv("DEEPSEEK_API_KEY"); apiKey != "" {
+				if model == "" {
+					model = "deepseek-chat"
+				}
+				return buildConfig(apiKey, "openai", "openai", model,
+					getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"))
+			}
+		default:
+			if apiKey = os.Getenv("OPENAI_API_KEY"); apiKey != "" {
+				if model == "" {
+					model = "gpt-4o"
+				}
+				return buildConfig(apiKey, "openai", "openai", model, os.Getenv("OPENAI_BASE_URL"))
+			}
+		}
+		// Provider type explicit but no matching API key found.
+		return buildConfig("", "openai", "openai", "gpt-4o", "")
+	}
+
+	// ─────────────────────────────────────────────────────────
+	// Group 3: System environment variables (final fallback).
+	// Only reached when HOTPLEX_PROVIDER_TYPE was not set.
+	// Try all API keys in order; first non-empty wins.
+	// Guard: if apiKey is non-empty here, Group 2b found an explicit
+	// provider type but no matching key — return disabled config.
+	// ─────────────────────────────────────────────────────────
+	if apiKey != "" {
+		return buildConfig("", "openai", "openai", "gpt-4o", "")
+	}
+	if apiKey = os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
+		return buildConfig(apiKey, "anthropic", "anthropic",
+			"claude-3-7-sonnet-latest", os.Getenv("ANTHROPIC_BASE_URL"))
+	}
+	if apiKey = os.Getenv("OPENAI_API_KEY"); apiKey != "" {
+		return buildConfig(apiKey, "openai", "openai", "gpt-4o", os.Getenv("OPENAI_BASE_URL"))
+	}
+	if apiKey = os.Getenv("SILICONFLOW_API_KEY"); apiKey != "" {
+		return buildConfig(apiKey, "openai", "openai", "deepseek-ai/DeepSeek-V3",
+			getEnv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1"))
+	}
+	if apiKey = os.Getenv("DEEPSEEK_API_KEY"); apiKey != "" {
+		return buildConfig(apiKey, "openai", "openai", "deepseek-chat",
+			getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"))
+	}
+
+	// No API key found. Return disabled config with safe defaults.
+	return buildConfig("", "openai", "openai", "gpt-4o", "")
+}
+
+// buildConfig constructs a Config from resolved values.
+func buildConfig(apiKey, provider, protocol, model, endpoint string) Config {
 	return Config{
 		Enabled: apiKey != "",
 		Model: ModelConfig{
@@ -357,7 +377,7 @@ func LoadConfigFromEnv() Config {
 			APIKey:   apiKey,
 			Model:    model,
 			Endpoint: endpoint,
-			TimeoutS: getIntEnv("HOTPLEX_BRAIN_TIMEOUT_S", 30), // 2026 Best Practice: 30s to allow for deep reasoning models
+			TimeoutS: getIntEnv("HOTPLEX_BRAIN_TIMEOUT_S", 30),
 		},
 		Cache: CacheConfig{
 			Enabled: true,
