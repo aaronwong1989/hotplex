@@ -60,7 +60,7 @@ jobs:
               labels.add('type/test');
             }
             // Question
-            else if (/^\/?question\//i.test(title) || /\bhow\b|\bwhat\b|\bwhy\b/.test(title)) {
+            else if (/^\[?question\]?/i.test(title) || /\bhow\b|\bwhat\b|\bwhy\b/.test(title)) {
               labels.add('type/question');
             }
 
@@ -119,7 +119,7 @@ jobs:
             const issue = context.payload.issue;
 
             // 如果是 question 类型，添加快速回复
-            if (/^\/?question\//i.test(issue.title)) {
+            if (/^\[?question\]?/i.test(issue.title)) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,

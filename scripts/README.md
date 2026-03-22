@@ -35,3 +35,19 @@ To verify documentation links:
 ```bash
 python3 scripts/check_links.py
 ```
+
+## GitHub Management
+
+### Label Manager
+- `manage-labels.py`: Manages GitHub issue/PR labels with standardized naming, colors, and descriptions.
+  - **7 categories**: Priority, Type, Size, Status, Platform, Area, Special (34 labels total)
+  - **Features**: Batch create/update, delete old labels, dry-run mode
+  - **Usage**:
+    ```bash
+    # Preview changes
+    python3 scripts/manage-labels.py --dry-run
+
+    # Apply changes
+    python3 scripts/manage-labels.py --apply
+    ```
+  - **Documentation**: See [docs/github-labels.md](../docs/github-labels.md) for detailed label system guide

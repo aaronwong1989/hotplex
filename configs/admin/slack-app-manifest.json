@@ -14,16 +14,16 @@
       "assistant_description": "HotPlex 管理助手是一个专注于 DevOps 和 O&M 的 AI 运行时。它通过集成 docker-container-ops、hotplex-diagnostics 和 hotplex-data-mgmt 等专业技能，为管理员提供实时的系统监控与自动化运维能力。它遵循\"只观察，不修改代码\"的安全准则。",
       "suggested_prompts": [
         {
-          "title": "🩺 系统诊断",
-          "message": "运行全面诊断，检查各模块健康状态并总结潜在问题（使用 hotplex-diagnostics）"
+          "title": "🛠️ 运维管理",
+          "message": "执行系统诊断、管理容器状态并清理过期会话（组合 hotplex-diagnostics, docker-container-ops 和 hotplex-data-mgmt 能力）"
         },
         {
-          "title": "📦 容器管理",
-          "message": "列出当前所有 HotPlex 相关容器的状态，并检查是否有异常重启（使用 docker-container-ops）"
+          "title": "🐞 Issue 管理",
+          "message": "分析 GitHub Issues，执行自动标注、重复检测并生成汇总报告（使用 hotplex-issue-master 技能）"
         },
         {
-          "title": "🧪 会话清理",
-          "message": "清理所有已过期的会话和临时标记，释放系统资源（使用 hotplex-data-mgmt）"
+          "title": "🚢 PR 管理",
+          "message": "全方位管理 GitHub Pull Requests，平衡 CI 状态、代码审核建议与自动化流转（使用 hotplex-pr-master 技能）"
         },
         {
           "title": "📚 知识库同步",
