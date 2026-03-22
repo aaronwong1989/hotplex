@@ -231,87 +231,119 @@ type Config struct {
 }
 
 // LoadConfigFromEnv loads the brain configuration from environment variables.
+//
+// Configuration priority (per group, not per field):
+//  1. HOTPLEX_BRAIN_*   - Brain's own config (highest)
+//  2. HOTPLEX_PROVIDER_* + CLI Extractor - Provider-level config
+//  3. System env vars  - System defaults (lowest)
+//
+// If a group is incomplete, the ENTIRE group is discarded and falls back to the next.
+// Mixing across groups is forbidden to ensure consistency.
 func LoadConfigFromEnv() Config {
-	// 1. Primary check: Direct brain configuration
-	apiKey := os.Getenv("HOTPLEX_BRAIN_API_KEY")
-	provider := getEnv("HOTPLEX_BRAIN_PROVIDER", "openai")
-	protocol := getEnv("HOTPLEX_BRAIN_PROTOCOL", "openai")
-	model := getEnv("HOTPLEX_BRAIN_MODEL", "gpt-4o") // 2026 Best Practice: Use full 4o/5 class for reasoning by default
-	endpoint := os.Getenv("HOTPLEX_BRAIN_ENDPOINT")
+	var apiKey, provider, protocol, model, endpoint string
 
-	// 2. Secondary check: Link with global provider and CLI extraction
-	if apiKey == "" {
-		providerType := os.Getenv("HOTPLEX_PROVIDER_TYPE")
-		if providerType == "" {
-			providerType = provider // Default to openai
+	// Group 1: Brain's own configuration (HOTPLEX_BRAIN_*)
+	// Use this group ONLY if HOTPLEX_BRAIN_API_KEY is explicitly set.
+	brainAPIKey := os.Getenv("HOTPLEX_BRAIN_API_KEY")
+	if brainAPIKey != "" {
+		// Brain config group is complete (API key is the gate).
+		// Use all fields from this group.
+		apiKey = brainAPIKey
+		provider = getEnv("HOTPLEX_BRAIN_PROVIDER", "openai")
+		protocol = getEnv("HOTPLEX_BRAIN_PROTOCOL", "openai")
+		model = os.Getenv("HOTPLEX_BRAIN_MODEL")
+		endpoint = os.Getenv("HOTPLEX_BRAIN_ENDPOINT")
+		// Fall back to defaults within this group if fields are empty.
+		if model == "" {
+			model = "gpt-4o"
 		}
+	} else {
+		// Group 1 is incomplete (no HOTPLEX_BRAIN_API_KEY).
+		// Fall back to Group 2: Provider config + CLI Extractor.
 
-		// Try CLI Extractor first (Priority 2)
+		// Determine provider type first.
+		providerType := os.Getenv("HOTPLEX_PROVIDER_TYPE")
+
+		// Try CLI Extractor (e.g., ~/.claude/settings.json).
 		var extracted *ExtractedConfig
-		switch providerType {
-		case "claude-code", "anthropic":
+		if providerType == "" {
+			providerType = "openai" // default
+		}
+		if providerType == "claude-code" || providerType == "anthropic" {
 			extracted, _ = NewClaudeCodeExtractor().Extract()
 		}
 
-		if extracted != nil {
-			if extracted.APIKey != "" {
-				apiKey = extracted.APIKey
-				// Update provider/protocol based on extraction source
-				if providerType == "claude-code" || providerType == "anthropic" {
-					provider = "anthropic"
-					protocol = "anthropic"
-				}
-			}
-			if endpoint == "" && extracted.Endpoint != "" {
-				endpoint = extracted.Endpoint
-			}
-			if (model == "" || model == "gpt-4o") && extracted.Model != "" {
+		if extracted != nil && extracted.APIKey != "" {
+			// Group 2a: CLI Extractor succeeded.
+			apiKey = extracted.APIKey
+			provider = "anthropic"
+			protocol = "anthropic"
+			model = os.Getenv("HOTPLEX_PROVIDER_MODEL")
+			if model == "" {
 				model = extracted.Model
 			}
-		}
+			if model == "" {
+				model = "claude-3-7-sonnet-latest"
+			}
+			if endpoint == "" {
+				endpoint = extracted.Endpoint
+			}
+		} else {
+			// Group 2b: CLI Extractor failed or no provider type.
+			// Fall back to HOTPLEX_PROVIDER_* + System env vars.
+			model = os.Getenv("HOTPLEX_PROVIDER_MODEL")
+			if model == "" && providerType != "" {
+				// Provider type is set but no explicit model: use CLI extractor with system fallback.
+				if providerType == "claude-code" || providerType == "anthropic" {
+					if extracted != nil {
+						model = extracted.Model
+					}
+					if model == "" {
+						model = "claude-3-7-sonnet-latest"
+					}
+				}
+			}
 
-		// Fallback to System Environment Variables (Priority 3)
-		if apiKey == "" {
-			switch providerType {
-			case "claude-code", "anthropic":
-				apiKey = os.Getenv("ANTHROPIC_API_KEY")
-				provider = "anthropic"
-				protocol = "anthropic"
-				if model == "gpt-4o" {
-					model = getEnv("HOTPLEX_PROVIDER_MODEL", "claude-3-7-sonnet-latest")
-				}
-				if endpoint == "" {
-					endpoint = os.Getenv("ANTHROPIC_BASE_URL")
-				}
-			case "openai":
-				apiKey = os.Getenv("OPENAI_API_KEY")
-				provider = "openai"
-				protocol = "openai"
-				if model == "gpt-4o" {
-					model = getEnv("HOTPLEX_PROVIDER_MODEL", "gpt-4o")
-				}
-				if endpoint == "" {
-					endpoint = os.Getenv("OPENAI_BASE_URL")
-				}
-			case "siliconflow":
-				apiKey = os.Getenv("SILICONFLOW_API_KEY")
-				provider = "openai"
-				protocol = "openai"
-				if model == "gpt-4o" {
-					model = getEnv("HOTPLEX_PROVIDER_MODEL", "deepseek-ai/DeepSeek-V3")
-				}
-				if endpoint == "" {
-					endpoint = getEnv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
-				}
-			case "deepseek":
-				apiKey = os.Getenv("DEEPSEEK_API_KEY")
-				provider = "openai"
-				protocol = "openai"
-				if model == "gpt-4o" {
-					model = getEnv("HOTPLEX_PROVIDER_MODEL", "deepseek-chat")
-				}
-				if endpoint == "" {
-					endpoint = getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+			// Group 3: System environment variables (final fallback).
+			if apiKey == "" {
+				switch providerType {
+				case "claude-code", "anthropic":
+					apiKey = os.Getenv("ANTHROPIC_API_KEY")
+					provider = "anthropic"
+					protocol = "anthropic"
+					if endpoint == "" {
+						endpoint = os.Getenv("ANTHROPIC_BASE_URL")
+					}
+				case "siliconflow":
+					apiKey = os.Getenv("SILICONFLOW_API_KEY")
+					provider = "openai"
+					protocol = "openai"
+					if model == "" {
+						model = "deepseek-ai/DeepSeek-V3"
+					}
+					if endpoint == "" {
+						endpoint = getEnv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
+					}
+				case "deepseek":
+					apiKey = os.Getenv("DEEPSEEK_API_KEY")
+					provider = "openai"
+					protocol = "openai"
+					if model == "" {
+						model = "deepseek-chat"
+					}
+					if endpoint == "" {
+						endpoint = getEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+					}
+				default:
+					apiKey = os.Getenv("OPENAI_API_KEY")
+					provider = "openai"
+					protocol = "openai"
+					if model == "" {
+						model = "gpt-4o"
+					}
+					if endpoint == "" {
+						endpoint = os.Getenv("OPENAI_BASE_URL")
+					}
 				}
 			}
 		}

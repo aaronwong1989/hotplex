@@ -176,8 +176,11 @@ HOTPLEX_ALLOWED_ORIGINS=$HOTPLEX_ALLOWED_ORIGINS
 HTTP_PROXY=$HTTP_PROXY
 HTTPS_PROXY=$HTTPS_PROXY
 
-# --- Provider (Optional override) ---
-# HOTPLEX_PROVIDER_MODEL=sonnet
+# --- Provider (Claude Code + Anthropic) ---
+HOTPLEX_PROVIDER_TYPE=claude-code
+# HOTPLEX_BRAIN_MODEL=sonnet         # Brain自身配置，优先于PROVIDER_MODEL
+# HOTPLEX_PROVIDER_MODEL=claude-3-7-sonnet-latest  # Provider级配置
+# HOTPLEX_BRAIN_API_KEY=sk-ant-...   # Brain自身API Key，优先于提取
 
 # --- Slack Bot (Required - Bot-specific) ---
 HOTPLEX_SLACK_BOT_USER_ID=$HOTPLEX_BOT_ID
