@@ -159,3 +159,5 @@ main
 docker/matrix/configs/bot-*/
 hotplex-doc-sync-workspace
 test*.txt
+docs/training/assets
+docs/training/*.pdf

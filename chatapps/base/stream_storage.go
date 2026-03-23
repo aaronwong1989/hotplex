@@ -407,11 +407,11 @@ func (s *StreamMessageStore) GetBufferCount() int {
 
 // StreamMetrics 流式存储指标
 type StreamMetrics struct {
-	ActiveBuffers    int     `json:"active_buffers"`     // 活跃缓冲区数量
-	CompletedBuffers int     `json:"completed_buffers"`  // 已完成但未提交的缓冲区数量
-	TotalChunks      int     `json:"total_chunks"`       // 所有缓冲区的总 chunk 数
-	MaxBuffers       int     `json:"max_buffers"`        // 最大缓冲区数量
-	TimeoutSeconds   float64 `json:"timeout_seconds"`    // 超时时间（秒）
+	ActiveBuffers    int     `json:"active_buffers"`    // 活跃缓冲区数量
+	CompletedBuffers int     `json:"completed_buffers"` // 已完成但未提交的缓冲区数量
+	TotalChunks      int     `json:"total_chunks"`      // 所有缓冲区的总 chunk 数
+	MaxBuffers       int     `json:"max_buffers"`       // 最大缓冲区数量
+	TimeoutSeconds   float64 `json:"timeout_seconds"`   // 超时时间（秒）
 }
 
 // GetMetrics 导出流式存储指标 (用于监控/Admin API)

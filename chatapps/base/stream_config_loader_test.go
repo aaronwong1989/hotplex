@@ -77,8 +77,8 @@ func TestStreamMessageStoreConfigLoader_LoadFromEnv(t *testing.T) {
 func TestStreamMessageStoreConfigLoader_LoadFromYAML(t *testing.T) {
 	yamlConfig := map[string]interface{}{
 		"streaming": map[string]interface{}{
-			"timeout":      "15m",
-			"max_buffers":  3000,
+			"timeout":     "15m",
+			"max_buffers": 3000,
 			"auto_commit": map[string]interface{}{
 				"enabled":  false,
 				"interval": "2m",

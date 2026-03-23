@@ -27,10 +27,10 @@ func NewStreamMessageStoreConfigLoader() *StreamMessageStoreConfigLoader {
 	return &StreamMessageStoreConfigLoader{
 		// 最佳实践默认值
 		defaultTimeout:            5 * time.Minute,  // 5 分钟超时
-		defaultMaxBuffers:         1000,              // 最多 1000 个并发会话
-		defaultAutoCommitEnabled:  true,              // 默认启用自动提交
-		defaultAutoCommitInterval: 30 * time.Second,  // 30 秒自动提交一次
-		defaultSaveOnTermination:  true,              // 默认在会话终止前保存
+		defaultMaxBuffers:         1000,             // 最多 1000 个并发会话
+		defaultAutoCommitEnabled:  true,             // 默认启用自动提交
+		defaultAutoCommitInterval: 30 * time.Second, // 30 秒自动提交一次
+		defaultSaveOnTermination:  true,             // 默认在会话终止前保存
 	}
 }
 
