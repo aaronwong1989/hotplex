@@ -1605,34 +1605,39 @@ func (h *EngineMessageHandler) Handle(ctx context.Context, msg *ChatMessage) err
 	// TOCTOU mitigation: re-run WAF check with the ACTUAL prompt before Execute().
 	// This prevents a race where a more dangerous prompt arrives between user approval
 	// and execution (cfg.WAFApproved=true is session-scoped, not prompt-scoped).
-	if blocked, operation, reason := h.engine.CheckDanger(msg.Content); blocked {
-		toolName := inferToolFromOperation(operation)
-		pm := h.engine.PermissionMatcher()
-		var decision permission.Decision
-		if pm != nil {
-			decision = pm.Check(msg.Platform, toolName, operation)
-		} else {
-			decision = permission.DecisionUnknown
-		}
-		switch decision {
-		case permission.DecisionAllow:
-			// Still whitelisted — proceed
-		case permission.DecisionDeny:
-			h.logger.Warn("Execute: prompt is now blacklisted, aborting",
-				"session_id", msg.SessionID,
-				"tool", toolName,
-				"operation", operation,
-				"reason", reason)
-			_ = callback.updateStatusMessage(base.MessageTypeSessionStats, "")
-			return nil
-		default:
-			h.logger.Warn("Execute: prompt requires fresh approval, aborting",
-				"session_id", msg.SessionID,
-				"tool", toolName,
-				"operation", operation,
-				"reason", reason)
-			_ = callback.updateStatusMessage(base.MessageTypeSessionStats, "")
-			return nil
+	//
+	// CRITICAL: Skip this check if user just approved via permission card (cfg.WAFApproved=true).
+	// Only re-check if this is a NEW prompt arriving after a previous approval.
+	if !cfg.WAFApproved {
+		if blocked, operation, reason := h.engine.CheckDanger(msg.Content); blocked {
+			toolName := inferToolFromOperation(operation)
+			pm := h.engine.PermissionMatcher()
+			var decision permission.Decision
+			if pm != nil {
+				decision = pm.Check(msg.Platform, toolName, operation)
+			} else {
+				decision = permission.DecisionUnknown
+			}
+			switch decision {
+			case permission.DecisionAllow:
+				// Still whitelisted — proceed
+			case permission.DecisionDeny:
+				h.logger.Warn("Execute: prompt is now blacklisted, aborting",
+					"session_id", msg.SessionID,
+					"tool", toolName,
+					"operation", operation,
+					"reason", reason)
+				_ = callback.updateStatusMessage(base.MessageTypeSessionStats, "")
+				return nil
+			default:
+				h.logger.Warn("Execute: prompt requires fresh approval, aborting",
+					"session_id", msg.SessionID,
+					"tool", toolName,
+					"operation", operation,
+					"reason", reason)
+				_ = callback.updateStatusMessage(base.MessageTypeSessionStats, "")
+				return nil
+			}
 		}
 	}
 
