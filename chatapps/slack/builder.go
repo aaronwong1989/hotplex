@@ -135,6 +135,8 @@ func (b *MessageBuilder) Build(msg *base.ChatMessage) []slack.Block {
 		return b.system.BuildUserMessageReceivedMessage(msg)
 	case base.MessageTypePermissionRequest:
 		return b.interactive.BuildPermissionRequestMessageFromChat(msg)
+	case base.MessageTypePermissionDenials:
+		return b.interactive.BuildWAFBlockedCard(msg)
 	default:
 		// Default to answer message for unknown types
 		return b.answer.BuildAnswerMessage(msg)

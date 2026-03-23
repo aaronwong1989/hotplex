@@ -71,6 +71,28 @@ func (b *InteractiveMessageBuilder) BuildDangerBlockMessage(msg *base.ChatMessag
 	}
 }
 
+// BuildWAFBlockedCard builds an interactive permission card for WAF pre-flight blocks.
+// Uses sessionID as msgID so LoadPermissionContext works regardless of the real Slack message_ts.
+func (b *InteractiveMessageBuilder) BuildWAFBlockedCard(msg *base.ChatMessage) []slack.Block {
+	sessionID := ""
+	tool := ""
+	command := ""
+
+	if msg.Metadata != nil {
+		if s, ok := msg.Metadata["session_id"].(string); ok {
+			sessionID = s
+		}
+		if t, ok := msg.Metadata["tool"].(string); ok {
+			tool = t
+		}
+		if c, ok := msg.Metadata["command"].(string); ok {
+			command = c
+		}
+	}
+
+	return BuildPermissionCardBlocks("", sessionID, sessionID, tool, command, "")
+}
+
 // BuildPermissionRequestMessageFromChat builds Slack blocks for a permission request from ChatMessage
 // This is the main entry point for the Build() switch statement
 // Implements EventTypePermissionRequest per spec (7)

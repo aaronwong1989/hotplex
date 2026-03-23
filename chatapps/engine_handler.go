@@ -493,6 +493,9 @@ func (c *StreamCallback) Handle(eventType string, data any) error {
 		if eventType == "session_stats" {
 			return c.handleSessionStats(data)
 		}
+		if eventType == string(base.MessageTypePermissionDenials) {
+			return c.handlePermissionDenials(data)
+		}
 		c.logger.Debug("Ignoring unknown event", "type", eventType)
 	}
 	return nil
@@ -1911,6 +1914,40 @@ func (c *StreamCallback) handlePermissionDenied(data any) error {
 	}
 	msg.Metadata = c.mergeMetadata(msg.Metadata)
 	return c.sendMessageAndGetTS(c.convertToChatMessage(msg))
+}
+
+// handlePermissionDenials handles WAF pre-flight permission_denials events.
+// Renders an interactive permission card with 4 buttons (Allow Once/Always, Deny Once/All)
+// and updates the status indicator to show "waiting for approval".
+func (c *StreamCallback) handlePermissionDenials(data any) error {
+	var tool, command string
+
+	switch v := data.(type) {
+	case map[string]any:
+		if t, ok := v["tool"].(string); ok {
+			tool = t
+		}
+		if cmd, ok := v["command"].(string); ok {
+			command = cmd
+		}
+	}
+
+	c.logger.Debug("Permission denials handler: rendering interactive card",
+		"session_id", c.sessionID,
+		"tool", tool)
+
+	// Update status to indicate waiting for user approval
+	if err := c.updateStatusMessage(base.MessageTypePermissionRequest, StatusPermissionLabel); err != nil {
+		c.logger.Warn("Failed to update status for permission_denials", "error", err)
+	}
+
+	// Build and send the interactive permission card
+	return c.buildChatMessage(base.MessageTypePermissionDenials, "", map[string]any{
+		"event_type": string(base.MessageTypePermissionDenials),
+		"session_id": c.sessionID,
+		"tool":       tool,
+		"command":    command,
+	})
 }
 
 // inferToolFromOperation extracts the tool name from a dangerous operation string.
