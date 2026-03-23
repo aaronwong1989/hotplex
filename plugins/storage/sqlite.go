@@ -43,6 +43,20 @@ func (s *SQLiteStorage) Initialize(ctx context.Context) error {
 		return err
 	}
 	s.db = db
+
+	// Configure SQLite for better concurrency and reliability
+	// These settings help prevent SQLITE_BUSY errors under concurrent load
+	pragmas := []string{
+		"PRAGMA journal_mode=WAL",   // Enable WAL mode for better concurrent read/write
+		"PRAGMA busy_timeout=5000",  // Wait up to 5 seconds when database is locked
+		"PRAGMA synchronous=NORMAL", // Balance between safety and performance
+	}
+	for _, pragma := range pragmas {
+		if _, err := s.db.ExecContext(ctx, pragma); err != nil {
+			return err
+		}
+	}
+
 	return s.createTables(ctx)
 }
 
