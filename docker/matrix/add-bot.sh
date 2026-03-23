@@ -148,6 +148,8 @@ HOTPLEX_PROVIDER_TYPE=${INPUT_PROVIDER_TYPE:-claude-code}
 printf "  ${CYAN}Provider Model (AI) [opus]:${NC} "
 read -r INPUT_PROVIDER_MODEL
 HOTPLEX_PROVIDER_MODEL=${INPUT_PROVIDER_MODEL:-opus}
+
+BOT_NAME="Bot $BOT_INDEX"
 GIT_USER="HotPlex secondary-$BOT_INDEX"
 GIT_EMAIL="bot$BOT_INDEX@hotplex.dev"
 
