@@ -114,6 +114,7 @@ fi
 # ------------------------------------------------------------------------------
 CLAUDE_DIR="${HOTPLEX_HOME}/.claude"
 CLAUDE_JSON="${HOTPLEX_HOME}/.claude.json"
+CREDENTIALS_JSON="${CLAUDE_DIR}/credentials.json"
 
 # Ensure container-private .claude directory exists (named volume auto-creates)
 run_as_hotplex mkdir -p "${CLAUDE_DIR}"
@@ -128,6 +129,51 @@ if [[ ! -f "${CLAUDE_JSON}" ]]; then
     # Ensure correct permissions
     if [[ "$(id -u)" = "0" ]]; then
         chown hotplex:hotplex "${CLAUDE_JSON}" 2>/dev/null || true
+    fi
+fi
+
+# ------------------------------------------------------------------------------
+# 5. Cleanup Orphaned Claude userID (prevent OAuth prompts in containers)
+#    Matches internal/engine/maintenance.go:clearClaudeJSONUserID logic
+# ------------------------------------------------------------------------------
+# Background: Claude Code 2.1.81+ uses userID to trigger OAuth authentication.
+# In containerized environments, OAuth cannot complete (no browser), causing
+# "Not logged in · Please run /login" errors. This cleanup removes orphaned
+# userID entries and marks onboarding as completed to prevent prompts.
+#
+# Controlled by HOTPLEX_CLAUDE_CLEAR_USERID=true (default) or false to disable.
+# This mirrors the Go maintenance task that runs every 10 minutes.
+# ------------------------------------------------------------------------------
+if [[ "${HOTPLEX_CLAUDE_CLEAR_USERID:-true}" != "false" ]]; then
+    if [[ -f "${CLAUDE_JSON}" ]]; then
+        # Check if userID exists in config
+        if grep -q '"userID"' "${CLAUDE_JSON}" 2>/dev/null; then
+            # Check if credentials.json exists (valid OAuth setup)
+            if [[ ! -f "${CREDENTIALS_JSON}" ]]; then
+                echo "--> Cleaning up orphaned Claude userID (no OAuth credentials found)..."
+
+                # Use jq to process JSON if available
+                if command -v jq >/dev/null 2>&1; then
+                    # Remove userID and add hasCompletedOnboarding
+                    tmp_file="${CLAUDE_JSON}.tmp"
+                    if jq 'del(.userID) | .hasCompletedOnboarding = true' "${CLAUDE_JSON}" > "${tmp_file}" 2>/dev/null; then
+                        # Preserve permissions
+                        if [[ "$(id -u)" = "0" ]]; then
+                            chown hotplex:hotplex "${tmp_file}" 2>/dev/null || true
+                        fi
+                        mv "${tmp_file}" "${CLAUDE_JSON}"
+                        echo "--> Cleared orphaned userID and set hasCompletedOnboarding=true"
+                    else
+                        echo "--> Warning: Failed to process ${CLAUDE_JSON}, skipping cleanup"
+                        rm -f "${tmp_file}" 2>/dev/null || true
+                    fi
+                else
+                    echo "--> Warning: jq not available, skipping userID cleanup (install jq for automatic cleanup)"
+                fi
+            else
+                echo "--> Valid OAuth setup detected (credentials.json exists), preserving userID"
+            fi
+        fi
     fi
 fi
 
