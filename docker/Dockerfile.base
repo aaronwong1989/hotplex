@@ -62,7 +62,7 @@ RUN bash -c 'set -o pipefail && \
     rm -rf /tmp/gh_${gh_version}_linux_${gh_arch} && \
     # Install lazygit
     lg_version=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po "\"tag_name\": \"v\\K[^\"]*" || echo "0.60.0") && \
-    lg_url="https://github.com/jesseduffield/lazygit/releases/download/v${lg_version}/lazygit_${lg_version}_Linux_${lg_arch}.tar.gz" && \
+    lg_url="https://github.com/jesseduffield/lazygit/releases/download/v${lg_version}/lazygit_${lg_version}_linux_${lg_arch}.tar.gz" && \
     (curl -sSL -o lazygit.tar.gz "${GITHUB_PROXY}${lg_url}" || curl -sSL -o lazygit.tar.gz "${lg_url}") && \
     tar xf lazygit.tar.gz lazygit && \
     install lazygit /usr/local/bin && \
