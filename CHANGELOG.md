@@ -1,5 +1,31 @@
 # CHANGELOG.md
 
+## [v0.35.2] - 2026-03-23
+
+### Features
+- feat(waf): add interactive permission card for pre-flight approval
+- feat(docker): add HOTPLEX_PROVIDER_TYPE/MODEL prompts to add-bot.sh
+- feat(chatapps): increase bot status text truncation from 25/30 to 50 chars
+
+### Bug Fixes
+- fix: eliminate data races in concurrent code paths
+  - Add mutex protection for cron job field updates
+  - Add writeMu to protect WebSocket writes in bridge-client
+  - Use thread-safe buffer wrapper in panic tests
+- fix: improve code quality and permissions path, and fallback status
+- fix(engine): allow WAF-approved prompts to execute
+- fix(slack): comprehensive nil pointer protection for all handlers
+- fix(slack): add nil check for http.ResponseWriter in interactive handlers
+- fix(slack): unify interactive routing to fix permission card buttons
+- fix(docker): restore BOT_NAME variable accidentally removed in add-bot.sh
+- fix(engine): sync reap zombie process in cleanupSessionLocked
+- fix(slack): prevent panic on double close of rate limiter channel
+
+### Maintenance
+- chore(scripts): improve restart helper log command
+- refactor(engine): extract Session.Wait() to deduplicate reap logic
+- refactor(engine): use sync.Once to coordinate cmd.Wait callers
+
 ## [v0.35.1] - 2026-03-23
 
 ### Features
