@@ -141,7 +141,13 @@ printf "  ${CYAN}HTTPS Proxy [none]:${NC} "
 read -r INPUT_HTTPS_PROXY
 HTTPS_PROXY=${INPUT_HTTPS_PROXY:-}
 
-BOT_NAME="Bot $BOT_INDEX"
+printf "  ${CYAN}Provider Type [claude-code]:${NC} "
+read -r INPUT_PROVIDER_TYPE
+HOTPLEX_PROVIDER_TYPE=${INPUT_PROVIDER_TYPE:-claude-code}
+
+printf "  ${CYAN}Provider Model (AI) [opus]:${NC} "
+read -r INPUT_PROVIDER_MODEL
+HOTPLEX_PROVIDER_MODEL=${INPUT_PROVIDER_MODEL:-opus}
 GIT_USER="HotPlex secondary-$BOT_INDEX"
 GIT_EMAIL="bot$BOT_INDEX@hotplex.dev"
 
@@ -177,10 +183,9 @@ HTTP_PROXY=$HTTP_PROXY
 HTTPS_PROXY=$HTTPS_PROXY
 
 # --- Provider (Claude Code + Anthropic) ---
-HOTPLEX_PROVIDER_TYPE=claude-code
-# HOTPLEX_BRAIN_MODEL=sonnet         # Brain自身配置，优先于PROVIDER_MODEL
-# HOTPLEX_PROVIDER_MODEL=claude-3-7-sonnet-latest  # Provider级配置
-# HOTPLEX_BRAIN_API_KEY=sk-ant-...   # Brain自身API Key，优先于提取
+HOTPLEX_PROVIDER_TYPE=$HOTPLEX_PROVIDER_TYPE
+HOTPLEX_PROVIDER_MODEL=$HOTPLEX_PROVIDER_MODEL
+# HOTPLEX_BRAIN_MODEL=opus                  # Alternative: Brain-level model config
 
 # --- Slack Bot (Required - Bot-specific) ---
 HOTPLEX_SLACK_BOT_USER_ID=$HOTPLEX_BOT_ID
@@ -312,6 +317,8 @@ printf "  ${BOLD}Admin Port:${NC}     $ADMIN_PORT\n"
 printf "  ${BOLD}Claude Volume:${NC}      $CLAUDE_VOLUME\n"
 printf "  ${BOLD}Build Cache Volume:${NC} $BUILD_VOLUME\n"
 printf "  ${BOLD}Env File:${NC}          $ENV_FILE\n"
+printf "  ${BOLD}Provider Type:${NC}    $HOTPLEX_PROVIDER_TYPE\n"
+printf "  ${BOLD}Provider Model:${NC}   $HOTPLEX_PROVIDER_MODEL\n"
 printf "──────────────────────────────────────────────────────────────────\n"
 printf "\n${YELLOW}Next Steps:${NC}\n"
 printf "  1. Create named Docker volumes (if not auto-created by compose):\n"
