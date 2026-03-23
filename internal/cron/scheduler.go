@@ -244,6 +244,8 @@ func (cs *CronScheduler) executeJob(ctx context.Context, jobID string) {
 		run.Error = "execution produced no result"
 	}
 
+	// Lock to protect job field updates (job is a shared pointer from store.Get)
+	cs.mu.Lock()
 	job.RunCount++
 	job.LastRun = run.StartedAt
 	if run.Error != "" {
@@ -256,6 +258,8 @@ func (cs *CronScheduler) executeJob(ctx context.Context, jobID string) {
 	if err := cs.store.Update(job); err != nil {
 		cs.logger.Warn("update job after execution", "job_id", jobID, "error", err)
 	}
+	cs.mu.Unlock()
+
 	cs.addRun(run)
 	cs.logger.Info("cron job completed",
 		"job_id", jobID,

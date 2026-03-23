@@ -31,10 +31,15 @@ func wsEchoServer(t *testing.T) (*httptest.Server, *sync.Mutex, map[string]int, 
 		}
 		defer func() { _ = conn.Close() }()
 
+		// Mutex to protect concurrent writes to conn (gorilla/websocket is not thread-safe)
+		var writeMu sync.Mutex
+
 		// Send inbound messages
 		go func() {
 			for wm := range inbound {
+				writeMu.Lock()
 				_ = conn.WriteJSON(wm)
+				writeMu.Unlock()
 			}
 		}()
 
@@ -48,6 +53,7 @@ func wsEchoServer(t *testing.T) (*httptest.Server, *sync.Mutex, map[string]int, 
 			mu.Unlock()
 
 			// Echo back as reply
+			writeMu.Lock()
 			switch wm.Type {
 			case msgTypeRegister:
 				_ = conn.WriteJSON(wireMessage{Type: msgTypeReply, Content: "registered"})
@@ -58,6 +64,7 @@ func wsEchoServer(t *testing.T) (*httptest.Server, *sync.Mutex, map[string]int, 
 					Content:    "echo: " + wm.Content,
 				})
 			}
+			writeMu.Unlock()
 		}
 	}
 

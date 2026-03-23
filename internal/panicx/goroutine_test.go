@@ -11,7 +11,7 @@ import (
 )
 
 func TestSafeGoCatchesPanic(t *testing.T) {
-	var buf bytes.Buffer
+	var buf safeBuffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
 	done := make(chan bool, 1)
@@ -27,9 +27,8 @@ func TestSafeGoCatchesPanic(t *testing.T) {
 		t.Fatal("Goroutine did not complete - panic not recovered")
 	}
 
-	// Small delay to ensure logger writes
-	time.Sleep(50 * time.Millisecond)
-
+	// Wait briefly then read (buffer is thread-safe, no race)
+	time.Sleep(10 * time.Millisecond)
 	output := buf.String()
 	if !strings.Contains(output, "test panic") {
 		t.Errorf("Panic was not logged. Output: %s", output)
@@ -40,7 +39,8 @@ func TestSafeGoCatchesPanic(t *testing.T) {
 }
 
 func TestSafeGoWithContextCatchesPanic(t *testing.T) {
-	var buf bytes.Buffer
+	// Thread-safe buffer wrapper to avoid race between logger writes and test reads
+	var buf safeBuffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
 	ctx := context.Background()
@@ -57,16 +57,36 @@ func TestSafeGoWithContextCatchesPanic(t *testing.T) {
 		t.Fatal("Goroutine did not complete")
 	}
 
-	time.Sleep(50 * time.Millisecond)
-
+	// Wait briefly then read (buffer is thread-safe, no race)
+	time.Sleep(10 * time.Millisecond)
 	output := buf.String()
 	if !strings.Contains(output, "context test panic") {
 		t.Errorf("Panic was not logged. Output: %s", output)
 	}
 }
 
+// safeBuffer is a thread-safe bytes.Buffer wrapper
+type safeBuffer struct {
+	bytes.Buffer
+	mu sync.Mutex
+}
+
+func (sb *safeBuffer) Write(p []byte) (n int, err error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.Buffer.Write(p)
+}
+
+func (sb *safeBuffer) String() string {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.Buffer.String()
+}
+
+// syncWriter is no longer needed, removed
+
 func TestSafeGoWithPolicyLogAndContinue(t *testing.T) {
-	var buf bytes.Buffer
+	var buf safeBuffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
 	done := make(chan bool, 1)
@@ -82,6 +102,7 @@ func TestSafeGoWithPolicyLogAndContinue(t *testing.T) {
 		t.Fatal("Goroutine did not complete")
 	}
 
+	// Small delay to ensure logger has finished writing
 	time.Sleep(50 * time.Millisecond)
 
 	output := buf.String()
@@ -91,7 +112,7 @@ func TestSafeGoWithPolicyLogAndContinue(t *testing.T) {
 }
 
 func TestRecoverInDefer(t *testing.T) {
-	var buf bytes.Buffer
+	var buf safeBuffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
 	go func() {
@@ -109,7 +130,7 @@ func TestRecoverInDefer(t *testing.T) {
 }
 
 func TestRecoverWithCallback(t *testing.T) {
-	var buf bytes.Buffer
+	var buf safeBuffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
 	var callbackPanic any
@@ -160,7 +181,7 @@ func TestSafeGoWithNilLogger(t *testing.T) {
 }
 
 func TestSafeGoNormalExecution(t *testing.T) {
-	var buf bytes.Buffer
+	var buf safeBuffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
 	result := 0
@@ -207,7 +228,7 @@ func TestPolicyString(t *testing.T) {
 }
 
 func TestConcurrentPanics(t *testing.T) {
-	var buf bytes.Buffer
+	var buf safeBuffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
 	const numGoroutines = 10
@@ -234,10 +255,8 @@ func TestConcurrentPanics(t *testing.T) {
 		t.Fatal("Timeout waiting for goroutines")
 	}
 
-	// Allow time for all logs to be written
-	time.Sleep(100 * time.Millisecond)
-
-	// Should have logged all panics
+	// Wait briefly then read (buffer is thread-safe, no race)
+	time.Sleep(10 * time.Millisecond)
 	output := buf.String()
 	count := strings.Count(output, "concurrent panic")
 	if count != numGoroutines {

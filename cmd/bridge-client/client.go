@@ -137,6 +137,9 @@ type Client struct {
 	closed bool
 	mu     sync.RWMutex
 
+	// writeMu protects concurrent writes to conn (gorilla/websocket is not thread-safe)
+	writeMu sync.Mutex
+
 	// for dialing
 	dialer websocket.Dialer
 }
@@ -311,7 +314,9 @@ func (c *Client) writeJSON(ctx context.Context, wm wireMessage) error {
 
 	errChan := make(chan error, 1)
 	go func() {
+		c.writeMu.Lock()
 		errChan <- conn.WriteJSON(wm)
+		c.writeMu.Unlock()
 	}()
 
 	select {
@@ -450,9 +455,11 @@ func (c *Client) closeConn() error {
 		return nil
 	}
 
-	// Send close frame; don't block
+	// Send close frame; don't block (use writeMu to protect concurrent writes)
+	c.writeMu.Lock()
 	_ = conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 	_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	c.writeMu.Unlock()
 
 	return conn.Close()
 }
