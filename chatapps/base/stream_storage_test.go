@@ -69,8 +69,14 @@ func TestStreamMessageStore_OnStreamChunk(t *testing.T) {
 		t.Fatal("buffer not found")
 	}
 
-	if len(buf.Chunks) != 3 {
-		t.Errorf("expected 3 chunks, got %d", len(buf.Chunks))
+	// Type assertion since GetBuffer now returns any for interface compatibility
+	streamBuf, ok := buf.(*StreamBuffer)
+	if !ok {
+		t.Fatal("buffer is not *StreamBuffer type")
+	}
+
+	if len(streamBuf.Chunks) != 3 {
+		t.Errorf("expected 3 chunks, got %d", len(streamBuf.Chunks))
 	}
 }
 
@@ -98,8 +104,9 @@ func TestStreamMessageStore_OnStreamComplete(t *testing.T) {
 	}
 
 	// Verify buffer was cleared
-	if store.GetBuffer(sessionID) != nil {
-		t.Error("expected buffer to be cleared after completion")
+	buf := store.GetBuffer(sessionID)
+	if buf != nil {
+		t.Errorf("expected buffer to be cleared after completion, got: %v", buf)
 	}
 
 	// Verify stored message has merged content
@@ -129,8 +136,9 @@ func TestStreamMessageStore_CleanupExpired(t *testing.T) {
 	store.cleanupExpired()
 
 	// Buffer should be cleaned up
-	if store.GetBuffer(sessionID) != nil {
-		t.Error("expected expired buffer to be cleaned up")
+	buf := store.GetBuffer(sessionID)
+	if buf != nil {
+		t.Errorf("expected expired buffer to be cleaned up, got: %v", buf)
 	}
 }
 

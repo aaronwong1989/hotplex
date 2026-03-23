@@ -118,6 +118,22 @@ type SessionPool struct {
 	shutdownOnce sync.Once     // Ensures Shutdown is only executed once
 	markerStore  persistence.SessionMarkerStore
 	pending      map[string]chan struct{}
+
+	// streamStore protects uncommitted stream data before session termination
+	streamStore StreamDataSaver
+}
+
+// StreamDataSaver protects uncommitted stream data before session termination.
+// Implemented by chatapps/base.StreamMessageStore to flush incomplete buffers.
+type StreamDataSaver interface {
+	// GetBuffer retrieves the stream buffer for a session.
+	// Returns nil if no buffer exists.
+	GetBuffer(sessionID string) any
+
+	// SaveIncompleteStream saves uncommitted stream data before termination.
+	// This is a synchronous operation to ensure data is persisted before
+	// the session is destroyed.
+	SaveIncompleteStream(ctx context.Context, sessionID string, buffer any) error
 }
 
 // blockedEnvPrefixes contains environment variable prefixes that should be filtered
@@ -280,6 +296,17 @@ func (sm *SessionPool) CleanupSessionFiles(providerSessionID string, workDir str
 	return nil
 }
 
+// SetStreamStore sets the stream data saver for protecting uncommitted stream data
+// before session termination. This is typically called by chatapps adapters
+// that enable message storage with streaming.
+func (sm *SessionPool) SetStreamStore(saver StreamDataSaver) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.streamStore = saver
+	sm.logger.Info("Stream store configured for session pool",
+		"namespace", sm.opts.Namespace)
+}
+
 // cleanupSessionLocked stops the process and removes from map. Caller must hold lock.
 func (sm *SessionPool) cleanupSessionLocked(sessionID string) error {
 	sess, ok := sm.sessions[sessionID]
@@ -293,6 +320,32 @@ func (sm *SessionPool) cleanupSessionLocked(sessionID string) error {
 		"namespace", sm.opts.Namespace,
 		"session_id", sessionID,
 		"provider_session_id", sess.ProviderSessionID)
+
+	// Save uncommitted stream data before termination (if streamStore is configured)
+	if sm.streamStore != nil {
+		if buffer := sm.streamStore.GetBuffer(sessionID); buffer != nil {
+			sm.logger.Info("Saving incomplete stream buffer before session termination",
+				"session_id", sessionID,
+				"provider_session_id", sess.ProviderSessionID)
+
+			// Synchronous save to ensure data is persisted before session is destroyed
+			// Use background context since the request context may be cancelled
+			saveCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := sm.streamStore.SaveIncompleteStream(saveCtx, sessionID, buffer); err != nil {
+				sm.logger.Error("Failed to save incomplete stream buffer",
+					"session_id", sessionID,
+					"provider_session_id", sess.ProviderSessionID,
+					"error", err)
+				// Continue with termination even if save fails
+			} else {
+				sm.logger.Info("Successfully saved incomplete stream buffer",
+					"session_id", sessionID,
+					"provider_session_id", sess.ProviderSessionID)
+			}
+		}
+	}
 
 	// Hold session lock to prevent race with WriteInput
 	sess.mu.Lock()
