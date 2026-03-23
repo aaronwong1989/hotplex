@@ -2,7 +2,6 @@ package slack
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
@@ -442,86 +441,35 @@ func (a *Adapter) handleSocketModeInteractive(evt socketmode.Event) {
 
 	switch callback.Type {
 	case slack.InteractionTypeBlockActions:
-
-		for _, action := range callback.ActionCallback.BlockActions {
-			actionID := action.ActionID
-
-			// Permission buttons
-			if actionID == "perm_allow" || actionID == "perm_deny" {
-				slackCallback := &SlackInteractionCallback{
-					Type:    "block_actions",
-					User:    CallbackUser{ID: callback.User.ID},
-					Channel: CallbackChannel{ID: callback.Channel.ID},
-					Message: CallbackMessage{Ts: callback.Message.Timestamp},
-					Actions: []SlackAction{
-						{
-							ActionID: actionID,
-							BlockID:  action.BlockID,
-							Value:    action.Value,
-						},
-					},
-				}
-				a.handlePermissionCallback(slackCallback, slackCallback.Actions[0], nil)
-				return
-			}
-
-			// Danger block buttons (WAF approval)
-			if strings.HasPrefix(actionID, "danger_confirm") || strings.HasPrefix(actionID, "danger_cancel") {
-				slackCallback := &SlackInteractionCallback{
-					Type:    "block_actions",
-					User:    CallbackUser{ID: callback.User.ID},
-					Channel: CallbackChannel{ID: callback.Channel.ID},
-					Message: CallbackMessage{Ts: callback.Message.Timestamp},
-					Actions: []SlackAction{
-						{
-							ActionID: actionID,
-							BlockID:  action.BlockID,
-							Value:    action.Value,
-						},
-					},
-				}
-				a.handleDangerBlockCallback(slackCallback, slackCallback.Actions[0], nil)
-				return
-			}
-
-			// Plan mode buttons
-			if actionID == "plan_approve" || actionID == "plan_modify" || actionID == "plan_cancel" {
-				slackCallback := &SlackInteractionCallback{
-					Type:    "block_actions",
-					User:    CallbackUser{ID: callback.User.ID},
-					Channel: CallbackChannel{ID: callback.Channel.ID},
-					Message: CallbackMessage{Ts: callback.Message.Timestamp},
-					Actions: []SlackAction{
-						{
-							ActionID: actionID,
-							BlockID:  action.BlockID,
-							Value:    action.Value,
-						},
-					},
-				}
-				a.handlePlanModeCallback(slackCallback, slackCallback.Actions[0], nil)
-				return
-			}
-
-			// User question options
-			if strings.HasPrefix(actionID, "question_option_") {
-				slackCallback := &SlackInteractionCallback{
-					Type:    "block_actions",
-					User:    CallbackUser{ID: callback.User.ID},
-					Channel: CallbackChannel{ID: callback.Channel.ID},
-					Message: CallbackMessage{Ts: callback.Message.Timestamp},
-					Actions: []SlackAction{
-						{
-							ActionID: actionID,
-							BlockID:  action.BlockID,
-							Value:    action.Value,
-						},
-					},
-				}
-				a.handleAskUserQuestionCallback(slackCallback, slackCallback.Actions[0], nil)
-				return
-			}
+		// Convert slack.InteractionCallback to SlackInteractionCallback (unified format)
+		slackCallback := &SlackInteractionCallback{
+			Type:        string(callback.Type),
+			User:        CallbackUser{ID: callback.User.ID, Username: callback.User.Name},
+			Channel:     CallbackChannel{ID: callback.Channel.ID},
+			Message:     CallbackMessage{Ts: callback.Message.Timestamp},
+			ResponseURL: callback.ResponseURL,
+			TriggerID:   callback.TriggerID,
+			Team:        CallbackTeam{ID: callback.Team.ID},
 		}
+
+		// Convert actions
+		for _, action := range callback.ActionCallback.BlockActions {
+			slackCallback.Actions = append(slackCallback.Actions, SlackAction{
+				ActionID: action.ActionID,
+				BlockID:  action.BlockID,
+				Value:    action.Value,
+			})
+		}
+
+		// Copy view if present
+		if callback.View.RootViewID != "" {
+			slackCallback.View = &callback.View
+		}
+
+		// Delegate all routing logic to unified handler
+		a.handleBlockActions(slackCallback, nil)
+		return
+
 	default:
 		a.Logger().Debug("Unhandled interaction type", "type", callback.Type)
 	}
