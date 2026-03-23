@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hrygo/hotplex/brain/llm"
+	"github.com/hrygo/hotplex/internal/strutil"
 )
 
 // ========================================
@@ -195,7 +196,8 @@ func TestEnhancedBrainWrapper_HealthCheck(t *testing.T) {
 
 func TestEnhancedBrainWrapper_ApplyTimeout_WithConfig(t *testing.T) {
 	wrapper := &enhancedBrainWrapper{
-		config: Config{Model: ModelConfig{TimeoutS: 10}},
+		config:  Config{Model: ModelConfig{TimeoutS: 10}},
+		timeout: 10 * time.Second, // Pre-computed timeout
 	}
 
 	ctx := context.Background()
@@ -1100,20 +1102,20 @@ func TestGetDurationEnv_WithDurationString(t *testing.T) {
 
 func TestTruncateForAnalysis_ExactBoundary(t *testing.T) {
 	s := strings.Repeat("x", 500)
-	result := truncateForAnalysis(s, 500)
+	result := strutil.Truncate(s, 500)
 	assert.Equal(t, s, result)
 	assert.NotContains(t, result, "...")
 }
 
 func TestTruncateForAnalysis_OneOver(t *testing.T) {
 	s := strings.Repeat("x", 501)
-	result := truncateForAnalysis(s, 500)
-	assert.Len(t, result, 503)
+	result := strutil.Truncate(s, 500)
+	assert.Len(t, result, 500) // strutil.Truncate ensures max 500 chars
 	assert.True(t, strings.HasSuffix(result, "..."))
 }
 
 func TestTruncateForAnalysis_Empty(t *testing.T) {
-	result := truncateForAnalysis("", 500)
+	result := strutil.Truncate("", 500)
 	assert.Equal(t, "", result)
 }
 

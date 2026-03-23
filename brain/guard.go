@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hrygo/hotplex/internal/strutil"
 	"golang.org/x/time/rate"
 )
 
@@ -326,7 +327,7 @@ Return JSON:
   "threat_level": "none|low|medium|high|critical",
   "threat_type": "description if not safe",
   "reason": "explanation"
-}`, truncateForAnalysis(input, 500))
+}`, strutil.Truncate(input, 500))
 
 	ctx, cancel := context.WithTimeout(ctx, g.config.ResponseTimeout)
 	defer cancel()
@@ -787,13 +788,4 @@ func SanitizeOutputString(output string) string {
 		return output
 	}
 	return globalGuard.SanitizeOutput(output)
-}
-
-// Helper functions
-
-func truncateForAnalysis(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
 }

@@ -116,6 +116,7 @@ func Init(logger *slog.Logger) error {
 		router:         router,
 		rateLimiter:    rateLimiter,
 		logger:         logger,
+		timeout:        time.Duration(config.Model.TimeoutS) * time.Second, // Pre-compute timeout
 	})
 
 	// 5. Initialize specialized brain components
@@ -194,6 +195,7 @@ type enhancedBrainWrapper struct {
 	router         *llm.Router
 	rateLimiter    *llm.RateLimiter
 	logger         *slog.Logger
+	timeout        time.Duration // Pre-computed timeout for hot path
 }
 
 func (w *enhancedBrainWrapper) Chat(ctx context.Context, prompt string) (string, error) {
@@ -242,8 +244,8 @@ func (w *enhancedBrainWrapper) AnalyzeWithModel(ctx context.Context, model strin
 // Returns the timeout context and its cancel function.
 // The caller must arrange for cancel to be called (typically via defer).
 func (w *enhancedBrainWrapper) applyTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	if w.config.Model.TimeoutS > 0 {
-		return context.WithTimeout(ctx, time.Duration(w.config.Model.TimeoutS)*time.Second)
+	if w.timeout > 0 {
+		return context.WithTimeout(ctx, w.timeout)
 	}
 	return ctx, func() {}
 }
@@ -328,10 +330,10 @@ func (w *enhancedBrainWrapper) recordMetricsForAnalyze(timer *llm.RequestTimer, 
 }
 
 func (w *enhancedBrainWrapper) ChatStream(ctx context.Context, prompt string) (<-chan string, error) {
-	// Apply timeout from config
-	if w.config.Model.TimeoutS > 0 {
+	// Apply pre-computed timeout from config
+	if w.timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(w.config.Model.TimeoutS)*time.Second)
+		ctx, cancel = context.WithTimeout(ctx, w.timeout)
 		defer cancel()
 	}
 
@@ -358,7 +360,7 @@ func (w *enhancedBrainWrapper) ChatStream(ctx context.Context, prompt string) (<
 		return nil, err
 	}
 
-	// Wrap the stream to track output tokens
+	// Wrap the stream to track output tokens and respect context cancellation
 	outputChan := make(chan string)
 
 	go func() {
@@ -373,7 +375,7 @@ func (w *enhancedBrainWrapper) ChatStream(ctx context.Context, prompt string) (<
 				return
 			case token, ok := <-stream:
 				if !ok {
-					// Record metrics when stream completes
+					// Stream closed - record final metrics
 					if timer != nil {
 						cost := 0.0
 						if w.costCalculator != nil {

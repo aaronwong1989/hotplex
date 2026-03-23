@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hrygo/hotplex/internal/strutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -829,20 +830,20 @@ func TestSanitizeOutputString_NilGuard(t *testing.T) {
 // ========================================
 
 func TestTruncateForAnalysis_ShortString(t *testing.T) {
-	result := truncateForAnalysis("hello", 500)
+	result := strutil.Truncate("hello", 500)
 	assert.Equal(t, "hello", result)
 }
 
 func TestTruncateForAnalysis_ExactLength(t *testing.T) {
 	s := strings.Repeat("a", 500)
-	result := truncateForAnalysis(s, 500)
+	result := strutil.Truncate(s, 500)
 	assert.Equal(t, s, result)
 }
 
 func TestTruncateForAnalysis_LongString(t *testing.T) {
 	s := strings.Repeat("a", 600)
-	result := truncateForAnalysis(s, 500)
-	assert.Len(t, result, 503) // 500 + "..."
+	result := strutil.Truncate(s, 500)
+	assert.Len(t, result, 500) // strutil.Truncate ensures max 500 chars (497 + "...")
 	assert.True(t, strings.HasSuffix(result, "..."))
 }
 
