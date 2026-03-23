@@ -1,5 +1,13 @@
 # CHANGELOG.md
 
+## [v0.35.3] - 2026-03-23
+
+### Bug Fixes
+- fix(storage): enable WAL mode and busy_timeout to prevent SQLITE_BUSY errors
+  - Add SQLite PRAGMA settings: journal_mode=WAL, busy_timeout=5000, synchronous=NORMAL
+  - Fixes flaky TestSQLite_ConcurrentWrites test
+  - Prevents SQLITE_BUSY errors under concurrent database load
+
 ## [v0.35.2] - 2026-03-23
 
 ### Features
