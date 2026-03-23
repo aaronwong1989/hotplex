@@ -74,21 +74,9 @@ func (b *InteractiveMessageBuilder) BuildDangerBlockMessage(msg *base.ChatMessag
 // BuildWAFBlockedCard builds an interactive permission card for WAF pre-flight blocks.
 // Uses sessionID as msgID so LoadPermissionContext works regardless of the real Slack message_ts.
 func (b *InteractiveMessageBuilder) BuildWAFBlockedCard(msg *base.ChatMessage) []slack.Block {
-	sessionID := ""
-	tool := ""
-	command := ""
-
-	if msg.Metadata != nil {
-		if s, ok := msg.Metadata["session_id"].(string); ok {
-			sessionID = s
-		}
-		if t, ok := msg.Metadata["tool"].(string); ok {
-			tool = t
-		}
-		if c, ok := msg.Metadata["command"].(string); ok {
-			command = c
-		}
-	}
+	sessionID := base.ExtractStringFromMetadata(msg, "session_id")
+	tool := base.ExtractStringFromMetadata(msg, "tool")
+	command := base.ExtractStringFromMetadata(msg, "command")
 
 	return BuildPermissionCardBlocks("", sessionID, sessionID, tool, command, "")
 }
@@ -98,26 +86,11 @@ func (b *InteractiveMessageBuilder) BuildWAFBlockedCard(msg *base.ChatMessage) [
 // Implements EventTypePermissionRequest per spec (7)
 func (b *InteractiveMessageBuilder) BuildPermissionRequestMessageFromChat(msg *base.ChatMessage) []slack.Block {
 	// Extract data from metadata
-	var tool, input, messageID, sessionID string
-	var reason string
-
-	if msg.Metadata != nil {
-		if t, ok := msg.Metadata["tool_name"].(string); ok {
-			tool = t
-		}
-		if i, ok := msg.Metadata["input"].(string); ok {
-			input = i
-		}
-		if m, ok := msg.Metadata["message_id"].(string); ok {
-			messageID = m
-		}
-		if s, ok := msg.Metadata["session_id"].(string); ok {
-			sessionID = s
-		}
-		if r, ok := msg.Metadata["reason"].(string); ok {
-			reason = r
-		}
-	}
+	tool := base.ExtractStringFromMetadata(msg, "tool_name")
+	input := base.ExtractStringFromMetadata(msg, "input")
+	messageID := base.ExtractStringFromMetadata(msg, "message_id")
+	sessionID := base.ExtractStringFromMetadata(msg, "session_id")
+	reason := base.ExtractStringFromMetadata(msg, "reason")
 
 	// Sanitize and truncate commands for preview
 	safeInput := SanitizeCommand(input)

@@ -188,12 +188,16 @@ func setupPlatform(
 	}
 	manager.RegisterEngine(eng)
 
-	// 2. Create PermissionMatcher and inject into engine
-	permBaseDir := os.Getenv("HOTPLEX_PERMISSION_STORE_DIR")
-	if permBaseDir == "" {
-		permBaseDir = platform
+	// 2. Resolve workDir first (needed for permissions directory)
+	workDirResult := resolveWorkDir(pc.Engine.WorkDir, platform, logger)
+	workDir := workDirResult.ResolvedPath
+	if workDir == "" {
+		workDir = filepath.Join("/tmp/hotplex-chatapps", platform)
 	}
-	permissionMatcher := permission.NewPermissionMatcher(permBaseDir)
+
+	// 3. Create PermissionMatcher in workDir/permissions and and inject into engine
+	permDir := filepath.Join(workDir, "permissions")
+	permissionMatcher := permission.NewPermissionMatcher(permDir)
 	eng.SetPermissionMatcher(permissionMatcher)
 
 	// 3. Create Adapter via factory
@@ -222,8 +226,6 @@ func setupPlatform(
 
 	// 6. Create EngineMessageHandler
 	wrappedEng := &engineWrapper{eng: eng}
-
-	workDirResult := resolveWorkDir(pc.Engine.WorkDir, platform, logger)
 
 	msgHandler := NewEngineMessageHandler(wrappedEng, manager,
 		WithConfigLoader(loader),
@@ -256,7 +258,7 @@ func setupPlatform(
 		Manager:        manager,
 		Loader:         loader,
 		Engine:         eng,
-		PermDir:        permBaseDir,
+		PermDir:        permDir,
 		Logger:         logger,
 		Platform:       platform,
 		PlatformConfig: pc,

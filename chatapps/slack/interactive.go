@@ -5,11 +5,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/slack-go/slack"
 )
+
+// safeWriteHeader writes HTTP status code if ResponseWriter is not nil.
+// Used to safely handle both HTTP webhook (w != nil) and Socket Mode (w == nil) flows.
+func safeWriteHeader(w http.ResponseWriter, statusCode int) {
+	if w != nil {
+		w.WriteHeader(statusCode)
+	}
+}
+
+// safeHTTPError writes HTTP error response if ResponseWriter is not nil.
+func safeHTTPError(w http.ResponseWriter, message string, statusCode int) {
+	if w != nil {
+		http.Error(w, message, statusCode)
+	}
+}
+
+// safeSetHeader sets HTTP header if ResponseWriter is not nil.
+func safeSetHeader(w http.ResponseWriter, key, value string) {
+	if w != nil {
+		w.Header().Set(key, value)
+	}
+}
 
 func (a *Adapter) handleInteractive(w http.ResponseWriter, r *http.Request) {
 	if !base.CheckMethodPOST(w, r) {
@@ -130,9 +153,7 @@ func (a *Adapter) handleBlockActions(callback *SlackInteractionCallback, w http.
 			if err := a.appHomeHandler.HandleAction(context.Background(), callbackSDK, slackAction); err != nil {
 				a.Logger().Error("App Home action failed", "error", err)
 			}
-			if w != nil {
-				w.WriteHeader(http.StatusOK)
-			}
+			safeWriteHeader(w, http.StatusOK)
 			return
 		}
 	}
@@ -142,9 +163,7 @@ func (a *Adapter) handleBlockActions(callback *SlackInteractionCallback, w http.
 		"value", action.Value,
 	)
 
-	if w != nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	safeWriteHeader(w, http.StatusOK)
 }
 
 // handlePermissionCallback handles permission approval/denial button clicks
@@ -237,9 +256,7 @@ func (a *Adapter) handlePermissionCallback(callback *SlackInteractionCallback, a
 		"message_id", messageID,
 	)
 
-	if w != nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	safeWriteHeader(w, http.StatusOK)
 }
 
 // handleNewPermissionCallback handles the new 4-button permission flow.
@@ -322,14 +339,7 @@ func (a *Adapter) handleNewPermissionCallback(callback *SlackInteractionCallback
 				// session startup); only sessions started after this call see the update.
 				toolName := strings.SplitN(toolCmd, ":", 2)[0]
 				allowedTools := a.eng.GetAllowedTools()
-				found := false
-				for _, t := range allowedTools {
-					if t == toolName {
-						found = true
-						break
-					}
-				}
-				if !found {
+				if !slices.Contains(allowedTools, toolName) {
 					a.eng.SetAllowedTools(append(allowedTools, toolName))
 				}
 			} else {
@@ -339,15 +349,24 @@ func (a *Adapter) handleNewPermissionCallback(callback *SlackInteractionCallback
 	}
 
 	// Update card to result state
-	blocks := BuildPermissionResultBlocks(actionType, "", "")
+	// Parse toolCmd to extract tool and command for display
+	var tool, command string
+	if hasCtx {
+		parts := strings.SplitN(toolCmd, ":", 2)
+		if len(parts) == 2 {
+			tool = parts[0]
+			command = parts[1]
+		} else if len(parts) == 1 {
+			tool = parts[0]
+		}
+	}
+	blocks := BuildPermissionResultBlocks(actionType, tool, command)
 	if err := a.UpdateMessageSDK(context.Background(), channelID, messageTS, blocks, ""); err != nil {
 		a.Logger().Error("Update permission result card failed", "cause", err)
 	}
 
 	// Write HTTP response (only for HTTP webhook flow, not Socket Mode)
-	if w != nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	safeWriteHeader(w, http.StatusOK)
 }
 
 // handlePlanModeCallback handles plan mode approval/denial button clicks
@@ -436,9 +455,7 @@ func (a *Adapter) handlePlanModeCallback(callback *SlackInteractionCallback, act
 		"session_id", sessionID,
 	)
 
-	if w != nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	safeWriteHeader(w, http.StatusOK)
 }
 
 // handleDangerBlockCallback handles danger block confirmation button clicks
@@ -501,9 +518,7 @@ func (a *Adapter) handleDangerBlockCallback(callback *SlackInteractionCallback, 
 		a.Logger().Error("Update message failed", "cause", err)
 	}
 
-	if w != nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	safeWriteHeader(w, http.StatusOK)
 }
 
 // handleViewSubmission handles view_submission callbacks from Slack Modal forms
@@ -530,27 +545,24 @@ func (a *Adapter) handleViewSubmission(callback *SlackInteractionCallback, w htt
 			a.Logger().Error("Failed to handle view submission",
 				"user", callback.User.ID,
 				"error", err)
-			if w != nil {
-				http.Error(w, "Internal error", http.StatusInternalServerError)
-			}
+			safeHTTPError(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
 
 		// If response has validation errors, return them
 		if response != nil {
-			if w != nil {
-				w.Header().Set("Content-Type", "application/json")
-				if err := json.NewEncoder(w).Encode(response); err != nil {
-					a.Logger().Error("Failed to encode view submission response", "error", err)
-				}
+			safeSetHeader(w, "Content-Type", "application/json")
+			if w == nil {
+				return
+			}
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				a.Logger().Error("Failed to encode view submission response", "error", err)
 			}
 			return
 		}
 	}
 
-	if w != nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	safeWriteHeader(w, http.StatusOK)
 }
 
 // handleViewClosed handles view_closed callbacks
@@ -560,9 +572,7 @@ func (a *Adapter) handleViewClosed(callback *SlackInteractionCallback, w http.Re
 		"view_id", callback.View.ID,
 		"notify_on_close", callback.View.NotifyOnClose)
 
-	if w != nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	safeWriteHeader(w, http.StatusOK)
 }
 
 // handleAskUserQuestionCallback handles ask user question option selection
@@ -651,9 +661,7 @@ func (a *Adapter) handleAskUserQuestionCallback(callback *SlackInteractionCallba
 		a.Logger().Error("Update message failed", "cause", err)
 	}
 
-	if w != nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	safeWriteHeader(w, http.StatusOK)
 }
 
 // SlackInteractionCallback represents a Slack interaction callback payload.

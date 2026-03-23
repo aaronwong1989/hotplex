@@ -386,9 +386,11 @@ func (c *StreamCallback) idleTimerFired(triggerStatus base.MessageType) bool {
 	currentStatus := c.currentStatus
 	c.mu.Unlock()
 
-	// Don't send fallback thinking if session is actively executing tools
-	if currentStatus == base.MessageTypeToolUse || currentStatus == base.MessageTypeToolResult {
-		c.logger.Debug("Skipping fallback thinking - tool execution in progress",
+	// Don't send fallback thinking if session is actively executing tools or waiting for user decision
+	if currentStatus == base.MessageTypeToolUse ||
+		currentStatus == base.MessageTypeToolResult ||
+		currentStatus == base.MessageTypePermissionRequest {
+		c.logger.Debug("Skipping fallback thinking - tool execution or permission request in progress",
 			"session_id", c.sessionID,
 			"current_status", currentStatus,
 			"trigger_status", triggerStatus)
@@ -1603,8 +1605,14 @@ func (h *EngineMessageHandler) Handle(ctx context.Context, msg *ChatMessage) err
 
 	// Execute with Engine
 	// TOCTOU mitigation: re-run WAF check with the ACTUAL prompt before Execute().
-	// This prevents a race where a more dangerous prompt arrives between user approval
-	// and execution (cfg.WAFApproved=true is session-scoped, not prompt-scoped).
+	//
+	// Rationale: cfg.WAFApproved is session-scoped (persists for the entire session lifetime),
+	// not prompt-scoped. This design trades some security for UX — once a user approves a dangerous
+	// operation, subsequent prompts in the same session bypass re-validation.
+	//
+	// SECURITY IMPLICATION: If a user approves "rm -rf /tmp/test", then immediately sends
+	// "rm -rf /" in the same session, the second command would execute without re-check.
+	// The guard below prevents this by skipping the approval flag for NEW prompts.
 	//
 	// CRITICAL: Skip this check if user just approved via permission card (cfg.WAFApproved=true).
 	// Only re-check if this is a NEW prompt arriving after a previous approval.

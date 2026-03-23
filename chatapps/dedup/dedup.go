@@ -13,6 +13,7 @@ type Deduplicator struct {
 	cleanupInt time.Duration // Cleanup interval
 	done       chan struct{}
 	wg         sync.WaitGroup
+	once       sync.Once // Ensures Shutdown only runs once
 }
 
 // NewDeduplicator creates a new event deduplicator
@@ -83,8 +84,10 @@ func (d *Deduplicator) cleanup() {
 
 // Shutdown stops the deduplicator and waits for goroutines to exit
 func (d *Deduplicator) Shutdown() {
-	close(d.done)
-	d.wg.Wait()
+	d.once.Do(func() {
+		close(d.done)
+		d.wg.Wait()
+	})
 }
 
 // Size returns the current cache size (for testing)
