@@ -39,10 +39,16 @@ func TestMaintenanceLoop_ExecutesCleanup(t *testing.T) {
 func TestMaintenanceLoop_EnvDisabled(t *testing.T) {
 	// Save original env
 	origEnv := os.Getenv("HOTPLEX_CLAUDE_CLEAR_USERID")
-	defer os.Setenv("HOTPLEX_CLAUDE_CLEAR_USERID", origEnv)
+	defer func() {
+		if err := os.Setenv("HOTPLEX_CLAUDE_CLEAR_USERID", origEnv); err != nil {
+			t.Logf("warning: failed to restore env: %v", err)
+		}
+	}()
 
 	// Disable via env
-	os.Setenv("HOTPLEX_CLAUDE_CLEAR_USERID", "false")
+	if err := os.Setenv("HOTPLEX_CLAUDE_CLEAR_USERID", "false"); err != nil {
+		t.Fatalf("failed to set env: %v", err)
+	}
 
 	// Create pool - maintenanceLoop should skip cleanup
 	logger := slog.Default()
