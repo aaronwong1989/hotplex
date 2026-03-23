@@ -530,21 +530,27 @@ func (a *Adapter) handleViewSubmission(callback *SlackInteractionCallback, w htt
 			a.Logger().Error("Failed to handle view submission",
 				"user", callback.User.ID,
 				"error", err)
-			http.Error(w, "Internal error", http.StatusInternalServerError)
+			if w != nil {
+				http.Error(w, "Internal error", http.StatusInternalServerError)
+			}
 			return
 		}
 
 		// If response has validation errors, return them
 		if response != nil {
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				a.Logger().Error("Failed to encode view submission response", "error", err)
+			if w != nil {
+				w.Header().Set("Content-Type", "application/json")
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					a.Logger().Error("Failed to encode view submission response", "error", err)
+				}
 			}
 			return
 		}
 	}
 
-	w.WriteHeader(http.StatusOK)
+	if w != nil {
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 // handleViewClosed handles view_closed callbacks
