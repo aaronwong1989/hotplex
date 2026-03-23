@@ -130,7 +130,9 @@ func (a *Adapter) handleBlockActions(callback *SlackInteractionCallback, w http.
 			if err := a.appHomeHandler.HandleAction(context.Background(), callbackSDK, slackAction); err != nil {
 				a.Logger().Error("App Home action failed", "error", err)
 			}
-			w.WriteHeader(http.StatusOK)
+			if w != nil {
+				w.WriteHeader(http.StatusOK)
+			}
 			return
 		}
 	}
@@ -140,7 +142,9 @@ func (a *Adapter) handleBlockActions(callback *SlackInteractionCallback, w http.
 		"value", action.Value,
 	)
 
-	w.WriteHeader(http.StatusOK)
+	if w != nil {
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 // handlePermissionCallback handles permission approval/denial button clicks
@@ -233,7 +237,9 @@ func (a *Adapter) handlePermissionCallback(callback *SlackInteractionCallback, a
 		"message_id", messageID,
 	)
 
-	w.WriteHeader(http.StatusOK)
+	if w != nil {
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 // handleNewPermissionCallback handles the new 4-button permission flow.
@@ -255,7 +261,9 @@ func (a *Adapter) handleNewPermissionCallback(callback *SlackInteractionCallback
 	parts := strings.Split(actionID, ":")
 	if len(parts) != 3 {
 		a.Logger().Error("Invalid permission action_id", "action_id", actionID)
-		w.WriteHeader(http.StatusOK)
+		if w != nil {
+			w.WriteHeader(http.StatusOK)
+		}
 		return
 	}
 
@@ -336,7 +344,10 @@ func (a *Adapter) handleNewPermissionCallback(callback *SlackInteractionCallback
 		a.Logger().Error("Update permission result card failed", "cause", err)
 	}
 
-	w.WriteHeader(http.StatusOK)
+	// Write HTTP response (only for HTTP webhook flow, not Socket Mode)
+	if w != nil {
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 // handlePlanModeCallback handles plan mode approval/denial button clicks
@@ -425,7 +436,9 @@ func (a *Adapter) handlePlanModeCallback(callback *SlackInteractionCallback, act
 		"session_id", sessionID,
 	)
 
-	w.WriteHeader(http.StatusOK)
+	if w != nil {
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 // handleDangerBlockCallback handles danger block confirmation button clicks
@@ -541,7 +554,9 @@ func (a *Adapter) handleViewClosed(callback *SlackInteractionCallback, w http.Re
 		"view_id", callback.View.ID,
 		"notify_on_close", callback.View.NotifyOnClose)
 
-	w.WriteHeader(http.StatusOK)
+	if w != nil {
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 // handleAskUserQuestionCallback handles ask user question option selection
