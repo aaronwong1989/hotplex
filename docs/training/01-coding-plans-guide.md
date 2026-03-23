@@ -1,8 +1,8 @@
-# 编码工具与套餐选择指南
+# Coding Plan 与工具选择指南
 
-本指南旨在帮助您选择适合的 AI 编码工具（如 Claude Code、OpenCode）并配置相应的 Coding Plan（编码套餐）。
+本指南旨在介绍 Coding Plan（编码套餐）以及如何选择适合您的 AI 编码工具（如 Claude Code、OpenCode）。
 
-## 1. 架构示意图
+## 1. 工具与 Coding Plan 概览
 
 ```mermaid
 graph TD
