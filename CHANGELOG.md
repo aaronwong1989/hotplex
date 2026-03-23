@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## [v0.35.4] - 2026-03-23
+
+### Features
+- feat(stream): 实现流式消息存储中期架构改进 - 防止数据丢失 (Resolves #345) (#346)
+
+### Maintenance
+- refactor(engine): 迁移 Claude userID 清理为定时维护任务
+- refactor(brain): 代码质量与性能优化
+
+### Documentation
+- docs(training): 更新培训材料并新增高级教程
+- docs(training): 添加 Claude Code 用户培训材料系列
+
 ## [v0.35.3] - 2026-03-23
 
 ### Bug Fixes
