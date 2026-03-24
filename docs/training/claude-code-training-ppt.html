@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>Claude Code 实践技术交流</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reset.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/theme/black.min.css" id="theme">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/plugin/highlight/monokai.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color-1: #0A0A12;
+            --bg-color-2: #1A112E;
+            --accent-glow: #7a32ff;
+            --text-primary: #f0f0f5;
+            --text-muted: #9494b8;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --danger-color: #ff4d4f;
+            --info-color: #0096ff;
+            --warning-color: #ffaa00;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--bg-color-1) 0%, var(--bg-color-2) 100%);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5, .reveal h6 {
+            font-family: 'Outfit', sans-serif;
+            text-transform: none;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #fff;
+            margin-bottom: 20px;
+        }
+
+        /* Glassmorphism Classes */
+        .glass-box {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 1.5rem 2.5rem; line-height: 1.6;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            margin: 20px auto;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            height: 100%;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(122, 50, 255, 0.2);
+            border-color: rgba(122, 50, 255, 0.4);
+        }
+
+        /* Text Effects */
+        .gradient-text {
+            background: linear-gradient(90deg, #ff7a00, #ff007a, #7a00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        .glow-text {
+            color: #fff;
+            text-shadow: 0 0 20px rgba(122, 50, 255, 0.8), 0 0 40px rgba(122, 50, 255, 0.4);
+        }
+
+        /* Helpers */
+        .text-left { text-align: left; line-height: 1.6; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .sm-text { font-size: 0.8em !important; }
+        .xs-text { font-size: 0.65em !important; }
+        .muted-text { color: var(--text-muted); }
+        .subtitle { font-size: 1.1em; font-weight: 300; color: var(--text-muted); margin-bottom: 2rem !important; }
+        .highlight { color: #facc15; font-weight: 600; }
+        .danger-text { color: var(--danger-color); font-weight: 600; }
+        
+        .mt-sm { margin-top: 1rem !important; }
+        .mt-top { margin-top: 2rem !important; }
+        
+        .inline-block { display: inline-block; }
+
+        /* Grids */
+        .grid-layout-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            width: 100%;
+        }
+
+        /* Tables Override */
+        .reveal table {
+            margin: 1.5rem auto;
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            font-size: 0.8em;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        .reveal table th {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-weight: 600;
+            padding: 1rem;
+            border-bottom: 2px solid rgba(255,255,255,0.2);
+            text-align: left;
+        }
+        .reveal table td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Alert Boxes */
+        .badge {
+            background: linear-gradient(90deg, #7a00ff, #aa00ff);
+            padding: 0.3rem 1rem;
+            border-radius: 20px;
+            font-size: 0.6em;
+            display: inline-block;
+            color: #fff;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .alert-info, .alert-warning {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.75em;
+            text-align: left;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .alert-info {
+            background: rgba(0, 150, 255, 0.1);
+            border-left: 4px solid var(--info-color);
+        }
+        .alert-warning {
+            background: rgba(255, 170, 0, 0.1);
+            border-left: 4px solid var(--warning-color);
+        }
+
+        /* Image overrides */
+        .reveal img.hero-img {
+            max-height: 40vh;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            margin: 1rem auto;
+            display: block;
+        }
+        .reveal img.inline-img {
+            max-height: 25vh;
+            border-radius: 8px;
+            margin: 1rem auto;
+            display: block;
+        }
+        
+        /* Lists */
+        .reveal ul, .reveal ol {
+            display: block;
+            text-align: left;
+            margin-left: 1.5em;
+            margin-bottom: 1em;
+        }
+        .reveal ul li, .reveal ol li {
+            margin-bottom: 0.8em;
+        }
+
+        /* Code & Pre overrides */
+        .reveal pre {
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            width: 100%;
+            margin: 1rem auto;
+        }
+        .reveal code {
+            font-family: 'JetBrains Mono', 'Fira Code', source-code-pro, SFMono-Regular, Consolas, Monaco, monospace;
+            border-radius: 4px;
+        }
+        .reveal p code, .reveal li code {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 2px 6px;
+            color: #a78bfa;
+        }
+
+        kbd {
+            background-color: #222;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 2px 8px;
+            color: #fff;
+            box-shadow: inset 0 -2px 0 #111;
+            font-family: inherit;
+            font-size: 0.85em;
+            margin: 0 2px;
+        }
+
+        /* Mermaid diagram wrapper */
+        .mermaid {
+            background: rgba(10, 10, 15, 0.4);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1rem auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            border: 1px solid rgba(122, 50, 255, 0.2);
+            max-height: 65vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        .mermaid svg {
+            width: 100%;
+            height: auto;
+            max-height: 60vh;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+        }
+
+        /* Custom Controls */
+        .custom-controls {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .ctrl-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+        .ctrl-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        .ctrl-btn:active {
+            transform: translateY(0);
+        }
+        .ctrl-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+    
+        /* -- NEW REFINED CSS -- */
+        .reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5, .reveal h6 {
+            white-space: normal !important; /* 允许换行 */
+            line-height: 1.2;
+            padding: 0 1rem;
+            margin: 0 auto 1.5rem auto !important;
+        }
+        
+        .reveal {
+            font-size: 34px !important; /* 统筹基础字号，防止溢出 */
+        }
+        .reveal h1 { font-size: 2.6em !important; font-weight: 800; letter-spacing: 2px;}
+        .reveal h2 { font-size: 2.0em !important; font-weight: 700; }
+        .reveal h3 { font-size: 1.5em !important; font-weight: 600; }
+        .reveal h4 { font-size: 1.3em !important; font-weight: 600; color: #fff; }
+        .reveal h5 { font-size: 1.1em !important; font-weight: 600; color: #eaeaea; }
+        .reveal p { font-size: 1em; line-height: 1.6; color: #d1d5db; }
+        .reveal code { font-size: 0.85em; }
+
+        /* 图文排版精细化：使用 Flexbox 横向排布 */
+        .flex-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2rem;
+            text-align: left;
+            width: 100%;
+        }
+        .flex-container > div {
+            flex: 1;
+        }
+        .flex-container img {
+            max-width: 45%;
+            margin: 0 !important;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            object-fit: contain;
+            border: 1px solid var(--glass-border);
+        }
+        
+        /* 避免内容太靠边 */
+        .reveal .slides > section {
+            padding: 0 2rem;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        /* 修复表格行高与规整性 */
+        .reveal table {
+            font-size: 0.75em !important;
+            margin: 1.5rem auto !important;
+            width: 100%;
+            table-layout: fixed;
+            word-wrap: break-word;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1px solid var(--glass-border);
+        }
+        
+        .reveal th {
+            vertical-align: middle;
+            line-height: 1.4;
+            background: rgba(122, 50, 255, 0.2) !important;
+            color: #fff !important;
+            font-weight: 600;
+            padding: 1rem 1.2rem !important;
+            font-size: 1.1em;
+            text-align: center !important;
+        }
+        .reveal td {
+            vertical-align: middle;
+            line-height: 1.5;
+            padding: 1rem 1.2rem !important;
+            color: #e5e7eb;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        /* 全局排版居中与规整 */
+        .reveal ul, .reveal ol {
+            width: 90%;
+            margin: 0 auto;
+            line-height: 1.7;
+            font-size: 0.95em;
+            color: #f3f4f6;
+        }
+        .reveal li { margin-bottom: 0.8rem; }
+        
+        
+        /* Native CSS Flowcharts (Replacing Mermaid for file:// compatibility) */
+        .native-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            width: 100%;
+            align-items: center;
+            margin: 2rem 0;
+            font-size: 0.8em;
+        }
+        .flow-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            width: 100%;
+        }
+        .flow-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .flow-node {
+            background: rgba(122, 50, 255, 0.2);
+            border: 1px solid rgba(122, 50, 255, 0.6);
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            backdrop-filter: blur(8px);
+            text-align: center;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .flow-node.circle { border-radius: 50px; }
+        .flow-node.primary { background: #7a32ff; border-color: #aa00ff; box-shadow: 0 0 20px rgba(122,50,255,0.6); }
+        .flow-node.secondary { background: rgba(0, 150, 255, 0.2); border-color: #0096ff; }
+        .flow-node.warning { background: rgba(255, 170, 0, 0.2); border-color: #ffaa00; }
+        .flow-node.success { background: rgba(0, 255, 150, 0.2); border-color: #00ff96; }
+        .flow-node.danger { background: #ff007a; border-color: #ff4d4f; box-shadow: 0 0 20px rgba(255,0,122,0.6);}
+        .flow-subgraph {
+            border: 1px dashed rgba(255,255,255,0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            background: rgba(255,255,255,0.02);
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .flow-subgraph::before {
+            content: attr(data-title);
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: var(--bg-color-1);
+            padding: 0 10px;
+            color: var(--text-muted);
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        /* Sub-items small */
+        .flow-node.sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.9em;
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(255,255,255,0.2);
+            font-weight: 400;
+        }
+        
+        /* Arrows using CSS triangles */
+        .arrow-down::after {
+            content: '↓';
+            display: block;
+            margin-top: 5px;
+            color: rgba(255,255,255,0.5);
+            font-size: 1.2em;
+        }
+        .arrow-right {
+            display: flex;
+            align-items: center;
+            color: rgba(255,255,255,0.5);
+            font-size: 1.5em;
+            margin: 0 0.5rem;
+        }
+        
+        
+        /* Tech Titles */
+        .tech-title {
+            position: relative;
+            display: inline-block;
+            padding: 0.8rem 2rem;
+            background: linear-gradient(90deg, rgba(122, 50, 255, 0.15), rgba(0, 210, 255, 0.05));
+            border-left: 4px solid #00d2ff;
+            border-right: 4px solid #7a32ff;
+            border-radius: 8px;
+            box-shadow: 0 0 25px rgba(0, 210, 255, 0.15), inset 0 0 15px rgba(122, 50, 255, 0.1);
+            margin-bottom: 2rem !important;
+        }
+        .tech-title::after {
+            content: ''; position: absolute; top: -2px; left: -2px; width: 20px; height: 20px; border-top: 2px solid #00d2ff; border-left: 2px solid #00d2ff; border-radius: 8px 0 0 0;
+        }
+        .tech-title::before {
+            content: ''; position: absolute; bottom: -2px; right: -2px; width: 20px; height: 20px; border-bottom: 2px solid #7a32ff; border-right: 2px solid #7a32ff; border-radius: 0 0 8px 0;
+        }
+        .tech-title-prefix {
+            font-family: 'JetBrains Mono', Consolas, monospace; font-size: 0.55em; color: #00d2ff; vertical-align: middle; margin-right: 15px; letter-spacing: 2px; text-shadow: 0 0 8px rgba(0,210,255,0.6);
+        }
+
+        /* Image Display Opts */
+        .tech-img-wrapper {
+            position: relative;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px dashed rgba(0, 210, 255, 0.3);
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 1.5rem auto;
+            max-width: 90%;
+            box-sizing: border-box;
+        }
+        .tech-img-wrapper::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: inset 0 0 30px rgba(0,210,255,0.05); pointer-events: none; border-radius: 12px;
+        }
+        .tech-img-wrapper img {
+            border-radius: 8px; border: 1px solid rgba(255,255,255,0.1) !important; max-width: 100%; max-height: 45vh !important; display: block; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.6)); margin: 0 auto;
+        }
+        .flex-container .tech-img-wrapper { margin: 0; flex: 1; max-width: 48%; width: 100%; }
+
+        /* -- END NEW CSS -- */
+
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+
+<!-- ==============================================
+     Slide 1: Title
+=============================================== -->
+<section id="slide-1" data-background-gradient="linear-gradient(135deg, #0A0A12 0%, #1A112E 100%)">
+    <div style="display: flex; gap: 1rem; align-items: center; text-align: left; margin: 0 auto; width: 100%;">
+        
+        <!-- Left Column: Content -->
+        <div style="flex: 1.3;">
+            <span class="badge" style="margin-bottom: 0.8rem;">⚙️ 基础技术研发部</span>
+            <h1 class="glow-text" style="font-size: 2.2em !important; margin: 0 !important; line-height: 1.2; white-space: nowrap !important;">Claude Code<br><span class="gradient-text">实践技术交流</span></h1>
+            <p class="subtitle" style="margin: 1rem 0 !important; font-size: 1.1em;">构建下一代 AI 增强型研发工作流</p>
+            
+            <div style="display: flex; gap: 1.5rem; margin-top: 1.5rem;">
+                
+                <!-- Card 1: 讲师信息 (Neon Blue) -->
+                <div style="flex: 0.9; background: linear-gradient(135deg, rgba(0,210,255,0.08) 0%, rgba(122,50,255,0.03) 100%); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(0,210,255,0.3); border-top: 3px solid #00d2ff; box-shadow: 0 8px 32px rgba(0,210,255,0.1), inset 0 0 20px rgba(0,210,255,0.05); position: relative; overflow: hidden;">
+                    <h5 class="glow-text" style="margin-bottom: 0.8rem !important; font-size: 1.05em; color: #00d2ff; text-shadow: 0 0 10px rgba(0,210,255,0.6);">讲师信息</h5>
+                    <p class="xs-text" style="margin: 0 0 0.4rem 0; color: #f3f4f6;"><span style="color: #00d2ff; margin-right: 6px;">■</span>黄仲辉</p>
+                    <p class="xs-text muted-text" style="margin: 0 0 0.4rem 0;"><span style="color: #00d2ff; margin-right: 6px;">■</span>软件研发中心</p>
+                    <p class="xs-text muted-text" style="margin: 0 0 0.4rem 0;"><span style="color: #00d2ff; margin-right: 6px;">■</span>2026/03/24</p>
+                    <p class="xs-text muted-text" style="margin: 0; font-family: monospace; border-top: 1px dashed rgba(0,210,255,0.3); padding-top: 0.5rem; margin-top: 0.5rem; color: #00d2ff;">SYS_VER: v2.1.81</p>
+                    <!-- Background Watermark -->
+                    <div style="position: absolute; right: -15px; bottom: -15px; font-size: 5em; opacity: 0.05; font-family: monospace; font-weight: bold; transform: rotate(-15deg); pointer-events: none; color: #00d2ff;">81</div>
+                </div>
+
+                <!-- Card 2: 核心专题 (Neon Purple) -->
+                <div style="flex: 1.1; background: linear-gradient(135deg, rgba(122,50,255,0.1) 0%, rgba(255,0,122,0.03) 100%); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(122,50,255,0.4); border-top: 3px solid #7a32ff; box-shadow: 0 8px 32px rgba(122,50,255,0.15), inset 0 0 20px rgba(122,50,255,0.05); position: relative; overflow: hidden;">
+                    <h5 class="glow-text" style="margin-bottom: 0.8rem !important; font-size: 1.05em; color: #a78bfa; text-shadow: 0 0 10px rgba(122,50,255,0.6);">核心专题视角</h5>
+                    <ul class="xs-text" style="margin:0; padding-left:1.5em; line-height: 1.6; color: #f3f4f6; list-style-type: square;">
+                        <li style="color: #a78bfa;"><span style="color: #f3f4f6;">智能指令与实战技巧</span></li>
+                        <li style="color: #a78bfa;"><span style="color: #f3f4f6;">自动化流水线集成</span></li>
+                        <li style="color: #a78bfa;"><span style="color: #f3f4f6;">多智能体协助编排</span></li>
+                        <li style="color: #a78bfa;"><span style="color: #f3f4f6;">热多路复用生产实践</span></li>
+                    </ul>
+                    <!-- Background Watermark -->
+                    <div style="position: absolute; right: 0px; bottom: -20px; font-size: 6em; opacity: 0.05; font-family: monospace; font-weight: bold; pointer-events: none; color: #7a32ff;">{ }</div>
+                </div>
+                
+            </div>
+        </div>
+        
+        <div style="flex: 0.7; position: relative; display: flex; justify-content: center; align-items: center;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 80%; background: var(--accent-glow); filter: blur(80px); opacity: 0.3; pointer-events: none;"></div>
+            <div class="tech-img-wrapper" style="width: 100%; border-style: solid; border-width: 1px; border-color: rgba(0, 210, 255, 0.5); box-shadow: 0 0 30px rgba(0,210,255,0.2);">
+                <img src="./assets/slide_01_hero.png" alt="Hero" style="width: 100%; max-height: 60vh; object-fit: contain; border-radius: 20px; position: relative; z-index: 2;" onerror="this.style.display='none'">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 2: Global Navigation View
+=============================================== -->
+<section id="slide-2">
+    <h3 class="gradient-text">培训全局浏览导航图</h3>
+    <p class="muted-text sm-text" style="margin-bottom: 1rem !important;">系统掌握 Claude Code 从入门到高阶架构的全路径</p>
+    <div class="native-flow" style="background: rgba(0,0,0,0.2); padding: 2rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
+        <div class="flow-row">
+            <div class="flow-node circle primary">开始</div>
+            <div class="flow-col" style="align-items: flex-start; gap: 1.2rem;">
+                <div class="flow-row" style="justify-content: flex-start; gap: 1rem;">
+                    <div class="flow-node secondary">第一篇: 基础认知</div>
+                    <div class="arrow-right">→</div>
+                    <div class="flow-node sm">Chap 1: 工具生态</div>
+                    <div class="flow-node sm">Chap 2: 交互指令</div>
+                </div>
+                <div class="flow-row" style="justify-content: flex-start; gap: 1rem;">
+                    <div class="flow-node warning">第二篇: 自动化编排</div>
+                    <div class="arrow-right">→</div>
+                    <div class="flow-node sm">Chap 3: Loop 工作流</div>
+                    <div class="flow-node sm">Chap 4: 扩展生态</div>
+                    <div class="flow-node sm">Chap 5: Skills 库</div>
+                </div>
+                <div class="flow-row" style="justify-content: flex-start; gap: 1rem;">
+                    <div class="flow-node" style="background: rgba(122,50,255,0.2); border-color: #7a32ff;">第三篇: 高级架构</div>
+                    <div class="arrow-right">→</div>
+                    <div class="flow-node sm">Chap 6: Agent Teams</div>
+                    <div class="flow-node sm">Chap 7: 热多路复用</div>
+                </div>
+                <div class="flow-row" style="justify-content: flex-start; gap: 1rem;">
+                    <div class="flow-node success">第四篇: 思维进化</div>
+                    <div class="arrow-right">→</div>
+                    <div class="flow-node sm">Chap 8: 指挥官思维</div>
+                    <div class="arrow-right">→</div>
+                    <div class="flow-node circle danger">Thanks</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 2: Part 1 Title
+=============================================== -->
+<section>
+    <h2 class="tech-title"><span class="tech-title-prefix">[ SYS.PART.01 ]</span> 第一篇：基础认知与入门起步</h2>
+</section>
+
+<!-- ==============================================
+     Slide 3: Chapter 1 Title
+=============================================== -->
+<section>
+    <h3 class="tech-title"><span class="tech-title-prefix">[ CHAP.01 ]</span> 第一章：Coding Plan 与工具生态概览</h3>
+    <p class="subtitle mt-top">本指南旨在介绍 Coding Plan（编码套餐）以及如何选择适合您的 AI 编码工具（如 Claude Code、OpenCode）。</p>
+</section>
+
+<!-- ==============================================
+     Slide 4: 1. 工具与 Coding Plan 概览
+=============================================== -->
+<section>
+    <h4>1. 工具与 Coding Plan 概览</h4>
+    <div class="native-flow" style="margin: 0.5rem auto; margin-bottom: 0; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 1.5rem 2rem; border-radius: 16px; font-size: 0.65em; box-sizing: border-box; width: 95%;">
+        <div class="flow-row" style="gap: 1rem;">
+            <div class="flow-node">开发者 (User)</div>
+            <div class="arrow-right">→</div>
+            <div class="flow-node primary" style="padding: 0.6rem 1.2rem;">编码工具 (Coding Tools)</div>
+        </div>
+        
+        <div class="flow-row" style="margin-top: 1.5rem; gap: 1rem;">
+            <div class="flow-col" style="flex: 1; gap: 0.5rem;">
+                <div class="flow-subgraph" data-title="工具层" style="padding: 1.2rem;">
+                    <div class="flow-col" style="gap: 0.8rem;">
+                        <div class="flow-node secondary" style="padding: 0.5rem 1rem;">Claude Code (CLI/Agent)</div>
+                        <div class="flow-node secondary" style="padding: 0.5rem 1rem;">OpenCode (CLI/Agent)</div>
+                    </div>
+                </div>
+                <div class="flow-node sm" style="margin-top: 0.5rem;">↑ 配置文档 (Setup Guides)</div>
+            </div>
+            
+            <div class="arrow-right">→</div>
+            
+            <div class="flow-col" style="flex: 1.2; gap: 0.5rem;">
+                <div class="flow-node warning" style="margin-bottom: 0.5rem; padding: 0.6rem 1.2rem;">Coding Plan (API 套餐)</div>
+                <div class="flow-subgraph" data-title="大模型底层供应商推荐" style="padding: 1.2rem;">
+                    <div class="flow-row" style="gap: 0.8rem;">
+                        <div class="flow-node sm" style="flex: 1; text-align: center; font-size: 0.85em;">智谱 GLM<br><span style="font-size: 0.7em; opacity: 0.7;">bigmodel.cn</span></div>
+                        <div class="flow-node sm" style="flex: 1; text-align: center; font-size: 0.85em;">MiniMax<br><span style="font-size: 0.7em; opacity: 0.7;">minimaxi.com</span></div>
+                        <div class="flow-node sm" style="flex: 1; text-align: center; font-size: 0.85em;">阿里百炼<br><span style="font-size: 0.7em; opacity: 0.7;">aliyun.com</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 5: 2. 什么是 Coding Plan？
+=============================================== -->
+<section>
+    <h4>2. 什么是 Coding Plan？</h4>
+    <p class="text-left"><strong class="highlight">Coding Plan</strong> 指代各模型提供商为开发者提供的 API 资源访问订阅方案。其架构关系如下：</p>
+    <ul class="text-left mt-top">
+        <li ><strong>Claude Code/OpenCode</strong><br>作为客户端交互控制层，负责接收终端指令并向底层下发代码变更。</li>
+        <li class="mt-sm"><strong>Coding Plan</strong><br>提供底层语言模型的推理算力，决定了处理大规模代码逻辑所需的上下文窗口与 API 吞吐量 (Token)。</li>
+    </ul>
+</section>
+
+<!-- ==============================================
+     Slide 6: 3. 供应商选择
+=============================================== -->
+<section>
+    <h4>3. 供应商选择</h4>
+    <p class="text-left sm-text">您可以根据价格、模型能力和网络延迟选择以下供应商之一：</p>
+    <table>
+        <thead>
+            <tr>
+                <th>供应商</th>
+                <th>购买链接</th>
+                <th>特点</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>智谱 GLM</strong></td>
+                <td><a href="https://bigmodel.cn/glm-coding">点击购买</a></td>
+                <td>国内技术领先，代码理解能力强</td>
+            </tr>
+            <tr>
+                <td><strong>MiniMax</strong></td>
+                <td><a href="https://platform.minimaxi.com/subscribe/token-plan">点击购买</a></td>
+                <td>响应速度快，套餐配置灵活</td>
+            </tr>
+            <tr>
+                <td><strong>阿里百炼</strong></td>
+                <td><a href="https://bailian.console.aliyun.com/cn-beijing/?tab=coding-plan#/efm/coding-plan-index">点击购买</a></td>
+                <td>生态丰富，支持多种主流模型</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==============================================
+     Slide 7: 4. 如何配置？
+=============================================== -->
+<section>
+    <h4>4. 如何配置？</h4>
+    <p class="text-left sm-text">各家推荐的供应商页面均提供了详细的 <strong>开发工具配置文档</strong>。</p>
+    <ol class="text-left sm-text">
+        <li ><strong>购买套餐</strong>：访问上述链接并完成购买。</li>
+        <li ><strong>获取 API Key</strong>：在供应商控制台创建您的 API Key。</li>
+        <li ><strong>按照文档配置</strong>：打开说明文档，按照步骤将 API Key 填入 Claude Code 或 OpenCode 的配置项中即可。</li>
+    </ol>
+    <div class="alert-info">
+        <strong>提示：</strong> 安装完成后，可以通过运行 <code>claude config</code> 或在 OpenCode 设置中检查连接状态。
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 8: Chapter 2 Title
+=============================================== -->
+<section>
+    <h3 class="tech-title"><span class="tech-title-prefix">[ CHAP.02 ]</span> 第二章：核心交互指令与实战技巧</h3>
+    <span class="badge">v2.1.81 核实版</span>
+    <p class="subtitle mt-top">本指南内容已于 2026 年 3 月 23 日通过本地 <code>claude</code> CLI 及其官方变更日志直接核实，确保所有列出的特性均在该版本中存在并可用。</p>
+</section>
+
+<!-- ==============================================
+     Slide 9: 1. 基础 CLI 命令 (1)
+=============================================== -->
+<section>
+    <h4>1. 基础 CLI 命令</h4>
+    <p class="text-left sm-text muted-text">在终端（Shell）中直接运行的命令（第一部分）：</p>
+    <table>
+        <thead>
+            <tr><th>命令</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>claude</code></td>
+                <td>启动交互式会话。支持初始提示词，如 <code>claude "分析此项目"</code></td>
+            </tr>
+            <tr>
+                <td><code>claude doctor</code></td>
+                <td>检查 Claude Code 的运行健康状况和更新程序</td>
+            </tr>
+            <tr>
+                <td><code>claude mcp</code></td>
+                <td>配置和管理 Model Context Protocol (MCP) 服务器</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==============================================
+     Slide 10: 1. 基础 CLI 命令 (2)
+=============================================== -->
+<section>
+    <h4>1. 基础 CLI 命令 (续)</h4>
+    <table>
+        <thead>
+            <tr><th>命令</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>claude update</code></td>
+                <td>检查并安装最新版本</td>
+            </tr>
+            <tr>
+                <td><code>claude agents</code></td>
+                <td>列出已配置的子代理 (Subagents)</td>
+            </tr>
+            <tr>
+                <td><code>claude --dangerously-skip-permissions</code></td>
+                <td><strong><span class="danger-text">绕过权限</span></strong>，默认同意所有请求</td>
+            </tr>
+        </tbody>
+    </table>
+    <div class="alert-warning">
+        <strong>⚠️ 风险建议</strong><br>
+        使用该参数后，Claude 将不再询问。<strong>极度建议仅在虚拟机 (VM) 或 Docker 等隔离环境中使用此参数</strong>，防破坏操作。
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 11: 2. 会话内斜杠指令 - 核心管理
+=============================================== -->
+<section>
+    <h4>2. 会话内斜杠指令 (Slash Commands)</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <p class="text-left sm-text muted-text">输入 <code>/</code> 即可释放原子级管理指令：</p>
+            <ul class="text-left sm-text">
+                <li ><strong><code>/help</code></strong>：全指令速查手册。</li>
+                <li ><strong><code>/clear</code></strong>：上下文归零，消除噪声冲突。</li>
+                <li ><strong><code>/compact</code></strong>：手动记忆压缩，极致节省成本。</li>
+                <li ><strong><code>/model</code></strong>：热切换推理引擎（Sonnet/Opus）。</li>
+                <li ><strong><code>/plugins</code></strong>：管理 AI 扩展能力的生态入口。</li>
+            </ul>
+        </div>
+        <div style="flex: 0.8;">
+            <div class="glass-card" style="padding: 1rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; font-family: monospace; font-size: 0.6em; text-align: left;">
+                <div style="color: #666; margin-bottom: 5px;"># Terminal Simulator</div>
+                <div style="color: #00ff96;">$ /help</div>
+                <div style="color: #fff; opacity: 0.7; margin: 4px 0;">Available commands:</div>
+                <div style="color: #00d2ff; padding-left: 10px;">• init - Prepare workspace</div>
+                <div style="color: #00d2ff; padding-left: 10px;">• commit - Semantic git</div>
+                <div style="color: #00d2ff; padding-left: 10px;">• insights - Efficiency rep</div>
+                <div style="color: #666; margin-top: 10px;">_ █ Waiting for input...</div>
+            </div>
+            <div class="alert-info xs-text mt-sm" style="font-size: 0.6em !important;">
+                <strong>TIP:</strong> 随时输入 <code>/help</code> 唤起动态指令悬浮窗。
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 12: 2. 会话内斜杠指令 - 项目与工作流 (1)
+=============================================== -->
+<section>
+    <h4>2. 会话内斜杠指令 (项目与工作流 - 1)</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <ul class="text-left sm-text">
+                <li><strong><code>/init</code></strong>：在项目根目录初始化 <code>CLAUDE.md</code> 文件。</li>
+                <li class="mt-top"><strong><code>/commit</code></strong>：自动生成并执行符合规范的 Git 提交。</li>
+                <li class="mt-top"><strong><code>/permissions</code></strong>：查看或修改当前会话权限设置。</li>
+            </ul>
+        </div>
+        <div class="tech-img-wrapper" style="flex: 0.8 !important;">
+            <img src="./assets/slide_06_commit.png" alt="Commit Command" class="inline-img" onerror="this.style.display='none'">
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 13: 2. 会话内斜杠指令 - 项目与工作流 (2)
+=============================================== -->
+<section>
+    <h4>2. 会话内斜杠指令 (项目与工作流 - 2)</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <ul class="text-left sm-text">
+                <li>
+                    <strong><code>/insights</code></strong>：(v2.1.30 新特性) 效率报告。<br>
+                    <span class="muted-text xs-text">分析过去 30 天记录，生成交互式 HTML 报告覆盖 Token 使用效率。</span>
+                </li>
+                <li class="mt-sm"><strong><code>/loop [指令]</code></strong>：进入自动化循环模式。</li>
+                <li class="mt-sm"><strong><code>/btw [问题]</code></strong>：(新增) 启动临时小会话。</li>
+            </ul>
+        </div>
+        <div class="tech-img-wrapper" style="flex: 0.8 !important;">
+            <img src="./assets/slide_11_dashboard.png" alt="Developer Dashboard" class="inline-img" onerror="this.style.display='none'">
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 14: 3. 特殊快捷键与实战技巧
+=============================================== -->
+<section>
+    <h4>3. 特殊快捷键与实战技巧</h4>
+    <div class="glass-box text-left sm-text">
+        <ul>
+            <li ><kbd>Esc</kbd> + <kbd>Esc</kbd>：<strong>系统级回滚 (Rewind)</strong>。<br>立即中断当前运行的智能体，唤起控制台撤销代码变更及对话历史，实现状态安全回溯。</li>
+            <li class="mt-sm"><code>! &lt;command&gt;</code>：在会话中直接运行 Shell 命令并捕获输出。</li>
+            <li class="mt-sm"><kbd>Shift</kbd> + <kbd>Tab</kbd>：切换 Plan Mode。</li>
+            <li class="mt-sm"><code>@file</code>：显式引用文件，精准锁定上下文。</li>
+        </ul>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 15: Part 2 Title
+=============================================== -->
+<section>
+    <h2 class="tech-title"><span class="tech-title-prefix">[ SYS.PART.02 ]</span> 第二篇：自动化编排与扩展生态</h2>
+</section>
+
+<!-- ==============================================
+     Slide 16: 第三章 Title
+=============================================== -->
+<section>
+    <h3 class="tech-title"><span class="tech-title-prefix">[ CHAP.03 ]</span> 第三章：<code>/loop</code> 自动化工作流深度解析</h3>
+    <div class="flex-container mt-top">
+        <div><p class="subtitle text-left"><code>/loop</code> 是最强大的自动化指令之一，允许开发者以自然语言定义的频率循环执行特定的流水线任务。</p></div>
+        <div class="tech-img-wrapper"><img src="./assets/slide_10_loop.png" alt="Loop Command" onerror="this.style.display='none'"></div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 17: 1. 指令语法
+=============================================== -->
+<section>
+    <h4>1. 指令语法</h4>
+    <pre><code class="language-bash">/loop [任务描述] [执行频率]</code></pre>
+    <div class="text-left sm-text mt-top">
+        <strong>示例：</strong>
+        <ul>
+            <li><code>/loop 检查当前分支的编译状态 每 5 分钟</code></li>
+            <li><code>/loop 总结过去一小时的 Git 提交并保存到桌面 每小时</code></li>
+        </ul>
+        <div class="alert-info mt-top">
+            <strong>注意</strong>：最小执行频率通常为 1 分钟。Claude 会将您的描述转换为内部定时调度 (Cron) 任务。
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 18: 2. 核心使用场景 (1)
+=============================================== -->
+<section>
+    <h4>2. 核心使用场景 (1/2)</h4>
+    <div class="grid-layout-2">
+        <div class="glass-card text-left xs-text">
+            <h5 class="glow-text">2.1 持续构建与单元测试监控</h5>
+            <p>大规模重构时，持续运行测试套件并汇报。</p>
+            <p><strong>场景：</strong>监控长时间运行的测试。</p>
+            <p><strong>指令：</strong><br><code>/loop 运行 ! pnpm test 并报告任何失败的测试用例 每 10 分钟</code></p>
+        </div>
+        <div class="glass-card text-left xs-text">
+            <h5 class="glow-text">2.2 自动代码审查与质量巡检</h5>
+            <p>团队协作时，定期验证架构与编码规范。</p>
+            <p><strong>场景：</strong>周期性的自动化代码审查。</p>
+            <p><strong>指令：</strong><br><code>/loop 分析最近 30 分钟的代码更改是否符合 CLAUDE.md 中的架构规范 每小时</code></p>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 19: 2. 核心使用场景 (2)
+=============================================== -->
+<section>
+    <h4>2. 核心使用场景 (2/2)</h4>
+    <div class="glass-card text-left xs-text mb-sm">
+        <h5 class="glow-text">2.3 PR 与 Build 修复自动化</h5>
+        <p>结合级联子智能体实现故障隔离与拦截式修复。</p>
+        <code>/loop 检查 GitHub PR #123 的集成测试状态，如果失败则尝试修复 每 20 分钟</code>
+    </div>
+    <div class="glass-card text-left xs-text mt-sm">
+        <h5 class="glow-text">2.4 / 2.5 集成汇总与部署跟踪</h5>
+        <p>利用 MCP 跨平台汇总信息，跟踪环境发布进度。</p>
+        <code>/loop 汇总 Slack 最新讨论更新任务单 每 2 小时</code><br><br>
+        <code>/loop 检查生产环境 Pod 状态，直到实例 Running并通知 每 5 分钟</code>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 20: 3. 高级技巧与限制
+=============================================== -->
+<section>
+    <h4>3. 高级技巧与限制</h4>
+    <ul class="text-left sm-text">
+        <li ><strong>持久性</strong>：<code>/loop</code> 任务通常在当前会话结束时终止。如需长期运行，建议配合 <code>tmux</code> 使用。</li>
+        <li ><strong>有效期</strong>：循环任务通常在 3 天后自动过期，防止无意义的 Token 消耗。</li>
+        <li ><strong>成本控制</strong>：频繁的循环会产生持续成本，必须在 <code>claude config</code> 中合理限制。</li>
+        <li ><strong>查看状态</strong>：使用 <code>/help</code> 或 <code>/statusline</code> 观察循环运行情况。</li>
+    </ul>
+    <div class="alert-info text-left xs-text">
+        <strong>提示：</strong> 初次尝试时，请先设置较长的频率！
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 21: Chap 4 Title
+=============================================== -->
+<section>
+    <h3 class="tech-title"><span class="tech-title-prefix">[ CHAP.04 ]</span> 第四章：AI 扩展生态与高阶配置指南</h3>
+    <p class="subtitle mt-top text-left">如果说大模型本身是提供基础算力的“大脑”，那么外部扩展生态就是赋予它行动与认知深度的“眼睛”和“手”。本指南内容针对 v2.1.81 核实。</p>
+</section>
+
+<!-- ==============================================
+     Slide 22: 四大核心机制类比
+=============================================== -->
+<section>
+    <h4>1. 认知升级：四大扩展机制类比</h4>
+    <div class="text-left sm-text">
+        <div class="glass-box mb-sm">
+            <span class="highlight">Plugin（插件）</span>：📦 <strong>App Store</strong><br>
+            分发复用机制，一键安装打包好的核心工作流方案。
+        </div>
+        <div class="glass-box mb-sm">
+            <span class="highlight">Skill（技能）</span>：📖 <strong>SOP 手册</strong><br>
+            用自然语言教 AI “该怎么干活”，注入团队独有方法论。
+        </div>
+        <div class="glass-box mb-sm">
+            <span class="highlight">MCP（协议）</span>：🔌 <strong>万能转接头</strong><br>
+            统一接口协议，使得 LLM 具备读 PR，库查询能力。
+        </div>
+        <div class="glass-box">
+            <span class="highlight">Sub Agent（子智能体）</span>：🤖 <strong>平行分身</strong><br>
+            主实例分裂独立实例，用于并发及隔离上下文污染。
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 23: 2.1 市场配置
+=============================================== -->
+<section>
+    <h4>2.1 市场配置与基础指令</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <p class="text-left xs-text">预装核心插件仓库 (<code>claude plugin marketplace list</code>)：</p>
+            <ul class="text-left sm-text">
+                <li><strong><code>claude-plugins-official</code></strong>：官方基础链路增强。</li>
+                <li><strong><code>superpowers-marketplace</code></strong>：社区提效技能集萃。</li>
+                <li><strong><code>voltagent-subagents</code></strong>：独立工作子集群。</li>
+            </ul>
+            <div class="alert-info text-left xs-text mt-sm">
+                MCP 接入: <code>add [服务名] --command "[命令]"</code>
+            </div>
+        </div>
+        <div class="tech-img-wrapper" style="flex: 0.8 !important;">
+            <img src="./assets/slide_14_mcp.png" alt="MCP Architecture" class="inline-img preview-img" onerror="this.style.display='none'">
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 24: 2.2 核心生态接入 (1)
+=============================================== -->
+<section>
+    <h4>2.2 必装备的开发者“神力”组件 (1)</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <h5 class="text-left glow-text mt-top text-left">【深度互联】</h5>
+            <ul class="text-left sm-text">
+                <li>
+                    <strong>GitHub MCP (全能代码官)</strong><br>
+                    <span class="xs-text muted-text">支持跨仓库 Issue 检索、对话式 PR 提交与代码 Review。</span>
+                </li>
+                <li class="mt-sm">
+                    <strong>Context7 (实时知识注入)</strong><br>
+                    <span class="xs-text muted-text">通过外部检索补齐模型训练时间截断后的最新框架 API 文档。</span>
+                </li>
+            </ul>
+        </div>
+        <div style="flex: 0.8;">
+            <div class="mermaid" style="min-height: 180px;">
+graph TD
+    LLM("Claude") <--> MCP["GitHub MCP"]
+    LLM <--> C7["Context7 API"]
+    MCP --> Repo[("GitHub Repo")]
+    C7 --> Docs[("Real-time Docs")]
+    style LLM fill:#0a0f1e,stroke:#00d2ff,color:#fff
+    style MCP fill:#0a0f1e,stroke:#a78bfa,color:#fff
+    style C7 fill:#0a0f1e,stroke:#a78bfa,color:#fff
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 25: 2.2 核心生态接入 (2)
+=============================================== -->
+<section>
+    <h4>2.2 必装备的开发者“神力”组件 (2)</h4>
+    <h5 class="text-left glow-text text-left">【规范与自动化开发】</h5>
+    <ul class="text-left sm-text">
+        <li>
+            <strong>Feature-Dev (标准开发流)</strong><br>
+            将大规模开发解构为 7 个具有强边界检验特质阶段。<br>
+            <code class="xs-text">claude plugin install feature-dev@claude-plugins-official</code>
+        </li>
+        <li class="mt-sm">
+            <strong>Playwright (UI 自动化测试)</strong><br>
+            执行页面自动化校验或组件验收 (通过命令行保存环境检索以省 token)。
+            <pre class="xs-text"><code class="language-bash">npm install -g @playwright/cli@latest
+playwright-cli install --skills
+npx playwright install</code></pre>
+        </li>
+    </ul>
+</section>
+
+<!-- ==============================================
+     Slide 26: 2.2 核心生态接入 (3)
+=============================================== -->
+<section>
+    <h4>2.2 必装备的开发者“神力”组件 (3)</h4>
+    <h5 class="text-left glow-text text-left">【智慧大脑延寿】</h5>
+    <div class="flex-container">
+        <div style="flex: 1.2;" class="text-left sm-text">
+            <p><strong>Claude-Mem (持久化记忆与长文压缩)</strong></p>
+            <p class="muted-text xs-text">破除重置时的“健忘症”。Token 损耗减少 90-95%，并提供 &lt;private&gt; 脱敏。</p>
+            <code class="xs-text">claude plugin marketplace add thedotmack/claude-mem</code><br>
+            <code class="xs-text">claude plugin install claude-mem</code>
+        </div>
+        <div class="tech-img-wrapper" style="flex: 0.8 !important;">
+            <img src="./assets/slide_17_mem.png" alt="Claude-Mem" class="inline-img preview-img" onerror="this.style.display='none'">
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 27: 3. 上下文工程
+=============================================== -->
+<section>
+    <h4>3. 上下文工程：CLAUDE.md 高阶渐进式披露</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <p class="text-left xs-text muted-text">四级解耦机制确保“按需曝光”：</p>
+            <ol class="text-left xs-text">
+                <li><strong>全局级</strong> (<code>~/.claude/CLAUDE.md</code>)：个人习惯。</li>
+                <li><strong>项目级</strong> (<code>./CLAUDE.md</code>)：核心架构准则。</li>
+                <li><strong>目录级</strong> (<code>./src/api/CLAUDE.md</code>)：模块细则。</li>
+                <li><strong>本地级</strong> (<code>./CLAUDE.local.md</code>)：沙盒覆盖。</li>
+            </ol>
+            <div class="alert-info text-left" style="font-size: 0.55em; line-height: 1.4; margin-top: 10px;">
+                <strong>💡 RAG 范式：</strong>顶层仅留标签引流，实现轻量级上下文检索。
+            </div>
+        </div>
+        <div style="flex: 0.8;">
+            <div class="mermaid" style="min-height: 200px;">
+graph BT
+    L4["Local (.local.md)"] --> L3["Module (api/CLAUDE.md)"]
+    L3 --> L2["Project (./CLAUDE.md)"]
+    L2 --> L1["Global (~/.claude/...)"]
+    style L1 fill:#0a0f1e,stroke:#00d2ff,color:#fff
+    style L2 fill:#0a0f1e,stroke:#a78bfa,color:#fff
+    style L3 fill:#0a0f1e,stroke:#00ff96,color:#fff
+    style L4 fill:#0a0f1e,stroke:#ff4d4f,color:#fff
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 28: Chap 5 Title
+=============================================== -->
+<section>
+    <h3 class="tech-title"><span class="tech-title-prefix">[ CHAP.05 ]</span> 第五章：Skills 扩展库与调用最佳实践</h3>
+    <p class="subtitle mt-top text-left">技能（Skills）是 Claude Code 的核心扩展机制，包括通用的高效技能和 HotPlex 项目专属技能。</p>
+</section>
+
+<!-- ==============================================
+     Slide 29: 1. 通用高效技能 (1)
+=============================================== -->
+<section>
+    <h4>1. 通用高效技能 (1/2)</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <ul class="text-left sm-text">
+                <li>
+                    <strong>代码优化 (<code>/simplify</code>)</strong><br>
+                    <span class="xs-text muted-text">遵循 DRY/SOLID 原则实现精准重构。</span>
+                </li>
+                <li class="mt-sm">
+                    <strong>技能构建 (<code>/skill-creator</code>)</strong><br>
+                    <span class="xs-text muted-text">自然语言生成 CLI 技能，固化 SOP。</span>
+                </li>
+                <li class="mt-sm">
+                    <strong>文档同步 (<code>/claude-md-improver</code>)</strong><br>
+                    <span class="xs-text muted-text">扫描拓扑树并更新 <code>CLAUDE.md</code> 防止能力衰减。</span>
+                </li>
+            </ul>
+        </div>
+        <div style="flex: 0.8;">
+            <div class="glass-card" style="padding: 1.2rem; border: 1px dashed rgba(0,255,150,0.3); text-align: left;">
+                <div class="xs-text" style="color: #00ff96; margin-bottom: 10px;">[ SKILL REGISTRY ]</div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="xs-text" style="background: rgba(255,255,255,0.05); padding: 5px; border-radius: 4px;">✔ simplify.ts</div>
+                    <div class="xs-text" style="background: rgba(255,255,255,0.05); padding: 5px; border-radius: 4px;">✔ docker-ops.sh</div>
+                    <div class="xs-text" style="background: rgba(255,255,255,0.05); padding: 5px; border-radius: 4px;">✔ pr-review.md</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 30: 1. 通用高效技能 (2)
+=============================================== -->
+<section>
+    <h4>1. 通用高效技能 (2/2)</h4>
+    <div class="grid-layout-2 text-left xs-text" style="gap: 1rem;">
+        <div class="glass-card" style="display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem;">
+            <h5 class="glow-text" style="margin-bottom: 0.2rem !important;">头脑风暴 (<code>/brainstorming</code>)</h5>
+            <p class="xs-text muted-text" style="margin-bottom: 0.2rem !important;">基于苏格拉底式提问澄清原始意图：</p>
+            
+            <div style="background: rgba(0, 255, 150, 0.05); border-left: 3px solid #00ff96; border-radius: 4px; padding: 0.5rem; box-shadow: inset 0 0 20px rgba(0,255,150,0.05);">
+                <div class="xs-text" style="color: #00ff96; font-weight: bold; margin-bottom: 4px; letter-spacing: 1px; font-size: 0.8em;">IDEATION & SCOPE</div>
+                <div class="mermaid" style="min-height: 120px; height: auto; padding: 0.5rem;">
+graph TD
+A["模糊需求意图"] --> B["Socratic 意图探查"]
+B --> C["边界与副作用识别"]
+C --> D["生成最优路线/清单"]
+style A fill:#001a1a,stroke:#00ff96,stroke-width:2px,color:#fff
+style B fill:#001a1a,stroke:#00ff96,stroke-width:2px,color:#fff
+style C fill:#001a1a,stroke:#00ff96,stroke-width:2px,color:#fff
+style D fill:#001a1a,stroke:#00ff96,stroke-width:2px,color:#fff
+                </div>
+            </div>
+            
+            <div class="alert-info xs-text" style="margin-top: 0.5rem; padding: 0.6rem 1rem;">
+                <strong>💡 用法：</strong>不确定从哪开始？不带参数执行 <code>/brainstorm</code> 开始意图探查。
+            </div>
+        </div>
+        <div class="glass-card" style="display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem;">
+            <h5 class="glow-text" style="margin-bottom: 0.2rem !important;">功能开发流 (<code>/feature-dev</code>)</h5>
+            <p class="xs-text muted-text" style="margin-bottom: 0.2rem !important;">系统强制性的“先设计后编码”管控逻辑：</p>
+            
+            <!-- Phase 1: Planning -->
+            <div style="background: rgba(0, 210, 255, 0.05); border-left: 3px solid #00d2ff; border-radius: 4px; padding: 0.5rem; box-shadow: inset 0 0 20px rgba(0,210,255,0.05);">
+                <div class="xs-text" style="color: #00d2ff; font-weight: bold; margin-bottom: 4px; letter-spacing: 1px; font-size: 0.8em;">STRATEGY & DESIGN</div>
+                <div class="mermaid" style="min-height: 80px; height: auto; padding: 0.5rem;">
+graph LR
+A["1. 需求发现"] --> B["2. 方案探索"] --> C["3. 意图澄清"] --> D["4. 架构设计"]
+style A fill:#0a0f1e,stroke:#00d2ff,stroke-width:2px,color:#fff
+style B fill:#0a0f1e,stroke:#00d2ff,stroke-width:2px,color:#fff
+style C fill:#0a0f1e,stroke:#00d2ff,stroke-width:2px,color:#fff
+style D fill:#0a0f1e,stroke:#00d2ff,stroke-width:2px,color:#fff
+                </div>
+            </div>
+
+            <!-- Transition -->
+            <div style="display: flex; align-items: center; justify-content: center; gap: 8px; opacity: 0.4; margin: 0.2rem 0;">
+                <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2));"></div>
+                <div class="xs-text" style="font-size: 0.5em; letter-spacing: 2px;">TRANSITION</div>
+                <div style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.2), transparent);"></div>
+            </div>
+
+            <!-- Phase 2: Execution -->
+            <div style="background: rgba(122, 50, 255, 0.05); border-left: 3px solid #7a32ff; border-radius: 4px; padding: 0.5rem; box-shadow: inset 0 0 20px rgba(122,50,255,0.05);">
+                <div class="xs-text" style="color: #a78bfa; font-weight: bold; margin-bottom: 4px; letter-spacing: 1px; font-size: 0.8em;">CODING & DELIVERY</div>
+                <div class="mermaid" style="min-height: 80px; height: auto; padding: 0.5rem;">
+graph LR
+E["5. 编码实现"] --> F["6. 质量评审"] --> G["7. 任务总结"] --> H["交付完成"]
+style E fill:#0a0f1e,stroke:#a78bfa,stroke-width:2px,color:#fff
+style F fill:#0a0f1e,stroke:#a78bfa,stroke-width:2px,color:#fff
+style G fill:#0a0f1e,stroke:#a78bfa,stroke-width:2px,color:#fff
+style H fill:#0a0f1e,stroke:#a78bfa,stroke-width:2px,color:#fff
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 31: 2. HotPlex 专属技能
+=============================================== -->
+<section>
+    <h4>2. HotPlex 专属技能</h4>
+    <div class="flex-container">
+        <div style="flex: 1.3;">
+            <table class="xs-text" style="width: 100%;">
+                <tbody>
+                    <tr><td><strong><code>docker-ops</code></strong></td><td>容器状态、重启、启停 Bot</td></tr>
+                    <tr><td><strong><code>diagnostics</code></strong></td><td>一键生成健康报告与日志分析</td></tr>
+                    <tr><td><strong><code>pr-master</code></strong></td><td>自动化 PR 审查与生命周期管理</td></tr>
+                    <tr><td><strong><code>doc-sync</code></strong></td><td>代码与文档实时同步（防腐）</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="flex: 0.7;">
+            <div class="mermaid" style="min-height: 180px;">
+graph TD
+    User["User"] --> HP["HotPlex Engine"]
+    HP --> S1["Docker Ops"]
+    HP --> S2["PR/Issue Master"]
+    style HP fill:#0a0f1e,stroke:#ffb700,color:#fff
+    style S1 fill:#0a0f1e,stroke:#00d2ff,color:#fff
+    style S2 fill:#0a0f1e,stroke:#00d2ff,color:#fff
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 32: Part 3 Title
+=============================================== -->
+<section>
+    <h2 class="tech-title"><span class="tech-title-prefix">[ SYS.PART.03 ]</span> 第三篇：高级架构与工程集成</h2>
+</section>
+
+<!-- ==============================================
+     Slide 33: Chap 6 Title
+=============================================== -->
+<section>
+    <h3 class="tech-title"><span class="tech-title-prefix">[ CHAP.06 ]</span> 第六章：Agent Teams 多智能体协作编排</h3>
+    <div class="flex-container mt-top">
+        <div><p class="subtitle text-left sm-text">在 v2.1.32+ 中，多代理协作 (Agent Teams) 成为处理复杂、跨模块工程架构任务的标准配置。</p></div>
+        <div class="tech-img-wrapper"><img src="./assets/slide_33_agents.png" alt="Agents Team" onerror="this.style.display='none'"></div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 34: 1. Subagents vs. Agent Teams
+=============================================== -->
+<section>
+    <h4>1. Subagents vs. Agent Teams</h4>
+    <table class="sm-text" style="width: 100%; table-layout: fixed; margin-top: 2rem !important; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+        <thead>
+            <tr>
+                <th style="width: 20%; background: rgba(255,255,255,0.05) !important;">特性维度</th>
+                <th style="width: 40%; background: linear-gradient(180deg, rgba(0,210,255,0.3), rgba(0,210,255,0.1)) !important; color: #00d2ff !important; text-shadow: 0 0 10px rgba(0,210,255,0.5);">Subagents (子调度)</th>
+                <th style="width: 40%; background: linear-gradient(180deg, rgba(122,50,255,0.3), rgba(122,50,255,0.1)) !important; color: #a78bfa !important; text-shadow: 0 0 10px rgba(122,50,255,0.5);">Agent Teams (团队协同)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="font-weight: 600; color: #9494b8; text-align: center;">协作模式</td>
+                <td style="background: rgba(0,210,255,0.05);"><strong>异步隔离处理</strong><br><span class="xs-text">主从结构，单向指派任务。</span></td>
+                <td style="background: rgba(122,50,255,0.05);"><strong>对等协同计算</strong><br><span class="xs-text">平行结构，实时动态博弈。</span></td>
+            </tr>
+            <tr>
+                <td style="font-weight: 600; color: #9494b8; text-align: center;">上下文共享</td>
+                <td style="background: rgba(0,210,255,0.02);">完全隔离，互不干扰</td>
+                <td style="background: rgba(122,50,255,0.02);">共享任务列表，实时通讯锁</td>
+            </tr>
+            <tr>
+                <td style="font-weight: 600; color: #9494b8; text-align: center;">指令流向</td>
+                <td style="background: rgba(0,210,255,0.05);">垂直 (父 -> 子 -> 父)</td>
+                <td style="background: rgba(122,50,255,0.05);">水平交互 (Teammate <-> Lead)</td>
+            </tr>
+            <tr>
+                <td style="font-weight: 600; color: #9494b8; text-align: center;">核心场景</td>
+                <td style="background: rgba(0,210,255,0.02);">独立功能调研、BugFix 扫描</td>
+                <td style="background: rgba(122,50,255,0.02);">大型重构、BFF 架构全局设计</td>
+            </tr>
+            <tr>
+                <td style="font-weight: 600; color: #9494b8; text-align: center;">资源损耗</td>
+                <td style="background: rgba(0,210,255,0.05); color: #00ff96;">● 极低 (精准召回)</td>
+                <td style="background: rgba(122,50,255,0.05); color: #ff4d4f;">● 较高 (通讯开销大)</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==============================================
+     Slide 35: 2. 开启与使用
+=============================================== -->
+<section>
+    <h4>2. 开启 Agent Teams (Experimental)</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <p class="text-left xs-text">1. <strong>版本要求</strong>：v2.1.32+。</p>
+            <p class="text-left xs-text">2. <strong>环境变量</strong>：</p>
+            <code class="xs-text">export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>
+            <p class="text-left xs-text mt-sm">3. <strong>启动指令</strong>：</p>
+            <code class="xs-text">claude agents create --team --roles "lead,backend,qa"</code>
+            <div class="alert-info mt-top xs-text" style="font-size: 0.6em !important;">
+                <strong>tmux 模式：</strong>开启 <code>teammateMode: "tmux"</code> 观摩多屏协同。
+            </div>
+        </div>
+        <div style="flex: 0.8;">
+            <div class="mermaid" style="min-height: 200px;">
+graph TD
+    Leader["Team Lead (Coordinator)"]
+    Leader <--> T1["Backend Agent"]
+    Leader <--> T2["QA/Test Agent"]
+    Leader <--> T3["Security Agent"]
+    style Leader fill:#0a0f1e,stroke:#7a32ff,color:#fff
+    style T1 fill:#0a0f1e,stroke:#a78bfa,color:#fff
+    style T2 fill:#0a0f1e,stroke:#a78bfa,color:#fff
+    style T3 fill:#0a0f1e,stroke:#a78bfa,color:#fff
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 36: 3. 编排最佳实践
+=============================================== -->
+<section>
+    <h4>3. Agent Teams 编排最佳实践</h4>
+    <ul class="text-left sm-text">
+        <li >
+            <strong>意图显式化 (Explicit Intent)</strong><br>
+            召唤时务必明确 Leader 职责，例：<br>
+            <em class="muted-text">“启动一个代理团队，由 Team Lead 负责任务拆解和最后的质量评估。”</em>
+        </li>
+        <li class="mt-top">
+            <strong>下游任务隔离与权限继承</strong><br>
+            让 Subagent 处理重复无脑扫描防止污染。Teammate 会默认继承 Lead 的授权配置与参数。
+        </li>
+    </ul>
+</section>
+
+<!-- ==============================================
+     Slide 37: Chap 7 Title
+=============================================== -->
+<section>
+    <h3 class="tech-title"><span class="tech-title-prefix">[ CHAP.07 ]</span> 第七章：无头模式与 HotPlex 面向生产的热多路复用</h3>
+    
+</section>
+
+<!-- ==============================================
+     Slide 38: 1. 什么是无头模式
+=============================================== -->
+<section>
+    <h4>1. 什么是无头模式？</h4>
+    <div class="flex-container mt-top">
+        <div class="tech-img-wrapper"><img src="./assets/slide_29_headless.png" alt="Headless Mode" onerror="this.style.display='none'"></div>
+    <div class="text-left sm-text">
+        <p>脱离标准 GUI 与 TTY，不依赖交互动效环境执行程序，采用纯结构化数据流通信。</p>
+        <div class="glass-box mb-sm">
+            <strong>核心价值：</strong> 程序化调用访问（IDE、机器人、CI）、全自动化流水体系、结构化 JSON 通信带来鲁棒性。
+        </div>
+        <p><strong>以 JSON 流模式启动：</strong></p>
+        <code class="xs-text">claude --output-format stream-json --input-format stream-json</code>
+    </div></div>
+</section>
+
+<!-- ==============================================
+     Slide 39: 1.4 非交互式快捷调用
+=============================================== -->
+<section>
+    <h4>非交互式快捷调用 (-p 标志)</h4>
+    <div class="text-left sm-text">
+        <p><strong class="highlight">实战用例 1：代码解释</strong></p>
+        <code class="xs-text">claude -p "分析 main.go 的并发逻辑"</code>
+        <p class="mt-sm"><strong class="highlight">实战用例 2：管道集成 (Pipeline)</strong></p>
+        <code class="xs-text">cat error.log | claude -p "修复 bug"</code>
+        <p class="mt-sm"><strong class="danger-text">实战用例 3：全自动化执飞行 (高危)</strong></p>
+        <code class="xs-text">claude -p "运行 go test ./... 直到通过" --dangerously-skip-permissions</code>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 40: 2. 高级玩法热多路复用
+=============================================== -->
+<section>
+    <h4>2. 高级玩法：HotPlex 热多路复用</h4>
+    <div class="flex-container mt-top">
+<div class="tech-img-wrapper"><img src="./assets/slide_43_hotplex.png" alt="HotPlex Multiplexing" onerror="this.style.display='none'"></div>
+    <div class="text-left xs-text">
+        <p>传统无头 CLI 遭遇 2-5 秒“冷启动”开销。</p>
+        <p><strong class="highlight">原理解析：维持热预载控制池</strong>。HotPlex 托管预热进程并追踪活跃状态，将毫秒内将新请求分发入 Ready 的空闲热进程。</p>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 41: 2.2 关键技术点
+=============================================== -->
+<section>
+    <h4>关键技术点</h4>
+    <div class="grid-layout-2 text-left xs-text">
+        <div class="glass-card">
+            <h5 class="glow-text">A. 会话持久化 (Marker)</h5>
+            <p>即使重启通过 SHA1 Namespace 精确找到原始工程的 <code>~/.claude/projects</code> 下会话并自动 <code>--resume</code>。</p>
+        </div>
+        <div class="glass-card">
+            <h5 class="glow-text">B. 全双工事件拦截</h5>
+            <p>将复杂的 JSON 映射标准输出：拦截 <code>thinking</code>，对 <code>tool_use</code> 应用动态 WAF 安全校验。</p>
+        </div>
+        <div class="glass-card mt-sm" style="grid-column: span 2;">
+            <h5 class="glow-text">C. 环境隔离与进程树守护</h5>
+            <p>CWD 虚拟隔离目录环境。会话销毁时基于 PGID 进行全进程树剿灭，消除由于子节点启动的 DevServer 遗留问题。</p>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 42: 3. 性能对比
+=============================================== -->
+<section>
+    <h4>性能对比总结</h4>
+    <table class="sm-text mt-top">
+        <thead>
+            <tr><th>指标</th><th>普通 CLI (冷启动)</th><th>HotPlex (热多路复用)</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>首字响应 (TTFT)</strong></td><td>3s - 8s</td><td><strong class="highlight">50ms - 200ms</strong> (~20x 提升)</td></tr>
+            <tr><td><strong>进程控制</strong></td><td>每次重建抛弃</td><td>高性能 IO 进程复用</td></tr>
+            <tr><td><strong>会话恢复上下文</strong></td><td>手动处理或丢失</td><td>防宕机自动持久化恢复</td></tr>
+        </tbody>
+    </table>
+    <div class="mt-top xs-text muted-text text-left">
+        技术总结：热多路复用不仅保留了完整的工程编排能力，更达到了真正的 API 实时毫秒级响应能力，突破底座制约瓶颈。
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 43: Part 4 Title
+=============================================== -->
+<section>
+    <h2 class="tech-title"><span class="tech-title-prefix">[ SYS.PART.04 ]</span> 第四篇：代码指挥官的思维进化</h2>
+    <blockquote class="text-center sm-text mt-top text-left" style="background: rgba(255,255,255,0.05); border-left:4px solid #7a32ff; padding: 2rem;">
+        “不要教AI，要唤醒AI。上下文窗口是你的战场，你要控制迷雾，而不是制造噪音。”
+    </blockquote>
+</section>
+
+<!-- ==============================================
+     Slide 44: 1. 提示词反直觉技巧 (1)
+=============================================== -->
+<section>
+    <h4>1. 提示词四大反直觉技巧 (1/2)</h4>
+    <ul class="text-left sm-text">
+        <li >
+            <strong class="highlight">少即是多 (Less is More)</strong><br>
+            SOTA大模型由于过强基础能力，过度微操反会框死。直接给出战略意图与边界约束。<br>
+            <span class="xs-text muted-text">例：“写函数获取极值，务必鲁棒处理边界”，而非指点循环和比较大小。</span>
+        </li>
+        <li class="mt-top">
+            <strong class="highlight">激活 vs 灌输</strong><br>
+            不要用教的模式给准则，而是利用角色唤醒权威状态。<br>
+            <span class="xs-text muted-text">例：直接设定“作为资深审计安全专家排查”，代替灌输一大堆测试条目。</span>
+        </li>
+    </ul>
+</section>
+
+<!-- ==============================================
+     Slide 45: 1. 提示词反直觉技巧 (2)
+=============================================== -->
+<section>
+    <h4>1. 提示词四大反直觉技巧 (2/2)</h4>
+    <div class="flex-container">
+        <div style="flex: 1.2;">
+            <ul class="text-left sm-text">
+                <li>
+                    <strong class="highlight">描述现象优先</strong><br>
+                    <span class="xs-text muted-text">强制模型先输出“观察结果”，再给修复建议。极大降低幻觉。</span>
+                </li>
+                <li class="mt-sm">
+                    <strong class="highlight">重复技巧</strong><br>
+                    <span class="xs-text muted-text">对关键约束进行首尾复读。例如：“严格抽取报错行，严格抽取报错行”。</span>
+                </li>
+            </ul>
+        </div>
+        <div style="flex: 0.8;">
+            <div class="glass-card" style="padding: 1rem; border: 1px solid rgba(167,139,250,0.2); text-align: left;">
+                <div class="xs-text" style="color: #a78bfa; margin-bottom: 5px;"># Chain-of-Observation</div>
+                <div style="font-family: monospace; font-size: 0.7em;">
+                    <div style="color: #666;">Step 1: Describe observations</div>
+                    <div style="color: #666;">Step 2: Reason from logic</div>
+                    <div style="color: #00d2ff;">Step 3: Execute Final Fix</div>
+                    <div style="margin-top: 5px; color: #ffb700;">// Critical Loop //</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 46: 2. 打破记忆幻觉
+=============================================== -->
+<section>
+    <h4>2. 打破“记忆”幻觉：上下文工程</h4>
+    <div class="text-left sm-text">
+        <p>模型没有全局持久记忆，而是依靠极易丢弃或失真的单次长文流转交互。</p>
+        <div class="glass-box">
+            <ul>
+                <li><strong>拆解闭环</strong>：不要在一个超级回话里做全端包揽工作。用不同回话组合 /brainstorm 与 /feature-dev。</li>
+                <li><strong>管控心智信噪比</strong>：切换逻辑果断使用 <code>/clear</code> 清理战场。</li>
+                <li><strong>锁定制导</strong>：仅通过 <code>@file</code> 给定靶标进行操作，绝不手动复制大文制造文本迷雾。</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- ==============================================
+     Slide 47: Final 
+=============================================== -->
+<section id="final-slide" data-background-gradient="linear-gradient(135deg, #0A0A12 0%, #1A112E 100%)">
+    <div class="flex-container" style="align-items: center; justify-content: center; gap: 5rem; height: 100%; width: 100%;">
+        <!-- Left Column (Centered Content) -->
+        <div style="flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            <div style="margin-bottom: 3.5rem;">
+                <h3 class="gradient-text" style="font-size: 1.6em !important; margin-bottom: 1.5rem !important;">附录与相关资源</h3>
+                <div style="display: flex; flex-direction: column; gap: 1rem; align-items: center;">
+                    <div class="xs-text">
+                        <span class="highlight">HotPlex Docs:</span>
+                        <a href="https://hrygo.github.io/hotplex/" class="muted-text" style="margin-left: 8px; text-decoration: underline;">hrygo.github.io/hotplex</a>
+                    </div>
+                    <div class="xs-text">
+                        <span class="highlight">Claude Code:</span>
+                        <a href="https://claude.com/resources/tutorials" class="muted-text" style="margin-left: 8px; text-decoration: underline;">claude.com/tutorials</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <h1 class="glow-text" style="font-size: 4em !important; margin: 0 !important; letter-spacing: -2px;">Thanks!</h1>
+                <p class="xs-text muted-text" style="margin-top: 0.8rem; letter-spacing: 2px;">2026.03.24 | 技术交流分享</p>
+            </div>
+        </div>
+
+        <!-- Right Column (Hero Diagram) -->
+        <div style="flex: 1.8; position: relative; display: flex; justify-content: center;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; background: var(--accent-glow); filter: blur(140px); opacity: 0.2; pointer-events: none;"></div>
+            <div class="tech-img-wrapper" style="border: 1px solid rgba(122, 50, 255, 0.4); background: rgba(0,0,0,0.6); padding: 10px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); max-width: 100%;">
+                <img src="./assets/docker-deployment-arch.png" alt="Architecture" style="max-height: 82vh !important; border-radius: 12px; display: block;">
+            </div>
+        </div>
+    </div>
+</section>
+
+        </div>
+    </div>
+
+    <!-- Custom Page Controls -->
+    <div class="custom-controls">
+        <button class="ctrl-btn" id="btn-prev" onclick="Reveal.prev()">
+            <svg style="width:16px;height:16px;margin-right:4px" viewBox="0 0 24 24"><path fill="currentColor" d="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z" /></svg>
+            上一页
+        </button>
+        <div class="ctrl-btn" id="slide-num-container" onclick="jumpToSlide()" title="点击跳转页码" style="cursor: pointer; min-width: 80px; justify-content: center; font-weight: 600; color: #7a32ff;">
+            <span id="current-slide">1</span> / <span id="total-slides">1</span>
+        </div>
+        <button class="ctrl-btn" id="btn-next" onclick="Reveal.next()">
+            下一页
+            <svg style="width:16px;height:16px;margin-left:4px" viewBox="0 0 24 24"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" /></svg>
+        </button>
+        <button class="ctrl-btn" onclick="toggleFullScreen()">
+            <svg style="width:16px;height:16px;margin-right:4px" viewBox="0 0 24 24"><path fill="currentColor" d="M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z"/></svg>
+            全屏浏览 (F)
+        </button>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/plugin/highlight/highlight.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.8.0/dist/mermaid.min.js"></script>
+    
+    <!-- Jump Slide Modal -->
+    <div id="jump-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; backdrop-filter: blur(8px); justify-content: center; align-items: center; transition: opacity 0.3s ease;">
+        <div class="glass-box" style="width: 320px; text-align: center; border: 1px solid rgba(122, 50, 255, 0.5); box-shadow: 0 0 50px rgba(122, 50, 255, 0.2);">
+            <h4 style="margin-bottom: 1.2rem; font-size: 1.2em;">跳转页码 (1 - <span id="jump-total-text">1</span>)</h4>
+            <input type="number" id="jump-input" placeholder="..." style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; color: #fff; font-size: 1.5em; text-align: center; outline: none; margin-bottom: 1rem; font-family: 'Outfit', sans-serif;">
+            <div style="display: flex; gap: 1rem;">
+                <button class="ctrl-btn" style="flex: 1; justify-content: center;" onclick="closeJumpModal()">取消</button>
+                <button class="ctrl-btn" style="flex: 1; justify-content: center; background: #7a32ff; border-color: #aa00ff;" onclick="executeJump()">跳转</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Updated Mermaid: startOnLoad: false for Reveal.js compatibility on file://
+        mermaid.initialize({ 
+            startOnLoad: false, 
+            theme: 'dark',
+            securityLevel: 'loose',
+            logLevel: 'error',
+            fontFamily: 'Inter, sans-serif'
+        });
+        Reveal.initialize({
+            width: 1280,
+            height: 720,
+            margin: 0.04,
+            controls: true,
+            progress: true,
+            center: true,
+            hash: false,
+            history: false,
+            postMessage: false,
+            postMessageEvents: false,
+            transition: 'slide',
+            backgroundTransition: 'fade',
+            slideNumber: false,
+            plugins: [ RevealHighlight ]
+        }).then(() => {
+            // Initial render for the first slide (with a small delay for layout settlement)
+            setTimeout(renderCurrentSlideMermaid, 50);
+            
+            try {
+                const savedIndex = localStorage.getItem('claude_ppt_slide_index');
+                if (savedIndex !== null) {
+                    Reveal.slide(parseInt(savedIndex, 10));
+                }
+            } catch (e) {
+                console.warn('LocalStorage is blocked on file:// protocol', e);
+            }
+            updateCustomControls();
+        });
+
+        // Helper to render Mermaid diagrams only on the current visible slide
+        function renderCurrentSlideMermaid() {
+            const currentSlide = Reveal.getCurrentSlide();
+            if (!currentSlide) return;
+            const mermaidNodes = currentSlide.querySelectorAll('.mermaid:not([data-processed="true"])');
+            if (mermaidNodes.length > 0) {
+                mermaid.run({
+                    nodes: mermaidNodes,
+                    suppressErrors: true
+                }).catch(err => console.warn('Mermaid render failure:', err));
+            }
+        }
+
+        // Re-render mermaid when slide changes to handle visibility/size changes correctly
+        Reveal.on('slidechanged', event => {
+            // Short delay ensures Reveal's transitions/CSS have settled for dimension calc
+            setTimeout(renderCurrentSlideMermaid, 50);
+            
+            try {
+                localStorage.setItem('claude_ppt_slide_index', event.indexh);
+            } catch (e) {}
+            updateCustomControls();
+        });
+
+        function updateCustomControls() {
+            const btnPrev = document.getElementById('btn-prev');
+            const btnNext = document.getElementById('btn-next');
+            const currentSlideEl = document.getElementById('current-slide');
+            const totalSlidesEl = document.getElementById('total-slides');
+
+            if (Reveal.isFirstSlide()) {
+                btnPrev.classList.add('disabled');
+            } else {
+                btnPrev.classList.remove('disabled');
+            }
+            if (Reveal.isLastSlide()) {
+                btnNext.classList.add('disabled');
+            } else {
+                btnNext.classList.remove('disabled');
+            }
+
+            // Update custom slide number
+            if (currentSlideEl && totalSlidesEl) {
+                currentSlideEl.innerText = Reveal.getIndices().h + 1;
+                totalSlidesEl.innerText = Reveal.getTotalSlides();
+            }
+        }
+        
+        function jumpToSlide() {
+            const modal = document.getElementById('jump-modal');
+            const input = document.getElementById('jump-input');
+            const totalText = document.getElementById('jump-total-text');
+            const total = Reveal.getTotalSlides();
+            
+            totalText.innerText = total;
+            modal.style.display = 'flex';
+            input.value = Reveal.getIndices().h + 1;
+            input.focus();
+            input.select();
+        }
+
+        function closeJumpModal() {
+            document.getElementById('jump-modal').style.display = 'none';
+        }
+
+        function executeJump() {
+            const input = document.getElementById('jump-input');
+            const page = parseInt(input.value, 10);
+            const total = Reveal.getTotalSlides();
+            if (!isNaN(page) && page > 0 && page <= total) {
+                Reveal.slide(page - 1);
+                closeJumpModal();
+            } else {
+                input.style.borderColor = 'var(--danger-color)';
+                setTimeout(() => input.style.borderColor = 'rgba(255,255,255,0.1)', 1000);
+            }
+        }
+
+        // Handle keys in modal
+        document.getElementById('jump-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') executeJump();
+            if (e.key === 'Escape') closeJumpModal();
+        });
+        
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log("Fullscreen disabled");
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'F' || event.key === 'f') {
+                toggleFullScreen();
+            }
+        });
+    </script>
+</body>
+</html>
