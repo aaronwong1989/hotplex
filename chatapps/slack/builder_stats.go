@@ -87,23 +87,10 @@ func extractFloat64(metadata map[string]any, key string) float64 {
 
 // formatTokenCount formats token count in compact form (1.2K, 1.00M)
 // Uses proper threshold: K for < 1M, M for >= 1M
+// DEPRECATED: Use base.FormatTokenCount instead
+// This is kept for backward compatibility during migration
 func formatTokenCount(count int64) string {
-	if count >= 1000000 {
-		return fmt.Sprintf("%.2fM", float64(count)/1000000)
-	}
-	if count >= 1000 {
-		kValue := float64(count) / 1000
-		// If k value >= 999.5, show M to avoid rounding issues (999.9K -> 1000.0K)
-		if kValue >= 999.5 {
-			return fmt.Sprintf("%.2fM", float64(count)/1000000)
-		}
-		// Use integer for >= 100K
-		if kValue >= 100 {
-			return fmt.Sprintf("%.0fK", kValue)
-		}
-		return fmt.Sprintf("%.1fK", kValue)
-	}
-	return fmt.Sprintf("%d", count)
+	return base.FormatTokenCount(count)
 }
 
 // BuildCommandProgressMessage builds a message for command progress updates
