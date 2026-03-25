@@ -94,3 +94,24 @@ func FormatCost(costUSD float64) string {
 	}
 	return fmt.Sprintf("$%.6f", costUSD)
 }
+
+// ExtractInt64 extracts int64 value from metadata map, supporting both int32 and int64 types.
+// Returns 0 if key doesn't exist or type doesn't match.
+func ExtractInt64(metadata map[string]any, key string) int64 {
+	if v, ok := metadata[key].(int64); ok {
+		return v
+	}
+	if v, ok := metadata[key].(int32); ok {
+		return int64(v)
+	}
+	return 0
+}
+
+// ExtractFloat64 extracts float64 value from metadata map.
+// Returns 0 if key doesn't exist or type doesn't match.
+func ExtractFloat64(metadata map[string]any, key string) float64 {
+	if v, ok := metadata[key].(float64); ok {
+		return v
+	}
+	return 0
+}

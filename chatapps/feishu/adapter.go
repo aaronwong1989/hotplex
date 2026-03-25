@@ -152,6 +152,7 @@ func (a *Adapter) NewStreamWriter(ctx context.Context, userID, chatID, _ string)
 }
 
 // defaultSender sends message via Feishu API
+// Routes different message types to appropriate handlers
 func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base.ChatMessage) error {
 	if a.client == nil {
 		return ErrMessageSendFailed
@@ -169,8 +170,53 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 		return ErrMessageSendFailed
 	}
 
-	// Send message via client
-	_, err = a.client.SendTextMessage(ctx, token, chatID, msg.Content)
+	// Route by message type
+	switch msg.Type {
+	case base.MessageTypeSessionStats:
+		// Build session stats card with context usage percentage
+		return a.sendSessionStatsCard(ctx, token, chatID, msg)
+
+	default:
+		// Default: send plain text message
+		_, err = a.client.SendTextMessage(ctx, token, chatID, msg.Content)
+		return err
+	}
+}
+
+// sendSessionStatsCard builds and sends a session statistics card
+func (a *Adapter) sendSessionStatsCard(ctx context.Context, token, chatID string, msg *base.ChatMessage) error {
+	// Extract stats from metadata
+	duration := base.FormatDuration(base.ExtractInt64(msg.Metadata, "total_duration_ms"))
+	tokensIn := base.ExtractInt64(msg.Metadata, "input_tokens")
+	tokensOut := base.ExtractInt64(msg.Metadata, "output_tokens")
+	totalTokens := tokensIn + tokensOut
+
+	// Extract context usage percentage
+	contextPercent := base.ExtractFloat64(msg.Metadata, "context_used_percent")
+
+	// Build other stats map
+	otherStats := make(map[string]string)
+	if contextPercent > 0 {
+		otherStats["🧠"] = fmt.Sprintf("%.0f%%", contextPercent)
+	}
+
+	// Extract additional stats
+	if files := base.ExtractInt64(msg.Metadata, "files_modified"); files > 0 {
+		otherStats["📝"] = fmt.Sprintf("%d files", files)
+	}
+	if tools := base.ExtractInt64(msg.Metadata, "tool_call_count"); tools > 0 {
+		otherStats["🔧"] = fmt.Sprintf("%d tools", tools)
+	}
+
+	// Build card
+	cardBuilder := NewCardBuilder(msg.SessionID)
+	cardJSON, err := cardBuilder.BuildSessionStatsCard(duration, int(totalTokens), otherStats)
+	if err != nil {
+		return err
+	}
+
+	// Send interactive card
+	_, err = a.client.SendInteractiveMessage(ctx, token, chatID, cardJSON)
 	return err
 }
 
