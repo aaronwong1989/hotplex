@@ -31,6 +31,8 @@ DRY_RUN=false
 VERBOSE=false
 QUIET=false
 SKIP_VERIFY=false
+SKIP_HEALTH_CHECK=false
+SKIP_AUTOSTART=false
 SKIP_WIZARD=false
 FORCE=false
 INTERACTIVE=true
@@ -485,6 +487,8 @@ HotPlex 一键安装脚本 v2.1
   -q, --quiet            静默模式
   -V, --verbose          详细输出
   --skip-verify          跳过校验和验证
+  --skip-health-check    跳过健康检查
+  --skip-autostart       跳过开机自启配置
   --skip-wizard          跳过安装后配置向导
   --non-interactive      非交互模式
   -h, --help             显示帮助信息
@@ -523,6 +527,8 @@ parse_args() {
             -q|--quiet)       QUIET=true; shift ;;
             -V|--verbose)     VERBOSE=true; shift ;;
             --skip-verify)    SKIP_VERIFY=true; shift ;;
+            --skip-health-check) SKIP_HEALTH_CHECK=true; shift ;;
+            --skip-autostart) SKIP_AUTOSTART=true; shift ;;
             --skip-wizard)    SKIP_WIZARD=true; shift ;;
             --non-interactive) INTERACTIVE=false; shift ;;
             -h|--help)        show_help ;;
@@ -1065,27 +1071,29 @@ generate_config() {
         api_key="change-me-$(date +%s)-$$"
     fi
 
-    cat > "$env_file" << EOF
-# ==============================================================================
+    local port="${HOTPLEX_PORT:-8080}"
+
+    local config_content="# ==============================================================================
 # HotPlex 环境配置
 # 生成时间: $(date '+%Y-%m-%d %H:%M:%S %z')
 # 完整配置参考: https://github.com/hrygo/hotplex/blob/main/.env.example
 # ==============================================================================
 
 # 核心服务器
-HOTPLEX_PORT=8080
+HOTPLEX_PORT=${port}
 HOTPLEX_LOG_LEVEL=INFO
 HOTPLEX_LOG_FORMAT=text
 HOTPLEX_API_KEY=${api_key}
+HOTPLEX_DATA_DIR=${CONFIG_DIR}
 
 # Provider 配置
 HOTPLEX_PROVIDER_TYPE=claude-code
 HOTPLEX_PROVIDER_MODEL=sonnet
 
-# Slack Bot 配置 (必填)
-HOTPLEX_SLACK_BOT_USER_ID=UXXXXXXXXXX
-HOTPLEX_SLACK_BOT_TOKEN=xoxb-
-HOTPLEX_SLACK_APP_TOKEN=xapp-
+# Slack Bot 配置 (必填 - P0 安全验证)
+HOTPLEX_SLACK_BOT_USER_ID=${SLACK_BOT_USER_ID:-UXXXXXXXXXX}
+HOTPLEX_SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-xoxb-}
+HOTPLEX_SLACK_APP_TOKEN=${SLACK_APP_TOKEN:-xapp-}
 
 # 消息存储
 HOTPLEX_MESSAGE_STORE_ENABLED=true
@@ -1093,14 +1101,240 @@ HOTPLEX_MESSAGE_STORE_TYPE=sqlite
 HOTPLEX_MESSAGE_STORE_SQLITE_PATH=${CONFIG_DIR}/chatapp_messages.db
 
 # GitHub Token (用于 Git 操作)
-GITHUB_TOKEN=ghp-
-EOF
+GITHUB_TOKEN=
+"
 
-    chmod 600 "$env_file"
+    atomic_install_config "$config_content"
     success "已生成配置文件: $env_file"
 }
 
+# ==============================================================================
+# 健康检查 (P0)
+# ==============================================================================
+
+health_check() {
+    local port="${1:-${HOTPLEX_PORT}}"
+    local timeout="${2:-15}"
+    local elapsed=0
+
+    step "执行健康检查 (超时: ${timeout}s)..."
+
+    local binary="${INSTALL_DIR}/${BINARY_NAME}"
+    if [[ ! -x "$binary" ]]; then
+        error "健康检查失败: 二进制文件不可执行"
+        return 1
+    fi
+
+    debug "Binary check passed: $binary"
+
+    if pgrep -f "$BINARY_NAME" &>/dev/null; then
+        debug "进程检查: 已有运行实例"
+    fi
+
+    local endpoint="http://localhost:${port}/health"
+    debug "检查端点: $endpoint"
+
+    while [[ $elapsed -lt $timeout ]]; do
+        local start_time
+        start_time=$(date +%s)
+
+        if command_exists curl; then
+            local response
+            response=$(curl -sf --connect-timeout 2 --max-time 5 "$endpoint" 2>/dev/null || echo "")
+
+            if [[ -n "$response" ]] && echo "$response" | grep -q "ok\|OK\|healthy"; then
+                success "健康检查通过"
+                return 0
+            fi
+        fi
+
+        local now
+        now=$(date +%s)
+        elapsed=$((now - start_time + elapsed))
+        [[ $elapsed -lt $timeout ]] && sleep 1
+    done
+
+    warn "健康检查超时 (${timeout}s) - 服务可能仍在启动"
+    return 1
+}
+
+# ==============================================================================
+# 开机自启 (P0)
+# ==============================================================================
+
+detect_init_system() {
+    if command_exists systemctl && systemctl --version &>/dev/null; then
+        echo "systemd"
+    elif command_exists launchd; then
+        echo "launchd"
+    elif [[ -d /etc/init.d ]]; then
+        echo "sysvinit"
+    else
+        echo "unknown"
+    fi
+}
+
+install_systemd_service() {
+    debug "安装 systemd 服务..."
+
+    local service_file="/etc/systemd/system/${BINARY_NAME}.service"
+    local systemd_content="[Unit]
+Description=HotPlex AI Agent Control Plane
+After=network.target
+
+[Service]
+Type=simple
+User=${USER}
+ExecStart=${INSTALL_DIR}/${BINARY_NAME} start
+Restart=on-failure
+RestartSec=10
+Environment=HOTPLEX_DATA_DIR=${CONFIG_DIR}
+Environment=HOTPLEX_PORT=${HOTPLEX_PORT}
+WorkingDirectory=${CONFIG_DIR}
+
+[Install]
+WantedBy=multi-user.target
+"
+
+    if [[ -w "/etc/systemd/system" ]]; then
+        echo "$systemd_content" > "$service_file" || return 1
+        chmod 644 "$service_file"
+        systemctl daemon-reload
+        systemctl enable "${BINARY_NAME}.service"
+    else
+        sudo sh -c "cat > '$service_file' << 'SYSTEMD_EOF'
+$systemd_content
+SYSTEMD_EOF
+chmod 644 '$service_file'
+systemctl daemon-reload
+systemctl enable '${BINARY_NAME}.service'" || return 1
+    fi
+
+    debug "systemd 服务已安装并启用"
+    return 0
+}
+
+install_launchd_service() {
+    debug "安装 launchd 服务..."
+
+    local plist_dir="$HOME/Library/LaunchAgents"
+    local plist_file="${plist_dir}/com.hotplex.daemon.plist"
+
+    mkdir -p "$plist_dir"
+
+    local plist_content="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+    <key>Label</key>
+    <string>com.hotplex.daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${INSTALL_DIR}/${BINARY_NAME}</string>
+        <string>start</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>Crashed</key>
+        <false/>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOTPLEX_DATA_DIR</key>
+        <string>${CONFIG_DIR}</string>
+        <key>HOTPLEX_PORT</key>
+        <string>${HOTPLEX_PORT}</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>${CONFIG_DIR}/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>${CONFIG_DIR}/launchd.err</string>
+</dict>
+</plist>
+"
+
+    echo "$plist_content" > "$plist_file" || return 1
+    chmod 644 "$plist_file"
+    launchctl load "$plist_file" 2>/dev/null || true
+    debug "launchd 服务已安装并启用"
+
+    return 0
+}
+
+install_autostart() {
+    if [[ "${SKIP_AUTOSTART:-false}" == "true" ]]; then
+        debug "跳过开机自启配置"
+        return 0
+    fi
+
+    local init_system
+    init_system=$(detect_init_system)
+
+    step "配置开机自启 ($init_system)..."
+
+    case "$init_system" in
+        systemd)
+            if install_systemd_service; then
+                success "systemd 服务已配置"
+                systemctl start "${BINARY_NAME}.service" 2>/dev/null || true
+            else
+                warn "systemd 服务配置失败"
+            fi
+            ;;
+        launchd)
+            if install_launchd_service; then
+                success "launchd 服务已配置"
+            else
+                warn "launchd 服务配置失败"
+            fi
+            ;;
+        *)
+            warn "不支持的初始化系统: $init_system，跳过开机自启"
+            ;;
+    esac
+}
+
+# ==============================================================================
+# 原子安装操作 (P0)
+# ==============================================================================
+
+atomic_install_config() {
+    local config_content="$1"
+    local config_path="${CONFIG_DIR}/.env"
+    local temp_config
+
+    debug "执行原子配置安装..."
+
+    temp_config=$(mktemp /tmp/hotplex-env.XXXXXX) || error "无法创建临时配置文件"
+    echo "$config_content" > "$temp_config" || {
+        rm -f "$temp_config"
+        error "无法写入配置"
+    }
+
+    if [[ ! -d "$CONFIG_DIR" ]]; then
+        mkdir -p "$CONFIG_DIR" 2>/dev/null || {
+            rm -f "$temp_config"
+            error "无法创建配置目录 $CONFIG_DIR"
+        }
+    fi
+
+    mv "$temp_config" "$config_path" || {
+        rm -f "$temp_config"
+        error "无法写入配置文件"
+    }
+
+    chmod 600 "$config_path" 2>/dev/null || sudo chmod 600 "$config_path"
+    debug "配置安装完成: $config_path"
+}
+
+# ==============================================================================
 # 安装
+# ==============================================================================
+
 do_install() {
     local os arch
 
@@ -1204,6 +1438,14 @@ do_install() {
 
     # 运行配置向导
     run_setup_wizard
+
+    # 配置开机自启 (P0)
+    install_autostart
+
+    # 健康检查 (P0)
+    if [[ "${SKIP_HEALTH_CHECK:-false}" != "true" ]]; then
+        health_check || true
+    fi
 
     # 清理备份标记
     CLEANUP_PENDING=false
