@@ -1187,6 +1187,8 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 		"input_tokens":         int64(stats.InputTokens),
 		"output_tokens":        int64(stats.OutputTokens),
 		"total_tokens":         stats.TotalTokens,
+		"cache_read_tokens":    int64(stats.CacheReadTokens),
+		"cache_write_tokens":   int64(stats.CacheWriteTokens),
 		"tool_call_count":      int64(stats.ToolCallCount),
 		"tools_used":           stats.ToolsUsed,
 		"files_modified":       int64(stats.FilesModified),

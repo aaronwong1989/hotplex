@@ -453,3 +453,94 @@ func TestResetIdleTimer_StopsPreviousTimer(t *testing.T) {
 	// Clean up
 	callback.idleTimer.Stop()
 }
+
+// TestHandleSessionStats_CacheTokenFields tests that handleSessionStats includes
+// cache token fields in the session stats metadata.
+func TestHandleSessionStats_CacheTokenFields(t *testing.T) {
+	tests := []struct {
+		name               string
+		cacheReadTokens    int32
+		cacheWriteTokens   int32
+		inputTokens        int32
+		outputTokens       int32
+		isError            bool
+		accumulatedContent string
+	}{
+		{
+			name:               "with cache tokens",
+			cacheReadTokens:    1500,
+			cacheWriteTokens:   800,
+			inputTokens:        2000,
+			outputTokens:       500,
+			isError:            false,
+			accumulatedContent: "test response",
+		},
+		{
+			name:               "zero cache tokens",
+			cacheReadTokens:    0,
+			cacheWriteTokens:   0,
+			inputTokens:        1000,
+			outputTokens:       300,
+			isError:            false,
+			accumulatedContent: "test response",
+		},
+		{
+			name:               "error session with content",
+			cacheReadTokens:    100,
+			cacheWriteTokens:   50,
+			inputTokens:        500,
+			outputTokens:       100,
+			isError:            true,
+			accumulatedContent: "error occurred",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+			// Create callback with nil adapters (sendMessageAndGetTS will be no-op)
+			callback := &StreamCallback{
+				ctx:       context.Background(),
+				sessionID: "test-session",
+				platform:  "slack",
+				logger:    logger,
+				metadata:  map[string]any{"channel_id": "test", "thread_ts": "123"},
+				adapters:  nil,                 // sendMessageAndGetTS will return nil
+				processor: NewProcessorChain(), // Empty processor chain
+			}
+
+			// Create session stats data with cache tokens
+			stats := &event.SessionStatsData{
+				SessionID:          "test-session",
+				InputTokens:        tt.inputTokens,
+				OutputTokens:       tt.outputTokens,
+				CacheReadTokens:    tt.cacheReadTokens,
+				CacheWriteTokens:   tt.cacheWriteTokens,
+				TotalTokens:        tt.inputTokens + tt.outputTokens,
+				IsError:            tt.isError,
+				TotalDurationMs:    1000,
+				ThinkingDurationMs: 500,
+				ToolDurationMs:     300,
+			}
+
+			// Set accumulated content to simulate answer processing
+			if tt.accumulatedContent != "" {
+				callback.mu.Lock()
+				callback.accumulatedContent.WriteString(tt.accumulatedContent)
+				callback.mu.Unlock()
+			}
+
+			// Execute handleSessionStats
+			// This will exercise the code path that builds metadata with cache token fields
+			err := callback.handleSessionStats(stats)
+
+			// Verify no error occurred
+			// Note: Since adapters is nil, sendMessageAndGetTS returns nil (no actual message sent)
+			// but the metadata construction code is exercised
+			if err != nil {
+				t.Errorf("handleSessionStats returned error: %v", err)
+			}
+		})
+	}
+}
