@@ -1193,6 +1193,7 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 		"tools_used":           stats.ToolsUsed,
 		"files_modified":       int64(stats.FilesModified),
 		"file_paths":           stats.FilePaths,
+		"context_used_percent": stats.ContextUsedPercent, // Context window usage percentage (0-100)
 	}); err != nil {
 		return err
 	}

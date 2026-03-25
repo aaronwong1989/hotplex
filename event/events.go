@@ -97,4 +97,5 @@ type SessionStatsData struct {
 	ModelUsed            string   `json:"model_used"`
 	IsError              bool     `json:"is_error"`
 	ErrorMessage         string   `json:"error_message,omitempty"`
+	ContextUsedPercent   float64  `json:"context_used_percent"` // Context window usage percentage (0-100)
 }

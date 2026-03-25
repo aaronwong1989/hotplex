@@ -20,33 +20,31 @@ func NewStatsMessageBuilder() *StatsMessageBuilder {
 
 // BuildSessionStatsMessage builds a message for session statistics
 // Implements EventTypeResult (Turn Complete) per spec - compact single-line format
+// Display format: ⏱️ duration • 🧠 context% • ⚡ tokens in/out • 📝 files • 🔧 tools
 func (b *StatsMessageBuilder) BuildSessionStatsMessage(msg *base.ChatMessage) []slack.Block {
 	var blocks []slack.Block
 
-	// Build compact stats line: ⏱️ duration • ⚡ tokens in/out • 📝 files • 🔧 tools
+	// Build compact stats line: ⏱️ duration • 🧠 context% • ⚡ tokens in/out • 📝 files • 🔧 tools
 	if msg.Metadata != nil {
 		var stats []string
 
-		// Total Duration (from total_duration_ms in SessionStats.ToSummary)
+		// Total Duration
 		if duration := extractInt64(msg.Metadata, "total_duration_ms"); duration > 0 {
 			stats = append(stats, "⏱️ "+FormatDuration(duration))
 		}
 
-		// Tokens (show in/out separately with cache info)
-		// input_tokens/output_tokens already include cache tokens from API
+		// Context Window Usage Percentage
+		// Shows how much of the 200K context window is used
+		if ctxPercent := extractFloat64(msg.Metadata, "context_used_percent"); ctxPercent > 0 {
+			stats = append(stats, fmt.Sprintf("🧠 %d%%", int(ctxPercent)))
+		}
+
+		// Tokens (simplified display - just input/output, no cache)
 		tokensIn := extractInt64(msg.Metadata, "input_tokens")
 		tokensOut := extractInt64(msg.Metadata, "output_tokens")
-		cacheRead := extractInt64(msg.Metadata, "cache_read_tokens")
-		cacheWrite := extractInt64(msg.Metadata, "cache_write_tokens")
 		if tokensIn > 0 || tokensOut > 0 {
-			// Show cache info if available: "⚡ 100K/50K (cache: 10K/5K)"
-			if cacheRead > 0 || cacheWrite > 0 {
-				stats = append(stats, fmt.Sprintf("⚡ %s/%s (cache: %s/%s)",
-					formatTokenCount(tokensIn), formatTokenCount(tokensOut),
-					formatTokenCount(cacheRead), formatTokenCount(cacheWrite)))
-			} else {
-				stats = append(stats, fmt.Sprintf("⚡ %s/%s", formatTokenCount(tokensIn), formatTokenCount(tokensOut)))
-			}
+			stats = append(stats, fmt.Sprintf("⚡ %s/%s",
+				formatTokenCount(tokensIn), formatTokenCount(tokensOut)))
 		}
 
 		// Files modified
@@ -54,7 +52,7 @@ func (b *StatsMessageBuilder) BuildSessionStatsMessage(msg *base.ChatMessage) []
 			stats = append(stats, fmt.Sprintf("📝 %d files", files))
 		}
 
-		// Tool calls (from tool_call_count in SessionStats.ToSummary)
+		// Tool calls
 		if tools := extractInt64(msg.Metadata, "tool_call_count"); tools > 0 {
 			stats = append(stats, fmt.Sprintf("🔧 %d tools", tools))
 		}
@@ -75,6 +73,14 @@ func extractInt64(metadata map[string]any, key string) int64 {
 	}
 	if v, ok := metadata[key].(int32); ok {
 		return int64(v)
+	}
+	return 0
+}
+
+// extractFloat64 extracts float64 value from metadata
+func extractFloat64(metadata map[string]any, key string) float64 {
+	if v, ok := metadata[key].(float64); ok {
+		return v
 	}
 	return 0
 }

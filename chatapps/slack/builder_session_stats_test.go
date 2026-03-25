@@ -173,3 +173,44 @@ func TestExtractInt64(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildSessionStatsMessage_WithContextPercent(t *testing.T) {
+	// Test context window usage percentage display
+	builder := NewMessageBuilder(&Config{})
+
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeSessionStats,
+		Content: "",
+		Metadata: map[string]any{
+			"event_type":           "session_stats",
+			"total_duration_ms":    int64(12500),
+			"input_tokens":         int32(175000),
+			"output_tokens":        int32(500),
+			"context_used_percent": float64(87.5), // 87.5% of 200K context window
+			"tool_call_count":      int32(5),
+			"files_modified":       int32(3),
+		},
+	}
+
+	blocks := builder.BuildSessionStatsMessage(msg)
+
+	assert.NotNil(t, blocks)
+	assert.Len(t, blocks, 1)
+
+	contextBlock, ok := blocks[0].(*slack.ContextBlock)
+	assert.True(t, ok)
+
+	textElem, ok := contextBlock.ContextElements.Elements[0].(*slack.TextBlockObject)
+	assert.True(t, ok)
+
+	// Verify context percentage is displayed with brain emoji
+	assert.Contains(t, textElem.Text, "🧠")
+	assert.Contains(t, textElem.Text, "87%")
+
+	// Verify tokens are displayed (simplified, no cache)
+	assert.Contains(t, textElem.Text, "⚡")
+	assert.Contains(t, textElem.Text, "175K/500")
+
+	// Should NOT contain cache info anymore
+	assert.NotContains(t, textElem.Text, "cache:")
+}

@@ -626,6 +626,20 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 
 	// Dispatch stats event
 	if callback != nil {
+		// Calculate context window usage percentage
+		// Formula: total_input = input_tokens + cache_read + cache_write
+		// Note: input_tokens represents tokens AFTER last cache breakpoint (not total input)
+		// Context window size varies by model:
+		// - Claude 3.5 Sonnet: 200K tokens
+		// - Claude 3 Opus: 200K tokens
+		// Default to 200K for all Claude models
+		const contextWindowTokens = 200000
+		totalInputTokens := stats.InputTokens + stats.CacheReadTokens + stats.CacheWriteTokens
+		contextUsedPercent := 0.0
+		if contextWindowTokens > 0 {
+			contextUsedPercent = float64(totalInputTokens) / float64(contextWindowTokens) * 100
+		}
+
 		// CRITICAL: We DO NOT use event.WrapSafe here anymore.
 		// Any error in handleSessionStats (like fallback failure) must bubble up
 		// to the Engine so that Execute() returns an error.
@@ -642,15 +656,16 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 			// input_tokens already includes cache_read_tokens
 			// output_tokens already includes cache_write_tokens
 			// Billable = input + output - cache_read*0.9 - cache_write*0.9
-			TotalTokens:   stats.InputTokens + stats.OutputTokens - int32(float64(stats.CacheReadTokens)*0.9) - int32(float64(stats.CacheWriteTokens)*0.9),
-			ToolCallCount: stats.ToolCallCount,
-			ToolsUsed:     toolsUsed,
-			FilesModified: stats.FilesModified,
-			FilePaths:     filePaths,
-			ModelUsed:     r.provider.Name(),
-			TotalCostUSD:  costUSD,
-			IsError:       pevt.IsError,
-			ErrorMessage:  pevt.Error,
+			TotalTokens:        stats.InputTokens + stats.OutputTokens - int32(float64(stats.CacheReadTokens)*0.9) - int32(float64(stats.CacheWriteTokens)*0.9),
+			ToolCallCount:      stats.ToolCallCount,
+			ToolsUsed:          toolsUsed,
+			FilesModified:      stats.FilesModified,
+			FilePaths:          filePaths,
+			ModelUsed:          r.provider.Name(),
+			TotalCostUSD:       costUSD,
+			IsError:            pevt.IsError,
+			ErrorMessage:       pevt.Error,
+			ContextUsedPercent: contextUsedPercent,
 		}); err != nil {
 			return err
 		}
