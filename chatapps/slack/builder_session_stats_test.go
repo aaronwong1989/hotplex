@@ -203,9 +203,9 @@ func TestBuildSessionStatsMessage_WithContextPercent(t *testing.T) {
 	textElem, ok := contextBlock.ContextElements.Elements[0].(*slack.TextBlockObject)
 	assert.True(t, ok)
 
-	// Verify context percentage is displayed with brain emoji
+	// Verify context percentage is displayed with brain emoji (87.5% rounds to 88%)
 	assert.Contains(t, textElem.Text, "🧠")
-	assert.Contains(t, textElem.Text, "87%")
+	assert.Contains(t, textElem.Text, "88%")
 
 	// Verify tokens are displayed (simplified, no cache)
 	assert.Contains(t, textElem.Text, "⚡")

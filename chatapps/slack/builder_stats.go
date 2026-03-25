@@ -36,7 +36,7 @@ func (b *StatsMessageBuilder) BuildSessionStatsMessage(msg *base.ChatMessage) []
 		// Context Window Usage Percentage
 		// Shows how much of the 200K context window is used
 		if ctxPercent := extractFloat64(msg.Metadata, "context_used_percent"); ctxPercent > 0 {
-			stats = append(stats, fmt.Sprintf("🧠 %d%%", int(ctxPercent)))
+			stats = append(stats, fmt.Sprintf("🧠 %.0f%%", ctxPercent))
 		}
 
 		// Tokens (simplified display - just input/output, no cache)
@@ -85,7 +85,6 @@ func extractFloat64(metadata map[string]any, key string) float64 {
 	return 0
 }
 
-// formatTokenCount formats token count in compact form (1.2K)
 // formatTokenCount formats token count in compact form (1.2K, 1.00M)
 // Uses proper threshold: K for < 1M, M for >= 1M
 func formatTokenCount(count int64) string {
