@@ -33,7 +33,28 @@ jobs:
         run: |
           # Extract content between first ## [v... and second ## [v...
           awk '/^## \[v/ { if (count++) exit; next } count' CHANGELOG.md > RELEASE_NOTES.md
-          echo "--- EXTRACTED RELEASE NOTES ---"
+
+          # Add release metadata
+          echo -e "\n\n---\n\n### 📊 Release Statistics\n" >> RELEASE_NOTES.md
+
+          # Commit stats
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log --oneline ${PREV_TAG}..HEAD | wc -l | tr -d ' ')
+            echo "- **Commits**: ${COMMITS}" >> RELEASE_NOTES.md
+
+            # Contributors
+            CONTRIBUTORS=$(git log --format='%an' ${PREV_TAG}..HEAD | sort -u | wc -l | tr -d ' ')
+            echo "- **Contributors**: ${CONTRIBUTORS}" >> RELEASE_NOTES.md
+
+            # Code changes
+            STATS=$(git diff --shortstat ${PREV_TAG}..HEAD | tr -d '\n')
+            if [ -n "$STATS" ]; then
+              echo "- **Changes**: ${STATS}" >> RELEASE_NOTES.md
+            fi
+          fi
+
+          echo -e "\n--- EXTRACTED RELEASE NOTES ---"
           cat RELEASE_NOTES.md
           echo "-------------------------------"
 

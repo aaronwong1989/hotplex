@@ -3,8 +3,22 @@ name: CI
 on:
   push:
     branches: [ main ]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,30 +30,9 @@ permissions:
   pull-requests: write  # Required for Codecov PR comments
 
 jobs:
-  changes:
-    name: Detect Changes
-    runs-on: ubuntu-latest
-    outputs:
-      go: ${{ steps.filter.outputs.go }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            go:
-              - '**.go'
-              - 'go.mod'
-              - 'go.sum'
-              - 'Makefile'
-              - 'scripts/**'
-              - '.github/workflows/ci.yml'
-
-  # 当 Go 文件变化时运行，否则跳过（跳过视为成功）
+  # Unit Tests
   test-unit:
     name: Unit Tests
-    needs: changes
-    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -79,8 +72,6 @@ jobs:
   # 当 Go 文件变化时运行，否则跳过（跳过视为成功）
   test-integration:
     name: Integration Tests
-    needs: changes
-    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -102,11 +93,9 @@ jobs:
       - name: Run Integration Tests
         run: make test-integration
 
-  # 当 Go 文件变化时运行，否则跳过（跳过视为成功）
+  # Code quality check
   lint:
     name: Lint
-    needs: changes
-    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

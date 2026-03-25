@@ -231,3 +231,17 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
