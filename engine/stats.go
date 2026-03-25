@@ -24,6 +24,13 @@ type SessionStats struct {
 	FilePaths            []string        `json:"file_paths"`
 	filePathsSet         map[string]bool `json:"-"` // O(1) deduplication for file paths
 
+	// Last API call token stats (for context window usage calculation)
+	// These fields store the token counts from the MOST RECENT provider event,
+	// not the accumulated totals. Context window limits apply per API call.
+	lastInputTokens      int32 `json:"-"`
+	lastCacheReadTokens  int32 `json:"-"`
+	lastCacheWriteTokens int32 `json:"-"`
+
 	// Current tool tracking
 	currentToolStart time.Time `json:"-"`
 	currentToolName  string    `json:"-"`
@@ -149,6 +156,25 @@ func (s *SessionStats) RecordTokens(input, output, cacheWrite, cacheRead int32) 
 	s.OutputTokens += output
 	s.CacheWriteTokens += cacheWrite
 	s.CacheReadTokens += cacheRead
+}
+
+// SetLastCallTokens records the token counts from the most recent API call.
+// This is used for calculating context window usage percentage, which applies
+// per API call (not to accumulated session totals).
+func (s *SessionStats) SetLastCallTokens(input, cacheRead, cacheWrite int32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastInputTokens = input
+	s.lastCacheReadTokens = cacheRead
+	s.lastCacheWriteTokens = cacheWrite
+}
+
+// GetLastCallTokens returns the token counts from the most recent API call.
+// Returns: input, cacheRead, cacheWrite
+func (s *SessionStats) GetLastCallTokens() (int32, int32, int32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastInputTokens, s.lastCacheReadTokens, s.lastCacheWriteTokens
 }
 
 // StartThinking marks the start of the thinking phase.
