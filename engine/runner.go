@@ -594,11 +594,10 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 
 		// Store last API call tokens for context window calculation
 		// Context window limits apply per API call, not to accumulated totals
-		stats.SetLastCallTokens(
-			pevt.Metadata.InputTokens,
-			pevt.Metadata.CacheReadTokens,
-			pevt.Metadata.CacheWriteTokens,
-		)
+		// Note: Direct field assignment since we already hold stats.mu.Lock()
+		stats.lastInputTokens = pevt.Metadata.InputTokens
+		stats.lastCacheReadTokens = pevt.Metadata.CacheReadTokens
+		stats.lastCacheWriteTokens = pevt.Metadata.CacheWriteTokens
 	}
 
 	// Prepare final telemetry package
@@ -644,8 +643,8 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 		// - Claude 3 Opus: 200K tokens
 		// Default to 200K for all Claude models
 		const contextWindowTokens = 200000
-		lastInput, lastCacheRead, lastCacheWrite := stats.GetLastCallTokens()
-		totalInputTokens := lastInput + lastCacheRead + lastCacheWrite
+		// Note: Direct field access since we already hold stats.mu.Lock()
+		totalInputTokens := stats.lastInputTokens + stats.lastCacheReadTokens + stats.lastCacheWriteTokens
 		contextUsedPercent := 0.0
 		if contextWindowTokens > 0 && totalInputTokens > 0 {
 			contextUsedPercent = float64(totalInputTokens) / float64(contextWindowTokens) * 100
