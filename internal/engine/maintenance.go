@@ -57,7 +57,6 @@ func clearClaudeJSONUserID(logger *slog.Logger) {
 
 	// Check if userID exists
 	if _, exists := cfg["userID"]; !exists {
-		logger.Debug("Claude config has no userID, cleanup not needed", "path", claudeJSONPath)
 		return
 	}
 
