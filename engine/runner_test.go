@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hrygo/hotplex/event"
 	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/security"
+	"github.com/hrygo/hotplex/provider"
 	"github.com/hrygo/hotplex/types"
 )
 
@@ -340,4 +342,174 @@ type sessionNotFoundError struct{}
 
 func (e *sessionNotFoundError) Error() string {
 	return "session not found"
+}
+
+// ============================================================================
+// Token Metadata and Context Window Tests (Issue #352)
+// ============================================================================
+
+// mockTokenTestProvider implements provider.Provider for token metadata test
+type mockTokenTestProvider struct{}
+
+func (m *mockTokenTestProvider) Metadata() provider.ProviderMeta {
+	return provider.ProviderMeta{
+		Type:        provider.ProviderTypeClaudeCode,
+		DisplayName: "Mock Provider",
+		BinaryName:  "mock-cli",
+	}
+}
+
+func (m *mockTokenTestProvider) BuildCLIArgs(sessionID string, opts *provider.ProviderSessionOptions) []string {
+	return []string{"--session-id", sessionID}
+}
+
+func (m *mockTokenTestProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
+	return map[string]any{"prompt": prompt}, nil
+}
+
+func (m *mockTokenTestProvider) ParseEvent(line string) ([]*provider.ProviderEvent, error) {
+	return nil, nil
+}
+
+func (m *mockTokenTestProvider) DetectTurnEnd(event *provider.ProviderEvent) bool {
+	return event != nil && event.Type == provider.EventTypeResult
+}
+
+func (m *mockTokenTestProvider) ValidateBinary() (string, error) {
+	return "/usr/bin/mock-cli", nil
+}
+
+func (m *mockTokenTestProvider) CleanupSession(providerSessionID string, workDir string) error {
+	return nil
+}
+
+func (m *mockTokenTestProvider) VerifySession(providerSessionID string, workDir string) bool {
+	return true
+}
+
+func (m *mockTokenTestProvider) Name() string {
+	return "mock-provider"
+}
+
+// TestEngine_Execute_TokenMetadataAndContextWindow tests the token metadata tracking
+// and context window calculation added in commit 0145a26.
+//
+// This test covers:
+// 1. Direct field assignment of lastInputTokens, lastCacheReadTokens, lastCacheWriteTokens (lines 597-599)
+// 2. Context window percentage calculation (line 645)
+// 3. session_stats event with context_used_percent field
+//
+// Strategy: Directly test handleNormalizedResult (private method accessible in same package)
+func TestEngine_Execute_TokenMetadataAndContextWindow(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	// Create engine with basic setup
+	engine := &Engine{
+		opts:           EngineOptions{Namespace: "test", Timeout: time.Minute},
+		logger:         logger,
+		provider:       &mockTokenTestProvider{}, // Simple mock provider
+		manager:        &mockSessionManager{sessions: make(map[string]*intengine.Session)},
+		dangerDetector: security.NewDetector(logger),
+	}
+
+	// Create test data: provider event with token metadata
+	pevt := &provider.ProviderEvent{
+		Type:      provider.EventTypeResult,
+		Content:   "Task completed successfully",
+		Timestamp: time.Now(),
+		Metadata: &provider.ProviderEventMeta{
+			InputTokens:      1200,
+			OutputTokens:     350,
+			CacheWriteTokens: 100,
+			CacheReadTokens:  50,
+			TotalDurationMs:  2000,
+			TotalCostUSD:     0.05,
+		},
+	}
+
+	// Create session stats
+	stats := &SessionStats{
+		SessionID: "test-token-metadata",
+		StartTime: time.Now(),
+	}
+
+	cfg := &types.Config{
+		WorkDir:   "/tmp",
+		SessionID: "test-token-metadata",
+	}
+
+	var receivedStats *event.SessionStatsData
+	var statsReceived bool
+
+	cb := func(eventType string, data any) error {
+		if eventType == "session_stats" {
+			statsReceived = true
+			var ok bool
+			receivedStats, ok = data.(*event.SessionStatsData)
+			if !ok {
+				t.Errorf("Expected *event.SessionStatsData, got %T", data)
+			}
+		}
+		return nil
+	}
+
+	// Directly call handleNormalizedResult (private method, accessible in same package)
+	err := engine.handleNormalizedResult(pevt, stats, cfg, cb)
+	if err != nil {
+		t.Fatalf("handleNormalizedResult failed: %v", err)
+	}
+
+	// Verify session stats event was received
+	if !statsReceived {
+		t.Fatal("session_stats event was not received")
+	}
+
+	// Verify internal token fields (lines 597-599)
+	// These are private fields, but we can verify them in the same package
+	stats.mu.Lock()
+	if stats.lastInputTokens != 1200 {
+		t.Errorf("lastInputTokens: got %d, want 1200", stats.lastInputTokens)
+	}
+	if stats.lastCacheReadTokens != 50 {
+		t.Errorf("lastCacheReadTokens: got %d, want 50", stats.lastCacheReadTokens)
+	}
+	if stats.lastCacheWriteTokens != 100 {
+		t.Errorf("lastCacheWriteTokens: got %d, want 100", stats.lastCacheWriteTokens)
+	}
+	stats.mu.Unlock()
+
+	// Verify context window calculation (line 645)
+	// totalInputTokens = 1200 + 50 + 100 = 1350
+	// contextUsedPercent = 1350 / 200000 * 100 = 0.675%
+	expectedContextPercent := 0.675
+	tolerance := 0.001 // Allow small floating point differences
+	if receivedStats.ContextUsedPercent < expectedContextPercent-tolerance ||
+		receivedStats.ContextUsedPercent > expectedContextPercent+tolerance {
+		t.Errorf("ContextUsedPercent: got %.3f%%, want %.3f%%",
+			receivedStats.ContextUsedPercent, expectedContextPercent)
+	}
+
+	// Verify accumulated token stats are correct
+	if stats.InputTokens != 1200 {
+		t.Errorf("InputTokens: got %d, want 1200", stats.InputTokens)
+	}
+	if stats.OutputTokens != 350 {
+		t.Errorf("OutputTokens: got %d, want 350", stats.OutputTokens)
+	}
+	if stats.CacheReadTokens != 50 {
+		t.Errorf("CacheReadTokens: got %d, want 50", stats.CacheReadTokens)
+	}
+	if stats.CacheWriteTokens != 100 {
+		t.Errorf("CacheWriteTokens: got %d, want 100", stats.CacheWriteTokens)
+	}
+
+	t.Logf("✅ Token metadata and context window calculation verified:")
+	t.Logf("  - lastInputTokens: %d (line 597)", stats.lastInputTokens)
+	t.Logf("  - lastCacheReadTokens: %d (line 598)", stats.lastCacheReadTokens)
+	t.Logf("  - lastCacheWriteTokens: %d (line 599)", stats.lastCacheWriteTokens)
+	t.Logf("  - InputTokens (accumulated): %d", stats.InputTokens)
+	t.Logf("  - OutputTokens (accumulated): %d", stats.OutputTokens)
+	t.Logf("  - CacheReadTokens (accumulated): %d", stats.CacheReadTokens)
+	t.Logf("  - CacheWriteTokens (accumulated): %d", stats.CacheWriteTokens)
+	t.Logf("  - ContextUsedPercent: %.3f%% (line 645)", receivedStats.ContextUsedPercent)
 }
