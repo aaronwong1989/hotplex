@@ -1,18 +1,13 @@
 name: Docker Publish
 
 on:
-  push:
+  # CI 通过后触发构建
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
     branches: [ "main" ]
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'docker/Dockerfile*'
-      - 'docker-entrypoint.sh'
-      - 'Makefile'
-      - 'docker-compose.yml'
-      - '.github/workflows/docker-publish.yml'
-    tags: [ 'v*' ]
+  # 手动触发和定时任务保持不变
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
@@ -32,8 +27,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 验证 CI 是否通过
+  check-ci:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CI Status
+        if: github.event_name == 'workflow_run'
+        run: |
+          echo "CI Workflow completed with: ${{ github.event.workflow_run.conclusion }}"
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "::error::CI did not pass. Skipping Docker build."
+            exit 1
+          fi
+      - name: Log trigger reason
+        run: |
+          echo "Build triggered by: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "CI Run ID: ${{ github.event.workflow_run.id }}"
+            echo "CI Commit SHA: ${{ github.event.workflow_run.head_sha }}"
+          fi
+
   # 预准备阶段：确定版本、镜像名及构建决策
   prepare:
+    needs: check-ci
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -85,8 +102,8 @@ jobs:
           echo "  - Event Type: $EVENT"
           echo "  - Target Tag: ${IMAGE_PATH}:${VERSION}"
 
-          if [[ "$EVENT" == "push" || "$EVENT" == "workflow_dispatch" ]]; then
-            echo "Decision: Code/Manual trigger detected. Proceeding with build."
+          if [[ "$EVENT" == "push" || "$EVENT" == "workflow_dispatch" || "$EVENT" == "workflow_run" ]]; then
+            echo "Decision: Code/Manual/CI-success trigger detected. Proceeding with build."
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
             if docker manifest inspect "${IMAGE_PATH}:${VERSION}" > /dev/null 2>&1; then
