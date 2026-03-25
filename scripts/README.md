@@ -41,6 +41,39 @@ python3 scripts/manage-labels.py --apply    # Apply changes
 
 See [docs/github-labels.md](../docs/github-labels.md) for the full label system guide.
 
+## Verification & Diagnostics
+
+| Script | Description |
+|--------|-------------|
+| `verify_claude_stream_tokens.py` | Verify Claude Code CLI returns token data in stream-json output format |
+| `verify_slack_tokens.sh` | Verify Slack Bot Token (xoxb-) and App Token (xapp-) validity |
+
+### verify_claude_stream_tokens.py
+
+Validates that Claude Code CLI provides token usage data (including cache tokens) in stream-json mode.
+
+**Usage:**
+```bash
+python3 scripts/verify_claude_stream_tokens.py
+```
+
+**Requirements:**
+- Claude Code CLI installed (`~/.local/bin/claude`)
+- `ANTHROPIC_AUTH_TOKEN` environment variable set
+
+**Output:**
+- Event summary (all event types in the stream)
+- Token data extraction (input/output/cache tokens)
+- Verification status (passed/failed)
+
+**Token Fields Verified:**
+- `input_tokens`: Total input tokens consumed
+- `output_tokens`: Total output tokens generated
+- `cache_creation_input_tokens`: Tokens written to cache
+- `cache_read_input_tokens`: Tokens read from cache (cache hits)
+
+**Related Issues:** #350, #351
+
 ## Deployment & DevOps
 
 | Script | Description |
