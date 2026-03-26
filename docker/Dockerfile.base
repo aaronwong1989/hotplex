@@ -18,11 +18,18 @@ RUN ARCH=$(uname -m) && \
     "https://github.com/vi/websocat/releases/download/v1.14.1/$BIN" && \
     chmod +x /usr/local/bin/websocat
 
-# --- Stage 2: NPM Tools Collector ---
-FROM node:24-bookworm-slim AS npm-tools-collector
+# --- Stage 2: AI Tools Collector ---
+FROM node:24-bookworm-slim AS ai-tools-collector
 ARG NPM_MIRROR
-RUN if [ -n "$NPM_MIRROR" ]; then npm config set registry "$NPM_MIRROR"; fi && \
-    npm install -g @anthropic-ai/claude-code@latest opencode-ai @mariozechner/pi-coding-agent && \
+
+# 1. Install Claude Code (official installer)
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# 2. Install OpenCode (official installer)
+RUN curl -fsSL https://raw.githubusercontent.com/opencode-ai/opencode/refs/heads/main/install | bash
+
+# 3. Install PI Coding Agent (npm fallback)
+RUN npm install -g @mariozechner/pi-coding-agent && \
     npm cache clean --force
 
 # --- Final Stage: Shared Foundation ---
@@ -88,12 +95,14 @@ COPY docker/bashrc.hotplex /home/hotplex/.bashrc
 RUN chown hotplex:hotplex /home/hotplex/.bashrc
 
 # 3. Static Tool Injection
+# Copy websocat from tools-collector
 COPY --from=tools-collector /usr/local/bin/websocat /usr/local/bin/websocat
-# Injection from npm-tools-collector (Claude Code, etc.)
-COPY --from=npm-tools-collector /usr/local/lib/node_modules/ /usr/local/lib/node_modules/
-# Create symlinks manually (npm package structure may change between versions)
-RUN ln -sf /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js /usr/local/bin/claude && \
-    ln -sf /usr/local/lib/node_modules/opencode-ai/bin/opencode /usr/local/bin/opencode && \
+# Claude Code is already installed via curl installer in Stage 2
+# Install additional npm tools (opencode-ai, pi-coding-agent)
+RUN npm install -g opencode-ai @mariozechner/pi-coding-agent && \
+    npm cache clean --force && \
+    # Create symlinks for npm tools
+RUN ln -sf /usr/local/lib/node_modules/opencode-ai/bin/opencode /usr/local/bin/opencode && \
     ln -sf /usr/local/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js /usr/local/bin/pi
 
 # 4. Standard Metadata & Entrypoint

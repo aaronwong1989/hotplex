@@ -27,10 +27,9 @@ x-hotplex-common: &hotplex-common
     ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-http://host.docker.internal:15721}
     HOTPLEX_ALLOWED_ORIGINS: ${HOTPLEX_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080,http://host.docker.internal:8080}
     # ─────────────────────────────────────────────────────────────────
-    # Git Identity Defaults
+    # Git Identity (loaded from env_file, not hardcoded here)
+    # Removed to allow env_file to take precedence
     # ─────────────────────────────────────────────────────────────────
-    GIT_USER_NAME: ${GIT_USER_NAME:-HotPlexBot}
-    GIT_USER_EMAIL: ${GIT_USER_EMAIL:-noreply@hotplex.dev}
     # ─────────────────────────────────────────────────────────────────
     # GitHub Authentication - Container token via env_file (.env-01/.env-02/.env-03)
     # 注意：不在此处通过 ${} 引用宿主变量，避免 token 泄漏
@@ -98,11 +97,15 @@ services:
     <<: *hotplex-common
     command: ["hotplexd", "start"]
     volumes:
-      # Claude config from host (read-only, hot-reload on host changes)
-      - ${HOME}/.claude/settings.json:/home/hotplex/.claude/settings.json:ro
-      - ${HOME}/.claude/skills:/home/hotplex/.claude/skills:ro
-      - ${HOME}/.claude/scripts:/home/hotplex/.claude/scripts:ro
-      - ${HOME}/.claude/statusline.sh:/home/hotplex/.claude/statusline.sh:ro
+      # Claude config from preprocessed seed (read-only, container-compatible)
+      - ${HOME}/.hotplex/claude-seed/settings.json:/home/hotplex/.claude/settings.json:ro
+      - ${HOME}/.hotplex/claude-seed/settings.local.json:/home/hotplex/.claude/settings.local.json:ro
+      - ${HOME}/.hotplex/claude-seed/skills:/home/hotplex/.claude/skills:ro
+      - ${HOME}/.hotplex/claude-seed/scripts:/home/hotplex/.claude/scripts:ro
+      - ${HOME}/.hotplex/claude-seed/plugins:/home/hotplex/.claude/plugins:ro
+      - ${HOME}/.hotplex/claude-seed/hooks:/home/hotplex/.claude/hooks:ro
+      # statusline.sh is mounted as .seed file and processed by entrypoint
+      - ${HOME}/.hotplex/claude-seed/statusline.sh:/home/hotplex/.claude/statusline.sh.seed:ro
       # Shared Go module cache (safe to share across instances)
       - hotplex-matrix-go-mod:/home/hotplex/go/pkg/mod:rw
       # Note: Per-instance build cache is mounted in docker-compose.yml per service

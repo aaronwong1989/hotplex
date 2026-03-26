@@ -82,118 +82,118 @@ SERVICE_SCRIPT := ./scripts/ops/service.sh
 # 🎯 Helper: Styled Section Header
 # =============================================================================
 define SECTION_HEADER
-printf "\n${BOLD}${BLUE}╭─ %s ────────────────────────────────────${NC}\n" "$1"
+printf "\n${BOLD}${BLUE}╭─ %s ────────────────────────────────────$(NC)\n" "$1"
 endef
 
 define SECTION_FOOTER
-printf "${DIM}${BLUE}╰─────────────────────────────────────────────${NC}\n"
+printf "${DIM}${BLUE}╰─────────────────────────────────────────────$(NC)\n"
 endef
 
 # =============================================================================
 # 📋 HELP
 # =============================================================================
 help: ## Show this help message
-	@printf "\n${BOLD}${CYAN}🔥 HotPlex Build System${NC} ${DIM}${VERSION}${NC}\n"
-	@printf "${DIM}Usage: make ${YELLOW}<target>${NC} ${DIM}[args]${NC}\n"
+	@printf "\n${BOLD}${CYAN}🔥 HotPlex Build System$(NC) ${DIM}${VERSION}$(NC)\n"
+	@printf "${DIM}Usage: make ${YELLOW}<target>$(NC) ${DIM}[args]$(NC)\n"
 	@printf "\n"
 	@$(call SECTION_HEADER,🔨 Build)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@build/ {gsub(/@build /, "", $$2); printf "  ${GREEN}%-20s${NC} %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@build/ {gsub(/@build /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🧪 Test)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@test/ {gsub(/@test /, "", $$2); printf "  ${GREEN}%-20s${NC} %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@test/ {gsub(/@test /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🔧 Development)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@dev/ {gsub(/@dev /, "", $$2); printf "  ${GREEN}%-20s${NC} %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@dev/ {gsub(/@dev /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🚀 Runtime)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@runtime/ {gsub(/@runtime /, "", $$2); printf "  ${GREEN}%-20s${NC} %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@runtime/ {gsub(/@runtime /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,📦 Service)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@service/ {gsub(/@service /, "", $$2); printf "  ${GREEN}%-20s${NC} %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@service/ {gsub(/@service /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🛠️ Utils)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@util/ {gsub(/@util /, "", $$2); printf "  ${GREEN}%-20s${NC} %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@util/ {gsub(/@util /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🐳 Docker)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@docker/ {gsub(/@docker /, "", $$2); printf "  ${GREEN}%-20s${NC} %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@docker/ {gsub(/@docker /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
-	@printf "\n${DIM}💡 Tip: Use 'make <target> V=1' for verbose output${NC}\n\n"
+	@printf "\n${DIM}💡 Tip: Use 'make <target> V=1' for verbose output$(NC)\n\n"
 
 # =============================================================================
 # 🔨 BUILD
 # =============================================================================
 build: fmt vet tidy ## @build Compile the hotplexd daemon
-	@printf "${GREEN}🚀 Building HotPlex Daemon (${VERSION})...${NC}\n"
+	@printf "${GREEN}🚀 Building HotPlex Daemon (${VERSION})...$(NC)\n"
 	@mkdir -p $(DIST_DIR)
 	@go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_PATH)
-	@printf "${GREEN}✅ Build complete: ${DIST_DIR}/$(BINARY_NAME)${NC}\n"
+	@printf "${GREEN}✅ Build complete: ${DIST_DIR}/$(BINARY_NAME)$(NC)\n"
 
 # =============================================================================
 # 🔧 INSTALL
 # =============================================================================
 install: config-info ## @runtime Build and install hotplexd to /usr/local/bin
-	@printf "${PURPLE}📦 Building HotPlex Daemon...${NC}\n"
+	@printf "${PURPLE}📦 Building HotPlex Daemon...$(NC)\n"
 	go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_PATH)
-	@printf "${PURPLE}📦 Installing to /usr/local/bin...${NC}\n"
+	@printf "${PURPLE}📦 Installing to /usr/local/bin...$(NC)\n"
 	cp $(DIST_DIR)/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
-	@printf "${GREEN}✅ Installed: /usr/local/bin/hotplexd${NC}\n"
+	@printf "${GREEN}✅ Installed: /usr/local/bin/hotplexd$(NC)\n"
 
 config-info: ## @util Display current configuration status
-	@printf "\n${BOLD}${CYAN}╭─ 🔧 Configuration Files ─────────────────────────────${NC}\n"
-	@printf "  ${BOLD}📋 Configuration Priority (effective):${NC}\n"
+	@printf "\n${BOLD}${CYAN}╭─ 🔧 Configuration Files ─────────────────────────────$(NC)\n"
+	@printf "  ${BOLD}📋 Configuration Priority (effective):$(NC)\n"
 	@printf "\n"
-	@printf "  ${GREEN}1. Main Config (.env)${NC}\n"
+	@printf "  ${GREEN}1. Main Config (.env)$(NC)\n"
 	@if [ -f .env ]; then \
-		printf "     ${GREEN}✓${NC} Active\n"; \
-		printf "     ${CYAN}Path:${NC} $$(pwd)/.env\n"; \
+		printf "     ${GREEN}✓$(NC) Active\n"; \
+		printf "     ${CYAN}Path:$(NC) $$(pwd)/.env\n"; \
 	else \
-		printf "     ${YELLOW}⚠${NC} Not found\n"; \
-		printf "     ${CYAN}Template:${NC} $$(pwd)/.env.example\n"; \
+		printf "     ${YELLOW}⚠$(NC) Not found\n"; \
+		printf "     ${CYAN}Template:$(NC) $$(pwd)/.env.example\n"; \
 	fi
 	@printf "\n"
-	@printf "  ${GREEN}2. ChatApps Configs (priority order)${NC}\n"
-	@printf "     ${CYAN}a) --config flag / HOTPLEX_CHATAPPS_CONFIG_DIR:${NC}\n"
+	@printf "  ${GREEN}2. ChatApps Configs (priority order)$(NC)\n"
+	@printf "     ${CYAN}a) --config flag / HOTPLEX_CHATAPPS_CONFIG_DIR:$(NC)\n"
 	@if [ -n "$$HOTPLEX_CHATAPPS_CONFIG_DIR" ]; then \
-		printf "         ${GREEN}✓${NC} Using: $$HOTPLEX_CHATAPPS_CONFIG_DIR\n"; \
+		printf "         ${GREEN}✓$(NC) Using: $$HOTPLEX_CHATAPPS_CONFIG_DIR\n"; \
 	else \
-		printf "         ${YELLOW}Not set${NC}\n"; \
+		printf "         ${YELLOW}Not set$(NC)\n"; \
 	fi
-	@printf "     ${CYAN}b) User config (~/.hotplex/configs):${NC}\n"
+	@printf "     ${CYAN}b) User config (~/.hotplex/configs):$(NC)\n"
 	@if [ -d "$$HOME/.hotplex/configs" ]; then \
-		printf "         ${GREEN}✓${NC} Active\n"; \
-		printf "         ${CYAN}Path:${NC} $$HOME/.hotplex/configs/\n"; \
+		printf "         ${GREEN}✓$(NC) Active\n"; \
+		printf "         ${CYAN}Path:$(NC) $$HOME/.hotplex/configs/\n"; \
 	else \
-		printf "         ${YELLOW}⚠${NC} Not found${NC}\n"; \
+		printf "         ${YELLOW}⚠$(NC) Not found$(NC)\n"; \
 	fi
-	@printf "     ${CYAN}c) Default (./configs/admin):${NC}\n"
+	@printf "     ${CYAN}c) Default (./configs/admin):$(NC)\n"
 	@if [ -d "configs/admin" ]; then \
-		printf "         ${GREEN}✓${NC} Active (Admin Bot)\n"; \
-		printf "         ${CYAN}Path:${NC} $$(pwd)/configs/admin/\n"; \
+		printf "         ${GREEN}✓$(NC) Active (Admin Bot)\n"; \
+		printf "         ${CYAN}Path:$(NC) $$(pwd)/configs/admin/\n"; \
 		for f in configs/admin/*.yaml; do \
 			if [ -f "$$f" ]; then \
 				printf "            - $$(basename $$f)\n"; \
 			fi; \
 		done; \
 	else \
-		printf "         ${YELLOW}⚠${NC} Not found${NC}\n"; \
+		printf "         ${YELLOW}⚠$(NC) Not found$(NC)\n"; \
 	fi
-	@printf "     ${DIM}d) Base templates (./configs/base):${NC}\n"
+	@printf "     ${DIM}d) Base templates (./configs/base):$(NC)\n"
 	@if [ -d "configs/base" ]; then \
-		printf "         ${DIM}✓ SSOT (inherited by admin)${NC}\n"; \
+		printf "         ${DIM}✓ SSOT (inherited by admin)$(NC)\n"; \
 	else \
-		printf "         ${YELLOW}⚠${NC} Not found${NC}\n"; \
+		printf "         ${YELLOW}⚠$(NC) Not found$(NC)\n"; \
 	fi
-	@printf "${BOLD}${CYAN}╰─────────────────────────────────────────────────────${NC}\n\n"
+	@printf "${BOLD}${CYAN}╰─────────────────────────────────────────────────────$(NC)\n\n"
 
 build-all: fmt vet tidy ## @build Compile for all platforms (Linux/macOS/Windows)
-	@printf "${GREEN}🚀 Building HotPlex Daemon for all platforms (${VERSION})...${NC}\n"
+	@printf "${GREEN}🚀 Building HotPlex Daemon for all platforms (${VERSION})...$(NC)\n"
 	@mkdir -p $(DIST_DIR)
 	@GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 $(CMD_PATH)
 	@GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 $(CMD_PATH)
 	@GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 $(CMD_PATH)
 	@GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 $(CMD_PATH)
 	@GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.exe $(CMD_PATH)
-	@printf "${GREEN}✅ Cross-compilation complete in ${DIST_DIR}/${NC}\n"
+	@printf "${GREEN}✅ Cross-compilation complete in ${DIST_DIR}/$(NC)\n"
 
 # =============================================================================
 # 🧪 TEST
@@ -201,84 +201,84 @@ build-all: fmt vet tidy ## @build Compile for all platforms (Linux/macOS/Windows
 test: test-unit ## @test Run fast unit tests (default)
 
 test-unit: ## @test Run unit tests (fast, no race detection)
-	@printf "${CYAN}🧪 Running fast unit tests...${NC}\n"
+	@printf "${CYAN}🧪 Running fast unit tests...$(NC)\n"
 	@go test -v -short ./...
-	@printf "${GREEN}✅ Unit tests passed!${NC}\n"
+	@printf "${GREEN}✅ Unit tests passed!$(NC)\n"
 
 test-ci: ## @test Run tests optimized for CI (parallel, timeout, short mode)
-	@printf "${CYAN}🧪 Running CI-optimized tests...${NC}\n"
+	@printf "${CYAN}🧪 Running CI-optimized tests...$(NC)\n"
 	@go test -v -short -timeout=5m -parallel=4 ./...
-	@printf "${GREEN}✅ CI tests passed!${NC}\n"
+	@printf "${GREEN}✅ CI tests passed!$(NC)\n"
 
 test-race: ## @test Run unit tests with race detection
-	@printf "${CYAN}🧪 Running unit tests with race detection...${NC}\n"
+	@printf "${CYAN}🧪 Running unit tests with race detection...$(NC)\n"
 	@go test -v -race ./...
-	@printf "${GREEN}✅ Race detection passed!${NC}\n"
+	@printf "${GREEN}✅ Race detection passed!$(NC)\n"
 
 test-integration: ## @test Run heavy integration tests
-	@printf "${YELLOW}🏗️  Running heavy integration tests...${NC}\n"
+	@printf "${YELLOW}🏗️  Running heavy integration tests...$(NC)\n"
 	@go test -v -tags=integration ./...
-	@printf "${GREEN}✅ Integration tests passed!${NC}\n"
+	@printf "${GREEN}✅ Integration tests passed!$(NC)\n"
 
 test-all: test-race test-integration ## @test Run all tests
 
 coverage: ## @test Generate coverage report
-	@printf "${CYAN}📊 Generating coverage report...${NC}\n"
+	@printf "${CYAN}📊 Generating coverage report...$(NC)\n"
 	@go test -coverprofile=coverage.out -covermode=atomic ./...
-	@printf "${GREEN}✅ Coverage report generated: coverage.out${NC}\n"
+	@printf "${GREEN}✅ Coverage report generated: coverage.out$(NC)\n"
 
 coverage-html: coverage ## @test Generate coverage HTML report
 	@go tool cover -html=coverage.out -o coverage.html
-	@printf "${GREEN}✅ Coverage HTML report: coverage.html${NC}\n"
+	@printf "${GREEN}✅ Coverage HTML report: coverage.html$(NC)\n"
 
 # =============================================================================
 # 🔧 DEVELOPMENT
 # =============================================================================
 fmt: ## @dev Format Go code
-	@printf "${CYAN}🔧 Formatting code...${NC}\n"
+	@printf "${CYAN}🔧 Formatting code...$(NC)\n"
 	@go fmt ./...
 
 vet: ## @dev Check for suspicious constructs
-	@printf "${CYAN}🔍 Vetting code...${NC}\n"
+	@printf "${CYAN}🔍 Vetting code...$(NC)\n"
 	@go vet ./...
 
 lint: ## @dev Run golangci-lint
-	@printf "${PURPLE}🔍 Linting code...${NC}\n"
+	@printf "${PURPLE}🔍 Linting code...$(NC)\n"
 	@if command -v golangci-lint &> /dev/null; then \
 		golangci-lint run ./...; \
-		printf "${GREEN}✅ Linting passed!${NC}\n"; \
+		printf "${GREEN}✅ Linting passed!$(NC)\n"; \
 	else \
-		printf "${RED}❌ golangci-lint not found. Install it first.${NC}\n"; \
+		printf "${RED}❌ golangci-lint not found. Install it first.$(NC)\n"; \
 		exit 1; \
 	fi
 
 tidy: ## @dev Clean up go.mod dependencies
-	@printf "${YELLOW}📦 Tidying up Go modules...${NC}\n"
+	@printf "${YELLOW}📦 Tidying up Go modules...$(NC)\n"
 	@go mod tidy
-	@printf "${GREEN}✅ Modules synchronized.${NC}\n"
+	@printf "${GREEN}✅ Modules synchronized.$(NC)\n"
 
 clean: ## @dev Remove build artifacts
-	@printf "${RED}🧹 Cleaning up build artifacts...${NC}\n"
+	@printf "${RED}🧹 Cleaning up build artifacts...$(NC)\n"
 	@rm -rf $(DIST_DIR)
 	@go clean
-	@printf "${GREEN}✅ Cleanup done.${NC}\n"
+	@printf "${GREEN}✅ Cleanup done.$(NC)\n"
 
 install-hooks: ## @dev Install Git hooks
-	@printf "${CYAN}🔗 Installing HotPlex Git Hooks...${NC}\n"
+	@printf "${CYAN}🔗 Installing HotPlex Git Hooks...$(NC)\n"
 	@chmod +x scripts/git-hooks/*.sh 2>/dev/null || true
 	@if [ -d scripts/git-hooks ] && [ -f scripts/git-hooks/setup_hooks.sh ]; then ./scripts/git-hooks/setup_hooks.sh; fi
-	@printf "${GREEN}✅ Hooks are active.${NC}\n"
+	@printf "${GREEN}✅ Hooks are active.$(NC)\n"
 
 # =============================================================================
 # 🚀 RUNTIME
 # =============================================================================
 run: sync build config-info ## @runtime Build and start daemon in foreground
-	@printf "${PURPLE}🔥 Starting HotPlex Daemon...${NC}\n"
+	@printf "${PURPLE}🔥 Starting HotPlex Daemon...$(NC)\n"
 	@./$(DIST_DIR)/$(BINARY_NAME)
 
 
 stop: ## @runtime Stop the running daemon and all its child processes
-	@printf "${YELLOW}🛑 Stopping HotPlex Daemon...${NC}\n"
+	@printf "${YELLOW}🛑 Stopping HotPlex Daemon...$(NC)\n"
 	@PID=$$(pgrep -f $(BINARY_NAME) | head -1); \
 	if [ -n "$$PID" ]; then \
 		PGID=$$(ps -o pgid= -p $$PID | tr -d ' '); \
@@ -289,9 +289,9 @@ stop: ## @runtime Stop the running daemon and all its child processes
 				kill -9 -- -$$PGID 2>/dev/null; \
 			fi; \
 		fi; \
-		printf "${GREEN}✅ Daemon stopped${NC}\n"; \
+		printf "${GREEN}✅ Daemon stopped$(NC)\n"; \
 	else \
-		printf "${YELLOW}⚠️  No running daemon found${NC}\n"; \
+		printf "${YELLOW}⚠️  No running daemon found$(NC)\n"; \
 	fi
 
 restart: sync build config-info ## @runtime Restart daemon with latest source code
@@ -302,27 +302,27 @@ restart: sync build config-info ## @runtime Restart daemon with latest source co
 # 📦 SERVICE (System Service)
 # =============================================================================
 service-install: build ## @service Install as system service
-	@printf "${CYAN}📦 Installing HotPlex as system service...${NC}\n"
+	@printf "${CYAN}📦 Installing HotPlex as system service...$(NC)\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) install
 
 service-uninstall: ## @service Remove the system service
-	@printf "${YELLOW}🗑️  Removing HotPlex system service...${NC}\n"
+	@printf "${YELLOW}🗑️  Removing HotPlex system service...$(NC)\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) uninstall
 
 service-start: sync ## @service Start the system service
-	@printf "${GREEN}▶️  Starting HotPlex service...${NC}\n"
+	@printf "${GREEN}▶️  Starting HotPlex service...$(NC)\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) start
 
 service-stop: ## @service Stop the system service
-	@printf "${YELLOW}⏹️  Stopping HotPlex service...${NC}\n"
+	@printf "${YELLOW}⏹️  Stopping HotPlex service...$(NC)\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) stop
 
 service-restart: sync ## @service Restart the system service
-	@printf "${PURPLE}🔄 Restarting HotPlex service...${NC}\n"
+	@printf "${PURPLE}🔄 Restarting HotPlex service...$(NC)\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) restart
 
@@ -335,12 +335,12 @@ service-logs: ## @service Tail service logs (Ctrl+C to stop)
 	@$(SERVICE_SCRIPT) logs
 
 service-enable: ## @service Enable auto-start on boot
-	@printf "${GREEN}🔔 Enabling auto-start...${NC}\n"
+	@printf "${GREEN}🔔 Enabling auto-start...$(NC)\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) enable
 
 service-disable: ## @service Disable auto-start on boot
-	@printf "${YELLOW}🔕 Disabling auto-start...${NC}\n"
+	@printf "${YELLOW}🔕 Disabling auto-start...$(NC)\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) disable
 
@@ -348,10 +348,10 @@ service-disable: ## @service Disable auto-start on boot
 # 🛠️ UTILS
 # =============================================================================
 svg2png: ## @util Convert SVG to 4K PNG
-	@printf "${CYAN}🖼️  Converting SVG to PNG...${NC}\n"
+	@printf "${CYAN}🖼️  Converting SVG to PNG...$(NC)\n"
 	@chmod +x scripts/tools/svg2png.sh 2>/dev/null || true
 	@./scripts/tools/svg2png.sh
-	@printf "${GREEN}✅ PNG assets generated in docs/images/png/${NC}\n"
+	@printf "${GREEN}✅ PNG assets generated in docs/images/png/$(NC)\n"
 
 # =============================================================================
 # 🐳 DOCKER & STACKS (Consolidated)
@@ -446,36 +446,36 @@ DOCKER_BUILD_PROXY_ARGS := \
 # --- Build ---
 
 docker-build-artifacts: ## @docker Build the HotPlex binary provider
-	@printf "${CYAN}🏗️  Building hotplex:artifacts...${NC}\n"
+	@printf "${CYAN}🏗️  Building hotplex:artifacts...$(NC)\n"
 	@docker build -f docker/Dockerfile.artifacts \
 		$(DOCKER_BUILD_COMMON_ARGS) \
 		--build-arg GOPROXY=$(GOPROXY) \
 		-t hotplex:artifacts .
-	@printf "${GREEN}✅ Built hotplex:artifacts${NC}\n"
+	@printf "${GREEN}✅ Built hotplex:artifacts$(NC)\n"
 
 docker-build-foundation: ## @docker Build the shared foundation image (hotplex:base)
-	@printf "${CYAN}🏗️  Building hotplex:base (Foundation)...${NC}\n"
+	@printf "${CYAN}🏗️  Building hotplex:base (Foundation)...$(NC)\n"
 	@docker build -f docker/Dockerfile.base \
 		$(DOCKER_BUILD_COMMON_ARGS) \
 		$(DOCKER_BUILD_PROXY_ARGS) \
 		-t hotplex:base .
-	@printf "${GREEN}✅ Built hotplex:base${NC}\n"
+	@printf "${GREEN}✅ Built hotplex:base$(NC)\n"
 
 docker-build-base: docker-build-foundation ## @docker Alias for foundation build
 
 docker-build-go: docker-build-foundation docker-build-artifacts ## @docker Build the Go stack
-	@printf "${CYAN}🏗️  Building hotplex:go...${NC}\n"
+	@printf "${CYAN}🏗️  Building hotplex:go...$(NC)\n"
 	@docker build -f docker/Dockerfile.golang \
 		$(DOCKER_BUILD_COMMON_ARGS) \
 		-t hotplex:go .
-	@printf "${GREEN}✅ Built hotplex:go${NC}\n"
+	@printf "${GREEN}✅ Built hotplex:go$(NC)\n"
 
 docker-build-stack: docker-build-foundation docker-build-artifacts ## @docker Build a tech-stack image. Usage: make docker-build-stack S=node
 	@if [ -z "$(S)" ]; then \
-		printf "${RED}❌ Error: S=<stack> is required. Options: $(VALID_STACKS)${NC}\n"; \
+		printf "${RED}❌ Error: S=<stack> is required. Options: $(VALID_STACKS)$(NC)\n"; \
 		exit 1; \
 	fi
-	@printf "${CYAN}🔨 Building hotplex:$(S)...${NC}\n"
+	@printf "${CYAN}🔨 Building hotplex:$(S)...$(NC)\n"
 	@if [ "$(S)" = "go" ]; then \
 		docker build -f docker/Dockerfile.golang \
 			$(DOCKER_BUILD_COMMON_ARGS) \
@@ -487,37 +487,37 @@ docker-build-stack: docker-build-foundation docker-build-artifacts ## @docker Bu
 			$(DOCKER_BUILD_PROXY_ARGS) \
 			-t hotplex:$(S) .; \
 	fi
-	@printf "${GREEN}✅ Built hotplex:$(S)${NC}\n"
+	@printf "${GREEN}✅ Built hotplex:$(S)$(NC)\n"
 
 docker-build-all: docker-build-artifacts ## @docker Build all tech-stack images sequentially
-	@printf "${CYAN}🔨 Building all stacks...${NC}\n"
+	@printf "${CYAN}🔨 Building all stacks...$(NC)\n"
 	@for s in $(VALID_STACKS); do \
-		printf "${CYAN}  → Building hotplex:$$s...${NC}\n"; \
+		printf "${CYAN}  → Building hotplex:$$s...$(NC)\n"; \
 		$(MAKE) docker-build-stack S=$$s || exit 1; \
 	done
-	@printf "${GREEN}🎉 All stacks built!${NC}\n"
+	@printf "${GREEN}🎉 All stacks built!$(NC)\n"
 
 # --- Runtime ---
 docker-prepare: ## @docker Prepare host directories for all bot instances
 	@mkdir -p $(HOST_CONFIGS_DIR)
 	@mkdir -p $(HOME_DIR)/.claude
-	@printf "${CYAN}📂 Preparing bot instances...${NC}\n"
+	@printf "${CYAN}📂 Preparing bot instances...$(NC)\n"
 	@for f in docker/matrix/.env-*; do \
 		ID=$$(grep "^HOTPLEX_BOT_ID=" $$f | cut -d= -f2 | tr -d ' ' | tr -d '\r'); \
 		if [ -n "$$ID" ]; then \
-			printf "  - Instance: ${BOLD}$$ID${NC}\n"; \
+			printf "  - Instance: ${BOLD}$$ID$(NC)\n"; \
 			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/storage; \
 			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/claude; \
 			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/projects; \
 		fi; \
 	done
-	@printf "${GREEN}✅ Host environment ready${NC}\n"
+	@printf "${GREEN}✅ Host environment ready$(NC)\n"
 
-docker-up: docker-prepare docker-sync ## @docker Start Matrix services using REMOTE image
+docker-up: claude-seed docker-prepare docker-sync ## @docker Start Matrix services using REMOTE image
 	@IMG=$$(cd docker/matrix && docker compose config --images 2>/dev/null | head -n 1); \
 	[ -z "$$IMG" ] && IMG="ghcr.io/hrygo/hotplex:latest-go (default)"; \
-	printf "${YELLOW}🚀 Environment: MATRIX (REMOTE)${NC}\n"; \
-	printf "${PURPLE}🐳 Image: ${BOLD}$$IMG${NC}\n"; \
+	printf "${YELLOW}🚀 Environment: MATRIX (REMOTE)$(NC)\n"; \
+	printf "${PURPLE}🐳 Image: ${BOLD}$$IMG$(NC)\n"; \
 	cd docker/matrix && \
 		HOST_UID=$(HOST_UID) \
 		VERSION=$(VERSION) \
@@ -527,8 +527,8 @@ docker-up: docker-prepare docker-sync ## @docker Start Matrix services using REM
 		docker compose up -d
 
 docker-dev: docker-prepare docker-sync ## @docker Start Matrix services using LOCAL image (hotplex:go)
-	@printf "${YELLOW}🚀 Environment: LOCAL DEVELOPMENT${NC}\n"; \
-	printf "${PURPLE}🐳 Image: ${BOLD}hotplex:go${NC}\n"; \
+	@printf "${YELLOW}🚀 Environment: LOCAL DEVELOPMENT$(NC)\n"; \
+	printf "${PURPLE}🐳 Image: ${BOLD}hotplex:go$(NC)\n"; \
 	cd docker/matrix && \
 		HOTPLEX_IMAGE=hotplex:go \
 		HOST_UID=$(HOST_UID) \
@@ -603,52 +603,59 @@ docker-shell: ## @docker Interactive shell: auto-detect → select service → e
 
 # --- Config Sync ---
 
-sync: ## @config Sync configs to ~/.hotplex/ (admin bot)
-	@$(call SECTION_HEADER,🔄 Syncing Configs)
-	@mkdir -p $(HOME_DIR)/.hotplex/seed
-	@mkdir -p $(HOME_DIR)/.hotplex/configs/base
-	@printf "  ${CYAN}→${NC} Syncing base templates to seed...\n"
-	@cp -r configs/base/* $(HOME_DIR)/.hotplex/seed/
-	@printf "  ${CYAN}→${NC} Syncing admin config...\n"
-	@cp -r configs/admin/* $(HOME_DIR)/.hotplex/configs/
-	@printf "  ${CYAN}→${NC} Syncing base templates to admin config...\n"
-	@cp -r configs/base/* $(HOME_DIR)/.hotplex/configs/base/
-	@if [ -f .env ]; then \
-		printf "  ${CYAN}→${NC} Syncing .env to ~/.hotplex/.env...\n"; \
-		cp .env $(HOME_DIR)/.hotplex/.env; \
+
+# --- Claude Configuration Seed --
+
+.PHONY: claude-seed claude-seed-verify
+claude-seed: ## @docker Process ~/.claude/ for container compatibility
+	@echo "$(CYAN)🔄 Processing ~/.claude/ for container compatibility...$(NC)"
+	@./scripts/claude-seed-processor.sh
+	@echo "${GREEN}✓$(NC) Claude seed ready at ~/.hotplex/claude-seed/"
+
+claude-seed-verify: ## @docker Verify no hardcoded paths in seed
+	@echo "$(CYAN)🔍 Verifying claude seed...$(NC)"
+	@if grep -r "$(whoami)" ~/.hotplex/claude-seed/ 2>/dev/null; then \
+		echo "$(RED}❌ ERROR: Found hardcoded paths$(NC)"; \
+		exit 1; \
 	else \
-		printf "\n${YELLOW}⚠️  WARNING: .env not found in project root!${NC}\n"; \
-		printf "  Admin bot requires its own Slack App credentials.\n"; \
-		printf "  Create: ${CYAN}cp .env.example .env${NC} then edit with your tokens.\n"; \
-		printf "  Slack App: ${CYAN}https://api.slack.com/apps${NC}\n\n"; \
+		echo "$(GREEN}✓ No hardcoded paths found$(NC)"; \
 	fi
-	@printf "${GREEN}✓${NC} Synced to ${BOLD}$(HOME_DIR)/.hotplex/${NC}\n"
 
 add-bot: ## @docker Interactive bot instance creation
 	@./docker/matrix/add-bot.sh
 
 docker-sync: docker-prepare ## @docker Sync configs to all Docker instances
 	@$(call SECTION_HEADER,🔄 Syncing Docker Instance Configs)
+
+	# Sync Claude statusline.sh to seed directory (if updated on host)
+	@if [ -f "$(HOME)/.claude/statusline.sh" ]; then \
+		printf "  ${CYAN}→$(NC) Syncing statusline.sh to seed...\n"; \
+		mkdir -p $(HOME)/.hotplex/claude-seed; \
+		cp $(HOME)/.claude/statusline.sh $(HOME)/.hotplex/claude-seed/statusline.sh; \
+		printf "  ${GREEN}✓$(NC) statusline.sh synced to seed\n"; \
+	fi
+
+	# Sync instance-specific configs
 	@for f in docker/matrix/.env-*; do \
 		ID=$$(grep "^HOTPLEX_BOT_ID=" $$f | cut -d= -f2 | tr -d ' ' | tr -d '\r'); \
 		BOT_NUM=$$(basename $$f | sed 's/.env-//'); \
 		if [ -n "$$ID" ]; then \
-			INSTANCE_DIR=$(HOME_DIR)/.hotplex/instances/$$ID/configs; \
+			INSTANCE_DIR=$(HOME)/.hotplex/instances/$$ID/configs; \
 			mkdir -p "$$INSTANCE_DIR/base"; \
-			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/claude; \
-			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/projects; \
-			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/sessions; \
-			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/storage; \
-			printf "  ${CYAN}→${NC} Syncing ${BOLD}$$ID${NC} (bot-$$BOT_NUM)...\n"; \
-			cp "$$f" "$(HOME_DIR)/.hotplex/instances/$$ID/.env"; \
+			mkdir -p $(HOME)/.hotplex/instances/$$ID/claude; \
+			mkdir -p $(HOME)/.hotplex/instances/$$ID/projects; \
+			mkdir -p $(HOME)/.hotplex/instances/$$ID/sessions; \
+			mkdir -p $(HOME)/.hotplex/instances/$$ID/storage; \
+			printf "  ${CYAN}→$(NC) Syncing ${BOLD}$$ID$(NC) (bot-$$BOT_NUM)...\n"; \
+			cp "$$f" "$(HOME)/.hotplex/instances/$$ID/.env"; \
 			cp -r configs/base/* "$$INSTANCE_DIR/base/"; \
 			if [ -d "docker/matrix/configs/bot-$$BOT_NUM" ]; then \
 				cp docker/matrix/configs/bot-$$BOT_NUM/*.yaml "$$INSTANCE_DIR/" 2>/dev/null || true; \
 			fi; \
-			printf "${GREEN}✓${NC} Synced ${BOLD}$$ID${NC}\n"; \
+			printf "${GREEN}✓$(NC) Synced ${BOLD}$$ID$(NC)\n"; \
 		fi; \
 	done
-	@printf "${GREEN}✅ All Docker instances synced${NC}\n"
+	@printf "${GREEN}✅ All Docker instances synced$(NC)\n"
 
 docker-health: ## @docker Show health status of all services
 	cd docker/matrix && for svc in $$(docker compose ps --services 2>/dev/null); do \
@@ -664,14 +671,14 @@ docker-check-net: ## @docker Test proxy connectivity from inside containers
 	done
 
 docker-upgrade: ## @docker Pull latest images and restart services
-	@printf "${CYAN}🚀 Pulling latest images...${NC}\n"
+	@printf "${CYAN}🚀 Pulling latest images...$(NC)\n"
 	cd docker/matrix && docker compose pull
 	@$(MAKE) docker-restart
 
 docker-clean: ## @docker Remove all local hotplex stack images
 	@for s in $(VALID_STACKS); do docker rmi -f hotplex:$$s 2>/dev/null || true; done
 	@docker rmi -f hotplex:$(STACK_TAG) hotplex:base 2>/dev/null || true
-	@printf "${GREEN}✅ Local images removed${NC}\n"
+	@printf "${GREEN}✅ Local images removed$(NC)\n"
 
 # Short aliases
 stack: docker-build-stack
