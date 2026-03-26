@@ -48,6 +48,8 @@ INTERACTIVE=true
 INSTALL_MODE="binary"  # binary | docker
 MULTI_BOT_ENABLED=false
 BOT_COUNT=1
+INSTALL_OPENCODE=false
+INSTALL_CLAUDE_CODE=false
 
 # Docker 相关
 DOCKER_COMPOSE_PATH="${CONFIG_DIR}/docker-compose.yml"
@@ -2396,7 +2398,9 @@ show_main_menu() {
     echo "    7) 仅配置              (运行配置向导)"
     echo "    8) 多 Bot 配置         (添加/管理多个 Bot)"
     echo "    9) 日志管理           (配置日志轮转)"
-    echo "   10) 退出"
+    echo "   11) 安装 OpenCode       (可选组件)"
+    echo "   12) 安装 Claude Code    (可选组件)"
+    echo "   13) 退出"
     echo ""
 }
 
@@ -2446,7 +2450,17 @@ handle_menu_choice() {
             echo ""
             configure_logrotate
             ;;
-        10|q|Q)
+        11)
+            echo ""
+            info "开始安装 OpenCode..."
+            install_opencode
+            ;;
+        12)
+            echo ""
+            info "开始安装 Claude Code..."
+            install_claude_code
+            ;;
+        13|q|Q)
             echo ""
             info "再见!"
             exit 0
@@ -2455,6 +2469,107 @@ handle_menu_choice() {
             error "无效选择: $choice"
             ;;
     esac
+}
+
+# ==============================================================================
+# 可选组件安装
+# ==============================================================================
+
+install_opencode() {
+    step "安装 OpenCode..."
+
+    local opencode_dir="${HOME}/.opencode"
+    local opencode_bin="${opencode_dir}/bin/opencode"
+
+    if [[ -f "$opencode_bin" ]]; then
+        info "OpenCode 已安装 (${opencode_bin})"
+        if confirm "是否重新安装?" "n"; then
+            rm -rf "$opencode_bin"
+        else
+            return 0
+        fi
+    fi
+
+    mkdir -p "${opencode_dir}/bin"
+
+    # 检测平台
+    local os arch
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64) arch="amd64" ;;
+        aarch64|arm64) arch="arm64" ;;
+    esac
+
+    local version
+    version=$(curl -sL "https://api.github.com/repos/opencode-ai/opencode/releases/latest" 2>/dev/null | grep '"tag_name"' | cut -d'"' -f4 || echo "v2.0.0")
+    local download_url="https://github.com/opencode-ai/opencode/releases/download/${version}/opencode-${os}-${arch}"
+
+    info "下载 OpenCode ${version} (${os}/${arch})..."
+    if curl -fsSL "$download_url" -o "$opencode_bin"; then
+        chmod +x "$opencode_bin"
+        success "OpenCode 安装成功: ${opencode_bin}"
+
+        # 添加到 PATH 提示
+        echo ""
+        echo -e "  ${BOLD}请确保 PATH 包含 ${opencode_dir}/bin${NC}"
+        echo -e "  ${DIM}建议添加到 ~/.bashrc 或 ~/.zshrc:${NC}"
+        echo -e "    ${GREEN}export PATH=\"${opencode_dir}/bin:\$PATH\"${NC}"
+    else
+        error "OpenCode 下载失败"
+    fi
+}
+
+install_claude_code() {
+    step "安装 Claude Code..."
+
+    local cc_dir="${HOME}/.claude"
+    local cc_bin="${cc_dir}/bin/claude"
+
+    if command_exists claude; then
+        info "Claude Code 已安装 ($(claude --version 2>/dev/null || echo "unknown version"))"
+        if confirm "是否重新安装?" "n"; then
+            sudo rm -f "$(which claude)"
+        else
+            return 0
+        fi
+    fi
+
+    # 检测平台
+    local os arch
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64) arch="x86_64" ;;
+        aarch64|arm64) arch="arm64" ;;
+    esac
+
+    local version="latest"
+    info "安装 Claude Code ${version} (${os}/${arch})..."
+
+    if [[ "$os" == "darwin" ]]; then
+        if command_exists brew; then
+            info "使用 Homebrew 安装..."
+            brew install claude-code 2>/dev/null && success "Claude Code 安装成功" || error "Homebrew 安装失败"
+        else
+            error "macOS 推荐使用 Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+        fi
+    elif [[ "$os" == "linux" ]]; then
+        # 使用 npm 安装
+        if command_exists npm; then
+            info "使用 npm 安装..."
+            npm install -g @anthropic-ai/claude-code 2>/dev/null && success "Claude Code 安装成功" || error "npm 安装失败"
+        else
+            error "需要 npm。请安装 Node.js: https://nodejs.org/"
+        fi
+    else
+        error "不支持的平台: ${os}"
+    fi
+
+    if command_exists claude; then
+        echo ""
+        info "Claude Code 版本: $(claude --version 2>/dev/null || echo "unknown")"
+    fi
 }
 
 # ==============================================================================
