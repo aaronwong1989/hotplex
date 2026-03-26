@@ -2511,52 +2511,45 @@ install_opencode() {
 install_claude_code() {
     step "安装 Claude Code..."
 
-    local cc_dir="${HOME}/.claude"
-    local cc_bin="${cc_dir}/bin/claude"
-
     if command_exists claude; then
         info "Claude Code 已安装 ($(claude --version 2>/dev/null || echo "unknown version"))"
         if confirm "是否重新安装?" "n"; then
+            step "卸载旧版本..."
             sudo rm -f "$(which claude)"
         else
             return 0
         fi
     fi
 
-    # 检测平台
-    local os arch
+    local os
     os=$(uname -s | tr '[:upper:]' '[:lower:]')
-    arch=$(uname -m)
-    case "$arch" in
-        x86_64) arch="x86_64" ;;
-        aarch64|arm64) arch="arm64" ;;
-    esac
 
-    local version="latest"
-    info "安装 Claude Code ${version} (${os}/${arch})..."
+    info "使用官方安装脚本..."
 
-    if [[ "$os" == "darwin" ]]; then
-        if command_exists brew; then
-            info "使用 Homebrew 安装..."
-            brew install claude-code 2>/dev/null && success "Claude Code 安装成功" || error "Homebrew 安装失败"
+    if [[ "$os" == "darwin" ]] || [[ "$os" == "linux" ]]; then
+        info "curl -fsSL https://claude.ai/install.sh | bash"
+        if curl -fsSL https://claude.ai/install.sh | bash; then
+            success "Claude Code 安装成功"
+            if command_exists claude; then
+                echo ""
+                info "版本: $(claude --version 2>/dev/null || echo "unknown")"
+            fi
         else
-            error "macOS 推荐使用 Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            error "Claude Code 安装失败"
+            echo ""
+            echo -e "  ${DIM}备选安装方式:${NC}"
+            echo -e "  ${CYAN}npm:${NC} npm install -g @anthropic-ai/claude-code"
+            echo -e "  ${CYAN}Homebrew:${NC} brew install claude-code"
         fi
-    elif [[ "$os" == "linux" ]]; then
-        # 使用 npm 安装
-        if command_exists npm; then
-            info "使用 npm 安装..."
-            npm install -g @anthropic-ai/claude-code 2>/dev/null && success "Claude Code 安装成功" || error "npm 安装失败"
+    elif [[ "$os" == "mingw"* ]] || [[ "$os" == "msys"* ]] || [[ "$os" == "cygwin"* ]]; then
+        info "Windows: irm https://claude.ai/install.ps1 | iex"
+        if powershell -Command "irm https://claude.ai/install.ps1 | iex"; then
+            success "Claude Code 安装成功"
         else
-            error "需要 npm。请安装 Node.js: https://nodejs.org/"
+            error "Claude Code 安装失败"
         fi
     else
         error "不支持的平台: ${os}"
-    fi
-
-    if command_exists claude; then
-        echo ""
-        info "Claude Code 版本: $(claude --version 2>/dev/null || echo "unknown")"
     fi
 }
 
