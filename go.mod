@@ -15,7 +15,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sashabaranov/go-openai v1.41.2
-	github.com/slack-go/slack v0.18.0
+	github.com/slack-go/slack v0.20.0
 	github.com/sony/gobreaker v1.0.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1

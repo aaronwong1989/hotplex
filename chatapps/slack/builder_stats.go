@@ -188,3 +188,43 @@ func (b *StatsMessageBuilder) BuildCommandCompleteMessage(msg *base.ChatMessage)
 	text := slack.NewTextBlockObject("mrkdwn", line, false, false)
 	return []slack.Block{slack.NewContextBlock("", text)}
 }
+
+// BuildSessionStatsTable builds a table-formatted message for session statistics
+// Provides better readability than single-line format for complex stats
+// Suitable for desktop clients; mobile clients should use BuildSessionStatsMessage() instead
+func (b *StatsMessageBuilder) BuildSessionStatsTable(msg *base.ChatMessage) []slack.Block {
+	tableBuilder := NewTableBuilder(TableConfig{
+		MaxRows:    5,
+		Compact:    false,
+		ShowHeader: false,
+	})
+
+	table := tableBuilder.BuildStatsTable(msg)
+	return []slack.Block{table}
+}
+
+// BuildCommandProgressTable builds a table-formatted message for command progress
+// Suitable for multi-step commands like /hotplex release
+func (b *StatsMessageBuilder) BuildCommandProgressTable(msg *base.ChatMessage) []slack.Block {
+	tableBuilder := NewTableBuilder(TableConfig{
+		MaxRows:    10,
+		Compact:    false,
+		ShowHeader: true,
+	})
+
+	table := tableBuilder.BuildCommandProgressTable(msg)
+	return []slack.Block{table}
+}
+
+// BuildToolCallsTable builds a table-formatted message for tool call summary
+// Displays tool usage statistics at session end
+func (b *StatsMessageBuilder) BuildToolCallsTable(msg *base.ChatMessage) []slack.Block {
+	tableBuilder := NewTableBuilder(TableConfig{
+		MaxRows:    10,
+		Compact:    false,
+		ShowHeader: true,
+	})
+
+	table := tableBuilder.BuildToolCallsTable(msg)
+	return []slack.Block{table}
+}
