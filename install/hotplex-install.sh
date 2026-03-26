@@ -1146,11 +1146,11 @@ wizard_slack_credentials() {
                 step "验证 Token..."
                 if test_slack_connection "$bot_token"; then
                     success "Token 验证成功"
-                    sed -i.bak "s|^HOTPLEX_SLACK_BOT_TOKEN=.*|HOTPLEX_SLACK_BOT_TOKEN=${bot_token}|" "$env_file"
+                    sed -i.bak "s|^HOTPLEX_SLACK_BOT_TOKEN=.*|HOTPLEX_SLACK_BOT_TOKEN=${bot_token}|" "$env_file" && rm -f "$env_file.bak"
                     updated=true
                 else
                     warn "Token 验证失败，但仍会保存"
-                    sed -i.bak "s|^HOTPLEX_SLACK_BOT_TOKEN=.*|HOTPLEX_SLACK_BOT_TOKEN=${bot_token}|" "$env_file"
+                    sed -i.bak "s|^HOTPLEX_SLACK_BOT_TOKEN=.*|HOTPLEX_SLACK_BOT_TOKEN=${bot_token}|" "$env_file" && rm -f "$env_file.bak"
                     updated=true
                 fi
             else
@@ -1166,7 +1166,7 @@ wizard_slack_credentials() {
 
         if [[ -n "$app_token" ]]; then
             if validate_slack_app_token "$app_token"; then
-                sed -i.bak "s|^HOTPLEX_SLACK_APP_TOKEN=.*|HOTPLEX_SLACK_APP_TOKEN=${app_token}|" "$env_file"
+                sed -i.bak "s|^HOTPLEX_SLACK_APP_TOKEN=.*|HOTPLEX_SLACK_APP_TOKEN=${app_token}|" "$env_file" && rm -f "$env_file.bak"
                 updated=true
             else
                 warn "Token 格式无效 (应为 xapp-...)"
@@ -1182,7 +1182,7 @@ wizard_slack_credentials() {
 
         if [[ -n "$user_id" ]]; then
             if validate_slack_user_id "$user_id"; then
-                sed -i.bak "s|^HOTPLEX_SLACK_BOT_USER_ID=.*|HOTPLEX_SLACK_BOT_USER_ID=${user_id}|" "$env_file"
+                sed -i.bak "s|^HOTPLEX_SLACK_BOT_USER_ID=.*|HOTPLEX_SLACK_BOT_USER_ID=${user_id}|" "$env_file" && rm -f "$env_file.bak"
                 updated=true
             else
                 warn "User ID 格式无效 (应以 U、B 或 W 开头)"
@@ -1198,7 +1198,7 @@ wizard_slack_credentials() {
 
             if [[ -n "$github_token" ]]; then
                 if validate_github_token "$github_token"; then
-                    sed -i.bak "s|^GITHUB_TOKEN=.*|GITHUB_TOKEN=${github_token}|" "$env_file"
+                    sed -i.bak "s|^GITHUB_TOKEN=.*|GITHUB_TOKEN=${github_token}|" "$env_file" && rm -f "$env_file.bak"
                     updated=true
                 else
                     warn "Token 格式无效 (应为 ghp_...)"
