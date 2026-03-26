@@ -71,6 +71,7 @@ type FeishuAPIClient interface {
 	CreateCard(ctx context.Context, token string, card *CardTemplate) (string, error)
 	UpdateCard(ctx context.Context, token, cardID string, card *CardTemplate, sequence int) error
 	SendCardMessage(ctx context.Context, token, chatID, cardID string) (string, error)
+	SendCardWithRetry(ctx context.Context, token, chatID, cardID string) (string, error)
 }
 
 // Client wraps the Feishu Open API

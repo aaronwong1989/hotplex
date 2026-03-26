@@ -273,3 +273,7 @@ func (m *MockFeishuClient) UpdateCard(ctx context.Context, token, cardID string,
 func (m *MockFeishuClient) SendCardMessage(ctx context.Context, token, chatID, cardID string) (string, error) {
 	return "mock_message_id", nil
 }
+
+func (m *MockFeishuClient) SendCardWithRetry(ctx context.Context, token, chatID, cardID string) (string, error) {
+	return "mock_message_id", nil
+}
