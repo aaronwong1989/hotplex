@@ -1,32 +1,16 @@
 #!/usr/bin/env bash
 #
-# Claude Configuration Seed Processor (Incremental + Directory-level mtime)
-# Transforms host-machine ~/.claude/ configs for container compatibility
+# Claude Configuration Seed Processor (Incremental + Directory mtime)
+# Transforms host ~/.claude/ configs for container compatibility
 #
-# Usage:
-#   ./scripts/claude-seed-processor.sh [--verify] [--force] [--stats]
-#
-# Options:
-#   --verify    Only verify existing seed, skip processing
-#   --force     Force full reprocessing (ignore manifest)
-#   --stats     Show change statistics after processing
-#
-# Exit codes:
-#   0 - Success
-#   1 - Processing error or verification failed
+# Usage: ./scripts/claude-seed-processor.sh [--verify] [--force] [--stats]
 #
 
 set -euo pipefail
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 
-# Configuration
 SOURCE_DIR="${HOME}/.claude"
 OUTPUT_DIR="${HOME}/.hotplex/claude-seed"
 MANIFEST_FILE="${HOME}/.hotplex/claude-seed.manifest"
@@ -34,17 +18,11 @@ HOST_USER=$(whoami)
 CONTAINER_USER="hotplex"
 LOG_FILE="${HOME}/.hotplex/claude-seed.log"
 
-# Detect sed compatibility (BSD vs GNU)
-if sed --version 2>&1 | grep -q "GNU"; then
-    SED_CMD=("sed" "-i")
-else
-    SED_CMD=("sed" "-i" "")
-fi
+SED_I_FLAG="-i"
+sed --version 2>&1 | grep -q "GNU" || SED_I_FLAG='-i ""'
 
-# Parse arguments
-VERIFY_ONLY=false
-FORCE_REPROCESS=false
-SHOW_STATS=false
+# Args
+VERIFY_ONLY=false; FORCE_REPROCESS=false; SHOW_STATS=false
 for arg in "${1:-}"; do
     case "$arg" in
         --verify) VERIFY_ONLY=true ;;
@@ -53,38 +31,27 @@ for arg in "${1:-}"; do
     esac
 done
 
-# Stats (global)
-STAT_CHANGED=0
-STAT_SKIPPED=0
-STAT_ERRORS=0
+S_CHANGED=0; S_SKIPPED=0; S_ERRORS=0
 
-# Logging
-log_info()   { echo -e "${BLUE}[INFO]${NC}   $1";  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1" >> "$LOG_FILE"; }
+log_info()   { echo -e "${BLUE}[INFO]${NC}   $1"; echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1" >> "$LOG_FILE"; }
 log_success(){ echo -e "${GREEN}[SUCCESS]${NC} $1"; echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SUCCESS] $1" >> "$LOG_FILE"; }
-log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $1";  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN] $1" >> "$LOG_FILE"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; echo "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN] $1" >> "$LOG_FILE"; }
 log_error() { echo -e "${RED}[ERROR]${NC}  $1" >&2; echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE"; }
-log_changed(){ echo -e "${GREEN}[CHANGED]${NC} $1"; }
-log_skip()  { echo -e "${CYAN}[SKIP]${NC}   $1"; }
+log_chg()  { echo -e "${GREEN}[+]${NC} $1"; }
 
-# ------------------------------------------------------------------------------
-# Path replacement (cross-platform)
-# ------------------------------------------------------------------------------
 replace_paths() {
-    "${SED_CMD[@]}" \
+    sed $SED_I_FLAG \
         -e "s|/Users/${HOST_USER}|/home/${CONTAINER_USER}|g" \
         -e "s|/home/${HOST_USER}|/home/${CONTAINER_USER}|g" \
         "$1" 2>/dev/null || true
 }
 
-# ------------------------------------------------------------------------------
-# Fast fingerprint: mtime + size (portable)
-# ------------------------------------------------------------------------------
-file_fingerprint() {
-    if [[ ! -f "$1" ]]; then echo "MISSING"; return; fi
+fp() {
+    [[ ! -f "$1" ]] && { echo "0"; return; }
     if [[ "$(uname)" == "Darwin" ]]; then
-        stat -f "%m %z" "$1" 2>/dev/null || echo "0 0"
+        stat -f "%m %z" "$1" 2>/dev/null || echo "0"
     else
-        stat -c "%Y %s" "$1" 2>/dev/null || echo "0 0"
+        stat -c "%Y %s" "$1" 2>/dev/null || echo "0"
     fi
 }
 
@@ -96,229 +63,133 @@ dir_mtime() {
     fi
 }
 
-# ------------------------------------------------------------------------------
-# Manifest system (Bash 3 compatible)
-# Format: "D:<dirpath>|<mtime>" for dirs, "<filepath>|<mtime_size>" for files
-# ------------------------------------------------------------------------------
-UPDATES_FILE=""
-MANIFEST_AWK=""
+# File count
+fcount() { find "$1" -type f 2>/dev/null | wc -l | tr -d ' '; }
 
-open_updates() {
-    UPDATES_FILE=$(mktemp "${MANIFEST_FILE}.tmp.XXXXXX") || \
-        UPDATES_FILE="/tmp/claude-seed-updates.$$"
+# Manifest lookup: single grep on manifest file
+# Returns fingerprint or empty string
+mlookup() {
+    grep "^${1}|" "$MANIFEST_FILE" 2>/dev/null | tail -1 | cut -d'|' -f2 || echo ""
 }
 
-# Build awk associative array from manifest (single awk process for all lookups)
-build_awk_lookup() {
-    MANIFEST_AWK=$(mktemp "${MANIFEST_FILE}.awk.XXXXXX") || \
-        MANIFEST_AWK="/tmp/claude-seed-awk.$$"
-    awk -F'|' '{
-        gsub(/[\\]/, "\\\\"); gsub(/"/, "\\\"")
-        arr[$1]=$2
-    } END {
-        for (k in arr) printf "A[%s]=%q\n", k, arr[k]
-    }' "$MANIFEST_FILE" 2>/dev/null > "$MANIFEST_AWK" || true
-}
-
-manifest_update() {
-    printf '%s|%s\n' "$1" "$2" >> "$UPDATES_FILE" 2>/dev/null || true
-}
-
-# Single awk call to check MANIFEST_AWK for a list of files
-# Returns fingerprint from manifest or empty
-awk_lookup() {
-    local key="F:$1"
-    awk -F'|' -v k="$key" '
-        BEGIN { n=ARGC-1; for(i=1;i<=n;i++){f=ARGV[i];arr[f]=1} ARGC=0 }
-        FNR==NR && ($1==":" || $1~/^[DF]:/){next}
-        { split($0,f,"|"); if(arr["F:"f[1]]) print f[1],f[2] }
-    ' "$(cat "$MANIFEST_AWK")" /dev/null 2>/dev/null || echo ""
-}
-
-# Check multiple files at once using awk
-# Reads list of files from stdin (one per line, relative path)
-# Prints: "<relpath> <manifest_fp>" for each file (manifest_fp empty if not found)
-awk_batch_lookup() {
-    awk -F'|' -v d="${1:-}" '
-    BEGIN {
-        # Read manifest from ENV var via the awk data file
-        while ((getline line < ENVIRON["AWKMANIFEST"]) > 0) {
-            split(line, p, "|"); m[p[1]] = p[2]
-        }
-        close(ENVIRON["AWKMANIFEST"])
-    }
-    FNR==1 { next }
-    {
-        key = (d == "" ? $0 : d "/" $0)
-        fp = (("F:" key) in m ? m["F:" key] : ("D:" key) in m ? m["D:" key] : "")
-        print $0 "|" fp
-    }' /dev/null 2>/dev/null
-}
-
-# Quick dir mtime lookup via grep (only 4 dirs to check)
-manifest_dir_mtime() {
+# Dir mtime from manifest
+dmtime() {
     grep "^D:${1}|" "$MANIFEST_FILE" 2>/dev/null | tail -1 | cut -d'|' -f2 || echo ""
 }
 
-save_manifest() {
-    # Merge existing + new updates, keep last entry per key
-    {
-        grep -v "^$" "$MANIFEST_FILE" 2>/dev/null || true
-        cat "$UPDATES_FILE"
-    } | sort -t'|' -k1,1 -u | \
-      awk -F'|' '{if (!seen[$1]++) print}' > "${MANIFEST_FILE}.new" && \
-      mv "${MANIFEST_FILE}.new" "$MANIFEST_FILE"
-    # Cleanup
-    rm -f "$UPDATES_FILE" "${MANIFEST_AWK}" 2>/dev/null || true
-    UPDATES_FILE=""
-    MANIFEST_AWK=""
-}
-
-# Returns 0 if file changed, 1 if unchanged
-needs_processing() {
-    local fp prev
-    fp=$(file_fingerprint "$1")
-    # Use grep on manifest (fast for ~3752 entries)
-    prev=$(grep "^${2}|" "$MANIFEST_FILE" 2>/dev/null | tail -1 | cut -d'|' -f2 || echo "")
-    if [[ -z "$prev" ]] || [[ "$fp" != "$prev" ]]; then
-        manifest_update "$2" "$fp"
-        return 0
-    fi
-    return 1
-}
-
-# Returns 0 if directory has changed, 1 if unchanged
-dir_needs_scan() {
-    local dm="$1" dp="$2" cur prev
-    cur=$(dir_mtime "$dm")
-    prev=$(manifest_dir_mtime "$dp")
-    if [[ -z "$prev" ]] || [[ "$cur" != "$prev" ]]; then
-        manifest_update "D:$dp" "$cur"
-        return 0
-    fi
-    return 1
-}
-
-# Count files in dir (portable)
-count_files() {
-    find "$1" -type f 2>/dev/null | wc -l | tr -d ' '
-}
+# Update manifest
+mupd() { printf '%s|%s\n' "$1" "$2" >> "$MANIFEST_FILE".new; }
 
 # ------------------------------------------------------------------------------
-# Verify seed (quick grep)
-# ------------------------------------------------------------------------------
-verify_seed() {
-    log_info "Verifying seed at $OUTPUT_DIR..."
-    if [[ ! -d "$OUTPUT_DIR" ]]; then
-        log_error "Seed directory not found: $OUTPUT_DIR"
-        return 1
-    fi
-    local leaks=0
-    for pat in "$HOST_USER" "/Users/"; do
-        if grep -rI --exclude-dir="plugins" --exclude="*.log" \
-             --exclude="*.md" "$pat" "$OUTPUT_DIR" 2>/dev/null | \
-             grep -v "marketplaces" | grep -q . 2>/dev/null; then
-            log_error "Found hardcoded path: $pat"
-            leaks=1
-            break
-        fi
-    done
-    [[ $leaks -eq 1 ]] && return 1
-    log_success "Verification passed: no hardcoded paths found"
-    return 0
-}
-
-# Helper: process a single dir with dir-level mtime precheck
-# Args: src_dir dst_dir rel_prefix file_filter_pattern
-# Sets C_CHANGED and C_SKIPPED
+# Batch process directory: find -> single awk batch check
+# Args: src dst prefix [--force-skip-mtime-check]
 process_dir() {
-    local src="$1" dst="$2" rel_pfx="$3" filter="$4"
-    local dm cur prev changed=0 skipped=0
+    local src="$1" dst="$2" pfx="$3"
+    local force_skip_mtime="${4:-false}"
 
-    # Directory mtime check (always, even in force mode)
-    cur=$(dir_mtime "$src")
-    prev=$(manifest_dir_mtime "$rel_pfx")
-    if [[ -n "$prev" ]] && [[ "$cur" == "$prev" ]]; then
-        local cnt; cnt=$(count_files "$src")
-        log_info "  $rel_pfx: unchanged (mtime), skip $cnt files"
-        STAT_SKIPPED=$((STAT_SKIPPED + cnt))
-        return
-    fi
-    manifest_update "D:$rel_pfx" "$cur"
-
-    # Scan files
-    while IFS= read -r -d '' file; do
-        local rel="${file#$src/}"
-        local full_rel="${rel_pfx}/${rel}"
-
-        if needs_processing "$file" "$full_rel"; then
-            local target="$dst/$rel"
-            mkdir -p "$(dirname "$target")"
-            if cp "$file" "$target" 2>/dev/null; then
-                replace_paths "$target"
-                log_changed "  $full_rel"
-                ((changed++))
-            fi
-        else
-            ((skipped++))
+    # Dir mtime precheck (skip in force mode)
+    local dm prev
+    if ! $force_skip_mtime; then
+        dm=$(dir_mtime "$src")
+        prev=$(dmtime "$pfx")
+        if [[ -n "$prev" ]] && [[ "$dm" == "$prev" ]]; then
+            local cnt; cnt=$(fcount "$src")
+            log_info "  $pfx: unchanged (mtime), skip $cnt files"
+            S_SKIPPED=$((S_SKIPPED + cnt)); return
         fi
-    done < <(find "$src" -type f -print0 2>/dev/null)
+        mupd "D:$pfx" "$dm"
+    fi
 
-    STAT_CHANGED=$((STAT_CHANGED + changed))
-    STAT_SKIPPED=$((STAT_SKIPPED + skipped))
-    if [[ $changed -gt 0 ]]; then
-        log_success "  $rel_pfx: $changed changed, $skipped unchanged"
-    else
-        log_info "  $rel_pfx: unchanged ($skipped files)"
-    fi
-}
+    # Collect files
+    local flist; flist=$(mktemp "${MANIFEST_FILE}.fl.XXXXXX") || flist="/tmp/claude-fl.$$"
+    find "$src" -type f -print0 2>/dev/null | tr '\0' '\n' | \
+        grep -v "^cache/" | sed "s|${src}/||" > "$flist"
 
-# ------------------------------------------------------------------------------
-# Process skills
-# ------------------------------------------------------------------------------
-process_skills() {
-    log_info "Processing skills directory..."
-    if [[ ! -d "$SOURCE_DIR/skills" ]]; then
-        log_warn "  skills/ not found"
-        return
-    fi
-    # skills/ root precheck
-    local cur prev
-    cur=$(dir_mtime "$SOURCE_DIR/skills")
-    prev=$(manifest_dir_mtime "skills")
-    if [[ -n "$prev" ]] && [[ "$cur" == "$prev" ]]; then
-        local cnt; cnt=$(count_files "$SOURCE_DIR/skills")
-        log_info "  skills: unchanged (mtime), skip $cnt files"
-        STAT_SKIPPED=$((STAT_SKIPPED + cnt))
-        return
-    fi
-    manifest_update "D:skills" "$cur"
+    # Single awk: loads manifest, checks all files, outputs changed/skipped
+    # Reads: MANIFEST_FILE (manifest), then flist (file paths)
+    local results; results=$(awk -F'|' '
+    FILENAME == "-" { next }  # skip stdin placeholder
+    FNR == NR { arr[$1]=$2; next }  # load manifest
+    {
+        key = $1
+        fp = arr[key]
+        print key "|" fp
+    }
+    ' "$MANIFEST_FILE" "$flist" 2>/dev/null)
 
     local changed=0 skipped=0
-    while IFS= read -r -d '' file; do
-        local rel="${file#$SOURCE_DIR/skills/}"
-        # Skip heavy/cache dirs
-        case "$rel" in
-            *".backup"*|*"node_modules"*|*"/.git/"*|*"/benchmarks/"*) continue ;;
-        esac
-        # Filter to text files only
-        case "$rel" in *.md|*.txt|*.json) ;; *) continue ;; esac
-
-        if needs_processing "$file" "skills/$rel"; then
-            local target="$OUTPUT_DIR/skills/$rel"
-            mkdir -p "$(dirname "$target")"
-            if cp "$file" "$target" 2>/dev/null; then
-                replace_paths "$target"
-                log_changed "  skills/$rel"
+    while IFS='|' read -r rel mfp; do
+        [[ -z "$rel" ]] && continue
+        [[ "$rel" == "D:"* ]] && continue
+        local sfp; sfp=$(fp "$src/$rel")
+        if [[ -z "$mfp" ]] || [[ "$sfp" != "$mfp" ]]; then
+            mupd "$pfx/$rel" "$sfp"
+            mkdir -p "$(dirname "$dst/$rel")"
+            if cp "$src/$rel" "$dst/$rel" 2>/dev/null; then
+                replace_paths "$dst/$rel"
+                log_chg "  $pfx/$rel"
                 ((changed++))
             fi
         else
             ((skipped++))
         fi
-    done < <(find "$SOURCE_DIR/skills" -mindepth 1 -type f -print0 2>/dev/null)
+    done <<< "$results"
 
-    STAT_CHANGED=$((STAT_CHANGED + changed))
-    STAT_SKIPPED=$((STAT_SKIPPED + skipped))
+    rm -f "$flist"
+    S_CHANGED=$((S_CHANGED + changed)); S_SKIPPED=$((S_SKIPPED + skipped))
+    if [[ $changed -gt 0 ]]; then
+        log_success "  $pfx: $changed changed, $skipped unchanged"
+    else
+        log_info "  $pfx: unchanged ($skipped files)"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Skills (extension filter)
+# ------------------------------------------------------------------------------
+process_skills() {
+    local force_skip="${1:-false}"
+    log_info "Processing skills directory..."
+    [[ ! -d "$SOURCE_DIR/skills" ]] && { log_warn "  skills/ not found"; return; }
+
+    local dm prev; dm=$(dir_mtime "$SOURCE_DIR/skills")
+    prev=$(dmtime "skills")
+    if ! $force_skip && [[ -n "$prev" ]] && [[ "$dm" == "$prev" ]]; then
+        local cnt; cnt=$(find "$SOURCE_DIR/skills" -type f \( -name "*.md" -o -name "*.txt" -o -name "*.json" \) 2>/dev/null | wc -l | tr -d ' ')
+        log_info "  skills: unchanged (mtime), skip $cnt files"
+        S_SKIPPED=$((S_SKIPPED + cnt)); return
+    fi
+    mupd "D:skills" "$dm"
+
+    local flist; flist=$(mktemp "${MANIFEST_FILE}.fl.XXXXXX") || flist="/tmp/claude-fl.$$"
+    find "$SOURCE_DIR/skills" -type f \( -name "*.md" -o -name "*.txt" -o -name "*.json" \) 2>/dev/null | \
+        grep -v -E '/(\.backup|node_modules|\.git|benchmarks)/' | \
+        sed "s|$SOURCE_DIR/skills/||" > "$flist"
+
+    local results; results=$(awk -F'|' '
+    FNR == NR { arr[$1]=$2; next }
+    { print $1 "|" arr[$1] }
+    ' "$MANIFEST_FILE" "$flist" 2>/dev/null)
+
+    local changed=0 skipped=0
+    while IFS='|' read -r rel mfp; do
+        [[ -z "$rel" ]] && continue
+        local sfp; sfp=$(fp "$SOURCE_DIR/skills/$rel")
+        if [[ -z "$mfp" ]] || [[ "$sfp" != "$mfp" ]]; then
+            mupd "skills/$rel" "$sfp"
+            mkdir -p "$(dirname "$OUTPUT_DIR/skills/$rel")"
+            if cp "$SOURCE_DIR/skills/$rel" "$OUTPUT_DIR/skills/$rel" 2>/dev/null; then
+                replace_paths "$OUTPUT_DIR/skills/$rel"
+                log_chg "  skills/$rel"
+                ((changed++))
+            fi
+        else
+            ((skipped++))
+        fi
+    done <<< "$results"
+
+    rm -f "$flist"
+    S_CHANGED=$((S_CHANGED + changed)); S_SKIPPED=$((S_SKIPPED + skipped))
     if [[ $changed -gt 0 ]]; then
         log_success "  skills: $changed changed, $skipped unchanged"
     else
@@ -327,255 +198,218 @@ process_skills() {
 }
 
 # ------------------------------------------------------------------------------
-# Process scripts, hooks, statusline
+# Scripts + hooks + statusline
 # ------------------------------------------------------------------------------
 process_scripts_hooks() {
-    log_info "Processing scripts, hooks, and statusline..."
+    log_info "Processing scripts, hooks, statusline..."
 
-    # Scripts
     if [[ -d "$SOURCE_DIR/scripts" ]]; then
-        process_dir "$SOURCE_DIR/scripts" "$OUTPUT_DIR/scripts" "scripts" ""
+        mkdir -p "$OUTPUT_DIR/scripts"
+        process_dir "$SOURCE_DIR/scripts" "$OUTPUT_DIR/scripts" "scripts" "$FORCE_MTIME_SKIP"
     else
         log_info "  scripts/ not found"
     fi
 
-    # Hooks
     if [[ -d "$SOURCE_DIR/hooks" ]]; then
-        process_dir "$SOURCE_DIR/hooks" "$OUTPUT_DIR/hooks" "hooks" ""
+        mkdir -p "$OUTPUT_DIR/hooks"
+        process_dir "$SOURCE_DIR/hooks" "$OUTPUT_DIR/hooks" "hooks" "$FORCE_MTIME_SKIP"
     else
         log_info "  hooks/ not found"
     fi
 
-    # Statusline
     if [[ -f "$SOURCE_DIR/statusline.sh" ]]; then
-        if needs_processing "$SOURCE_DIR/statusline.sh" "statusline.sh"; then
+        local mfp sfp; mfp=$(mlookup "statusline.sh"); sfp=$(fp "$SOURCE_DIR/statusline.sh")
+        if [[ -z "$mfp" ]] || [[ "$sfp" != "$mfp" ]]; then
+            mupd "statusline.sh" "$sfp"
             cp "$SOURCE_DIR/statusline.sh" "$OUTPUT_DIR/statusline.sh"
             replace_paths "$OUTPUT_DIR/statusline.sh"
             chmod +x "$OUTPUT_DIR/statusline.sh"
-            log_changed "  statusline.sh"
-            STAT_CHANGED=$((STAT_CHANGED + 1))
+            log_chg "  statusline.sh"; S_CHANGED=$((S_CHANGED + 1))
             log_success "  statusline.sh updated"
         else
-            log_info "  statusline.sh unchanged"
-            STAT_SKIPPED=$((STAT_SKIPPED + 1))
+            log_info "  statusline.sh unchanged"; S_SKIPPED=$((S_SKIPPED + 1))
         fi
     fi
 }
 
 # ------------------------------------------------------------------------------
-# Process plugins
+# Plugins (marketplaces tracked individually)
 # ------------------------------------------------------------------------------
 process_plugins() {
     log_info "Processing plugins directory..."
-    if [[ ! -d "$SOURCE_DIR/plugins" ]]; then
-        log_info "  plugins/ not found"
-        return
-    fi
-
+    [[ ! -d "$SOURCE_DIR/plugins" ]] && { log_info "  plugins/ not found"; return; }
     mkdir -p "$OUTPUT_DIR/plugins"
-    local changed=0 skipped=0
 
-    # Regular files (skip cache/)
-    while IFS= read -r -d '' file; do
-        local rel="${file#$SOURCE_DIR/plugins/}"
-        [[ "$rel" == cache/* ]] && continue
+    process_dir "$SOURCE_DIR/plugins" "$OUTPUT_DIR/plugins" "plugins" "$FORCE_MTIME_SKIP"
+    # Always track D:plugins after processing plugins/ root
+    mupd "D:plugins" "$(dir_mtime "$SOURCE_DIR/plugins")"
 
-        if needs_processing "$file" "plugins/$rel"; then
-            local target="$OUTPUT_DIR/plugins/$rel"
-            mkdir -p "$(dirname "$target")"
-            if cp "$file" "$target" 2>/dev/null; then
-                replace_paths "$target"
-                log_changed "  plugins/$rel"
-                ((changed++))
-            fi
-        else
-            ((skipped++))
-        fi
-    done < <(find "$SOURCE_DIR/plugins" -type f -print0 2>/dev/null)
-
-    # Subdirs: marketplaces, local, repos (each with mtime precheck)
     for subdir in marketplaces local repos; do
-        local src_sub="$SOURCE_DIR/plugins/$subdir"
-        [[ ! -d "$src_sub" ]] && continue
+        local sp="$SOURCE_DIR/plugins/$subdir"
+        [[ ! -d "$sp" ]] && continue
         mkdir -p "$OUTPUT_DIR/plugins/$subdir"
 
-        local cur prev
-        cur=$(dir_mtime "$src_sub")
-        prev=$(manifest_dir_mtime "plugins/$subdir")
-        if [[ -n "$prev" ]] && [[ "$cur" == "$prev" ]]; then
-            local cnt; cnt=$(count_files "$src_sub")
-            log_info "  plugins/$subdir: unchanged (mtime), skip $cnt"
-            STAT_SKIPPED=$((STAT_SKIPPED + cnt))
-            continue
+        local dm prev; dm=$(dir_mtime "$sp")
+        prev=$(dmtime "plugins/$subdir")
+        if [[ -n "$prev" ]] && [[ "$dm" == "$prev" ]]; then
+            local cnt; cnt=$(fcount "$sp")
+            log_info "  plugins/$subdir: unchanged (mtime), skip $cnt files"
+            S_SKIPPED=$((S_SKIPPED + cnt)); continue
         fi
-        manifest_update "D:plugins/$subdir" "$cur"
+        mupd "D:plugins/$subdir" "$dm"
 
         if [[ "$subdir" == "marketplaces" ]]; then
-            while IFS= read -r -d '' mdir; do
-                local mname=$(basename "$mdir")
-                if needs_processing "$mdir" "plugins/$subdir/$mname"; then
+            local changed=0
+            find "$sp" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | \
+            while IFS= read -r mdir; do
+                local mname; mname=$(basename "$mdir")
+                local mm dm2; mm=$(dmtime "plugins/$subdir/$mname"); dm2=$(dir_mtime "$mdir")
+                if [[ -n "$mm" ]] && [[ "$dm2" == "$mm" ]]; then
+                    log_info "  plugins/$subdir/$mname (unchanged)"
+                    S_SKIPPED=$((S_SKIPPED + $(find "$mdir" -type f 2>/dev/null | wc -l | tr -d ' ')))
+                else
+                    mupd "D:plugins/$subdir/$mname" "$dm2"
                     rm -rf "$OUTPUT_DIR/plugins/$subdir/$mname" 2>/dev/null || true
                     mkdir -p "$OUTPUT_DIR/plugins/$subdir/$mname"
                     if cp -r "$mdir"/* "$OUTPUT_DIR/plugins/$subdir/$mname/" 2>/dev/null; then
-                        log_changed "  plugins/$subdir/$mname"
-                        ((changed++))
+                        log_chg "  plugins/$subdir/$mname"; ((changed++))
                     fi
-                else
-                    log_info "  plugins/$subdir/$mname (unchanged)"
                 fi
-            done < <(find "$src_sub" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
+            done
+            S_CHANGED=$((S_CHANGED + changed))
         else
-            while IFS= read -r -d '' f; do
-                local fname=$(basename "$f")
-                if needs_processing "$f" "plugins/$subdir/$fname"; then
-                    if cp "$f" "$OUTPUT_DIR/plugins/$subdir/$fname" 2>/dev/null; then
-                        log_changed "  plugins/$subdir/$fname"
-                        ((changed++))
-                    fi
-                else
-                    ((skipped++))
-                fi
-            done < <(find "$src_sub" -maxdepth 1 -type f -print0 2>/dev/null)
+            process_dir "$sp" "$OUTPUT_DIR/plugins/$subdir" "plugins/$subdir"
         fi
     done
-
-    STAT_CHANGED=$((STAT_CHANGED + changed))
-    STAT_SKIPPED=$((STAT_SKIPPED + skipped))
-    if [[ $changed -gt 0 ]]; then
-        log_success "  plugins: $changed changed, $skipped unchanged"
-    else
-        log_info "  plugins: unchanged ($skipped files)"
-    fi
 }
 
 # ------------------------------------------------------------------------------
-# Process JSON configs
+# JSON configs + .claude.json
 # ------------------------------------------------------------------------------
 process_json_configs() {
     log_info "Processing JSON configuration files..."
-    local changed=0
     for file in settings.json settings.local.json; do
         local src="$SOURCE_DIR/$file"
         if [[ -f "$src" ]]; then
-            if needs_processing "$src" "$file"; then
+            local mfp sfp; mfp=$(mlookup "$file"); sfp=$(fp "$src")
+            if [[ -z "$mfp" ]] || [[ "$sfp" != "$mfp" ]]; then
+                mupd "$file" "$sfp"
                 cp "$src" "$OUTPUT_DIR/$file"
                 replace_paths "$OUTPUT_DIR/$file"
-                log_changed "  $file"
-                ((changed++))
-                STAT_CHANGED=$((STAT_CHANGED + 1))
+                log_chg "  $file"; S_CHANGED=$((S_CHANGED + 1))
             else
-                log_info "  $file (unchanged)"
-                STAT_SKIPPED=$((STAT_SKIPPED + 1))
+                log_info "  $file (unchanged)"; S_SKIPPED=$((S_SKIPPED + 1))
             fi
         else
             log_warn "  $file not found"
         fi
     done
-    [[ $changed -gt 0 ]] && log_success "  $changed JSON file(s) updated"
 }
 
-# ------------------------------------------------------------------------------
-# Process .claude.json
-# ------------------------------------------------------------------------------
 process_claude_json() {
     local src="${HOME}/.claude.json"
     log_info "Processing .claude.json..."
-    if needs_processing "$src" ".claude.json"; then
+    local mfp sfp; mfp=$(mlookup ".claude.json"); sfp=$(fp "$src")
+    if [[ -z "$mfp" ]] || [[ "$sfp" != "$mfp" ]]; then
+        mupd ".claude.json" "$sfp"
         if [[ -f "$src" ]] && command -v jq >/dev/null 2>&1; then
             local tmp="$OUTPUT_DIR/.claude.json.tmp"
             if jq '{ hasCompletedOnboarding, mcpServers }' "$src" > "$tmp" 2>/dev/null; then
-                replace_paths "$tmp"
-                mv "$tmp" "$OUTPUT_DIR/.claude.json"
-                log_changed "  .claude.json (minimal)"
-                STAT_CHANGED=$((STAT_CHANGED + 1))
+                replace_paths "$tmp"; mv "$tmp" "$OUTPUT_DIR/.claude.json"
+                log_chg "  .claude.json (minimal)"; S_CHANGED=$((S_CHANGED + 1))
             else
                 echo '{"hasCompletedOnboarding":true}' > "$OUTPUT_DIR/.claude.json"
-                log_warn "  jq failed, created minimal config"
-                STAT_CHANGED=$((STAT_CHANGED + 1))
+                log_warn "  jq failed"; S_CHANGED=$((S_CHANGED + 1))
             fi
         else
             echo '{"hasCompletedOnboarding":true}' > "$OUTPUT_DIR/.claude.json"
-            log_changed "  .claude.json (minimal)"
-            STAT_CHANGED=$((STAT_CHANGED + 1))
+            log_chg "  .claude.json (minimal)"; S_CHANGED=$((S_CHANGED + 1))
         fi
     else
-        log_info "  .claude.json (unchanged)"
-        STAT_SKIPPED=$((STAT_SKIPPED + 1))
+        log_info "  .claude.json (unchanged)"; S_SKIPPED=$((S_SKIPPED + 1))
     fi
 }
 
-# ------------------------------------------------------------------------------
-# Cleanup trap
-# ------------------------------------------------------------------------------
-cleanup() {
-    rm -f "$UPDATES_FILE" "${MANIFEST_LOOKUP}" 2>/dev/null || true
+verify_seed() {
+    log_info "Verifying seed at $OUTPUT_DIR..."
+    [[ ! -d "$OUTPUT_DIR" ]] && { log_error "Seed dir missing"; return 1; }
+    local leaks=0
+    for pat in "$HOST_USER" "/Users/"; do
+        if grep -rI --exclude-dir="plugins" --exclude="*.log" \
+             --exclude="*.md" "$pat" "$OUTPUT_DIR" 2>/dev/null | \
+             grep -v "marketplaces" | grep -q . 2>/dev/null; then
+            log_error "Leaked path: $pat"; leaks=1; break
+        fi
+    done
+    [[ $leaks -eq 1 ]] && return 1
+    log_success "Verification passed: no hardcoded paths"
+    return 0
 }
+
+# ------------------------------------------------------------------------------
+# Cleanup
+# ------------------------------------------------------------------------------
+cleanup() { rm -f "${MANIFEST_FILE}.new" "${MANIFEST_FILE}.fl."* 2>/dev/null || true; }
 trap cleanup EXIT
 
 # ------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------
-process_seed() {
+main() {
+    if [[ "$VERIFY_ONLY" == "true" ]]; then
+        verify_seed; exit $?
+    fi
+
     log_info "Starting Claude seed processing..."
-    log_info "Host user: $HOST_USER"
-    log_info "Container user: $CONTAINER_USER"
+    log_info "Host: $HOST_USER -> $CONTAINER_USER"
     log_info "Source: $SOURCE_DIR"
     log_info "Output: $OUTPUT_DIR"
 
-    if [[ ! -d "$SOURCE_DIR" ]]; then
-        log_error "Source directory not found: $SOURCE_DIR"
-        exit 1
-    fi
+    [[ ! -d "$SOURCE_DIR" ]] && { log_error "Source not found"; exit 1; }
+    mkdir -p "$OUTPUT_DIR" "$(dirname "$LOG_FILE")"
+    echo "=== Claude Seed Log ===" > "$LOG_FILE"
+    echo "Started: $(date)" >> "$LOG_FILE"
 
-    mkdir -p "$OUTPUT_DIR"
-    mkdir -p "$(dirname "$LOG_FILE")"
-    echo "=== Claude Seed Processing Log ===" > "$LOG_FILE"
-    echo "Started at: $(date)" >> "$LOG_FILE"
+    local start; start=$(date +%s)
 
-    local start_sec; start_sec=$(date +%s)
-
-    open_updates
+    # Init new manifest update file
+    : > "${MANIFEST_FILE}.new"
 
     if [[ "$FORCE_REPROCESS" == "true" ]]; then
         log_warn "Force mode: full reprocessing"
+        FORCE_MTIME_SKIP=true
     else
-        load_manifest
-        local cnt; cnt=$(grep -c . "$MANIFEST_FILE" 2>/dev/null || echo "0")
-        log_info "Incremental mode: $cnt manifest entries"
+        FORCE_MTIME_SKIP=false
+        local cnt; cnt=$(wc -l < "$MANIFEST_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+        log_info "Incremental: $cnt manifest entries"
     fi
 
     process_json_configs
-    process_skills
+    process_skills "$FORCE_MTIME_SKIP"
     process_scripts_hooks
     process_plugins
     process_claude_json
 
-    save_manifest
+    # Merge: existing manifest + new updates
+    {
+        cat "$MANIFEST_FILE" 2>/dev/null || true
+        cat "${MANIFEST_FILE}.new"
+    } | awk -F'|' '{if (!seen[$1]++) print}' > "${MANIFEST_FILE}.merged" && \
+      mv "${MANIFEST_FILE}.merged" "$MANIFEST_FILE"
 
-    local elapsed=$(( $(date +%s) - start_sec ))
+    local elapsed=$(( $(date +%s) - start ))
 
     log_info "Running final verification..."
     if verify_seed; then
-        log_success "══════════════════════════════════════════"
-        log_success "Claude seed processing completed!"
+        log_success "=========================================="
+        log_success "Seed processing completed!"
         log_success "Output: $OUTPUT_DIR"
-        log_success "Log: $LOG_FILE"
-        log_success "══════════════════════════════════════════"
-        log_info "Stats: $STAT_CHANGED changed, $STAT_SKIPPED skipped, $STAT_ERRORS errors (${elapsed}s)"
-        return 0
+        log_success "=========================================="
+        log_info "Stats: $S_CHANGED changed, $S_SKIPPED skipped, $S_ERRORS errors (${elapsed}s)"
+        exit 0
     else
-        log_error "Verification failed"
-        return 1
+        log_error "Verification failed"; exit 1
     fi
-}
-
-main() {
-    if [[ "$VERIFY_ONLY" == "true" ]]; then
-        verify_seed
-    else
-        process_seed
-    fi
-    exit $?
 }
 
 main "$@"

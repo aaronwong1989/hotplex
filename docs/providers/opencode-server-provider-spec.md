@@ -1,11 +1,11 @@
 # OpenCode Server Provider — 实现规格 (终版)
 
-> **原则**: 整洁架构 · DRY · SOLID  
-> **Issue**: [#356](https://github.com/hrygo/hotplex/issues/356) · **方案**: Server Provider (`opencode serve`)  
+> **原则**: 整洁架构 · DRY · SOLID
+> **Issue**: [#356](https://github.com/hrygo/hotplex/issues/356) · **方案**: Server Provider (`opencode serve`)
 > **上游**: [anomalyco/opencode](https://github.com/anomalyco/opencode) · [SDK Types](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)
 
 > [!IMPORTANT]
-> **战略决策**: OpenCode 放弃 CLI subprocess 方案，直接采用 Server Provider。  
+> **战略决策**: OpenCode 放弃 CLI subprocess 方案，直接采用 Server Provider。
 > 现有 `opencode_provider.go` 标记废弃。ACP Provider/Server 作为远期规划。
 
 ---
@@ -40,13 +40,13 @@
 
 ### 1.2 设计决策
 
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| OpenCode CLI | ❌ 废弃 | 冷启动慢、无 session 管理、无 SSE |
-| Server Provider | ✅ 唯一方案 | 零冷启动、完整 API、实时事件流 |
-| Provider 接口 | 不修改 | OCP — 后向兼容 Claude/Pi |
-| Transport 抽象 | ✅ 新增 | SRP — 通信 ≠ 解析 |
-| Pool 适配 | SessionStarter | DIP — CLI/HTTP 策略分离 |
+| 决策            | 选择           | 理由                              |
+| --------------- | -------------- | --------------------------------- |
+| OpenCode CLI    | ❌ 废弃         | 冷启动慢、无 session 管理、无 SSE |
+| Server Provider | ✅ 唯一方案     | 零冷启动、完整 API、实时事件流    |
+| Provider 接口   | 不修改         | OCP — 后向兼容 Claude/Pi          |
+| Transport 抽象  | ✅ 新增         | SRP — 通信 ≠ 解析                 |
+| Pool 适配       | SessionStarter | DIP — CLI/HTTP 策略分离           |
 
 ---
 
@@ -81,8 +81,6 @@ const (
 )
 
 // ── Part 结构 ──
-// 注意: 所有字段必须显式声明 json tag，不使用 shorthand 声明
-// Go json.Unmarshal 虽然是 case-insensitive，但序列化输出需要小写
 type OCPart struct {
     ID        string `json:"id"`
     SessionID string `json:"sessionID"`
@@ -104,7 +102,7 @@ type OCPart struct {
 }
 
 type OCToolState struct {
-    Status string         `json:"status"` // pending|running|completed|error
+    Status string         `json:"status"`
     Input  map[string]any `json:"input,omitempty"`
     Output string         `json:"output,omitempty"`
     Title  string         `json:"title,omitempty"`
@@ -145,7 +143,7 @@ type OCSessionStatusProps struct {
 }
 
 type OCSessionState struct {
-    Type    string `json:"type"` // idle|busy|retry
+    Type    string `json:"type"`
     Attempt int    `json:"attempt,omitempty"`
 }
 
@@ -178,7 +176,7 @@ type OCTimeStamp struct {
 type OCAssistantMessage struct {
     ID         string   `json:"id"`
     SessionID  string   `json:"sessionID"`
-    Role       string   `json:"role"` // "assistant"
+    Role       string   `json:"role"`
     ParentID   string   `json:"parentID"`
     ModelID    string   `json:"modelID"`
     ProviderID string   `json:"providerID"`
@@ -186,6 +184,21 @@ type OCAssistantMessage struct {
     Tokens     OCTokens `json:"tokens"`
     Finish     string   `json:"finish,omitempty"`
     Error      *OCError `json:"error,omitempty"`
+}
+
+type OCUserMessage struct {
+    ID        string          `json:"id"`
+    SessionID string          `json:"sessionID"`
+    Role      string          `json:"role"`
+    Agent     string          `json:"agent"`
+    Model     OCModelRef      `json:"model"`
+    System    string          `json:"system,omitempty"`
+    Tools     map[string]bool `json:"tools,omitempty"`
+}
+
+type OCModelRef struct {
+    ProviderID string `json:"providerID"`
+    ModelID    string `json:"modelID"`
 }
 ```
 
@@ -216,19 +229,21 @@ type TransportConfig struct {
 
 ### 3.2 HTTPTransport — `provider/transport_http.go` [NEW]
 
+> 本节为 HTTPTransport 完整实现。SSE 断连重连的详细展开见 §13。
+
 **核心能力**: REST 调用 + SSE 流 + 指数退避重连 + Basic Auth
 
 ```go
 type HTTPTransport struct {
-    baseURL   string
+    baseURL    string
     restClient *http.Client  // REST 请求 (30s timeout)
-    sseClient  *http.Client  // SSE 长连接 (无 timeout)
-    password  string
-    events    chan string
-    cancel    context.CancelFunc
-    logger    *slog.Logger
-    mu        sync.Mutex
-    connected bool
+    sseClient  *http.Client // SSE 长连接 (无 timeout)
+    password   string
+    events     chan string
+    cancel     context.CancelFunc
+    logger     *slog.Logger
+    mu         sync.Mutex
+    connected  bool
 }
 
 // ── SSE 断连重连 ──
@@ -307,11 +322,17 @@ func NewOpenCodeServerProvider(cfg ProviderConfig, logger *slog.Logger) (*OpenCo
     return &OpenCodeServerProvider{
         ProviderBase: ProviderBase{
             meta: ProviderMeta{
-                Type: ProviderTypeOpenCodeServer, DisplayName: "OpenCode (Server)",
-                BinaryName: "opencode", InstallHint: "brew install anomalyco/tap/opencode",
+                Type:        ProviderTypeOpenCodeServer,
+                DisplayName: "OpenCode (Server)",
+                BinaryName:  "opencode",
+                InstallHint: "brew install anomalyco/tap/opencode",
                 Features: ProviderFeatures{
-                    SupportsResume: true, SupportsSSE: true, SupportsHTTPAPI: true,
-                    SupportsSessionID: true, MultiTurnReady: true,
+                    SupportsResume:      true,
+                    SupportsStreamJSON:  true,
+                    SupportsSSE:         true,
+                    SupportsHTTPAPI:     true,
+                    SupportsSessionID:   true,
+                    MultiTurnReady:      true,
                 },
             },
             logger: logger.With("provider", "opencode-server"),
@@ -319,12 +340,13 @@ func NewOpenCodeServerProvider(cfg ProviderConfig, logger *slog.Logger) (*OpenCo
         transport: &HTTPTransport{
             baseURL:    url,
             restClient: &http.Client{Timeout: 30 * time.Second},
-            sseClient:  &http.Client{}, // SSE 长连接不设 timeout
+            sseClient:  &http.Client{},
             password:   ocCfg.Password,
             events:     make(chan string, 256),
             logger:     logger.With("component", "oc_transport"),
         },
-        opts: cfg, promptBuilder: NewPromptBuilder(false),
+        opts:          cfg,
+        promptBuilder: NewPromptBuilder(false),
     }, nil
 }
 
@@ -514,17 +536,18 @@ func (p *OpenCodeServerProvider) VerifySession(id string, _ string) bool {
 ## 5. Pool 适配 — `internal/engine/session_starter.go` [NEW]
 
 > [!IMPORTANT]
-> `pool.go:startSession()` 是 180+ 行 OS 进程管理。引入 `SessionStarter` 策略接口解耦。
+> `pool.go:startSession()` 是 180+ 行 OS 进程生命周期管理方法。引入 `SessionStarter` 策略接口解耦。
 
 > [!CAUTION]
-> **Session.WriteInput() 写 stdin，nil stdin 会 panic**（`session_test.go:1153` 已确认）。  
-> **Session.IsAlive() 检查 cmd.Process，nil cmd 返回 false**，Pool 会误判 HTTP session 已死。  
+> **Session.WriteInput() 写 stdin，nil stdin 会 panic**（`session_test.go:1153` 已确认）。
+> **Session.IsAlive() 检查 cmd.Process，nil cmd 返回 false**，Pool 会误判 HTTP session 已死。
 > 必须为 Session 注入 I/O 抽象。
 
-```go
-// ── Session I/O 抽象（解决 WriteInput nil panic + IsAlive 误判）──
+> **编辑注记**: 本节侧重接口定义与实现代码。§11 从问题背景与 Pool 集成视角描述同一设计，两节互为补充。
 
-// SessionIO 封装 Session 的 I/O 行为差异
+```go
+// ── Session I/O 抽象 ──
+
 type SessionIO interface {
     WriteInput(msg map[string]any) error
     IsAlive() bool
@@ -552,7 +575,7 @@ func (io *CLISessionIO) IsAlive() bool {
 // HTTPSessionIO — HTTP Transport 模式
 type HTTPSessionIO struct {
     transport provider.Transport
-    sessionID string // OC Session ID
+    sessionID string
 }
 
 func (io *HTTPSessionIO) WriteInput(msg map[string]any) error {
@@ -562,9 +585,7 @@ func (io *HTTPSessionIO) WriteInput(msg map[string]any) error {
 func (io *HTTPSessionIO) IsAlive() bool {
     return io.transport.Health(context.Background()) == nil
 }
-```
 
-```go
 // ── SessionStarter 策略接口 ──
 
 type SessionStarter interface {
@@ -581,7 +602,6 @@ type HTTPSessionStarter struct {
 }
 
 func (s *HTTPSessionStarter) StartSession(ctx context.Context, cfg StartSessionConfig) (*Session, error) {
-    // 创建 OC 端 session
     ocSessionID, err := s.transport.CreateSession(ctx, cfg.SessionID)
     if err != nil { return nil, err }
 
@@ -589,7 +609,7 @@ func (s *HTTPSessionStarter) StartSession(ctx context.Context, cfg StartSessionC
         ID:                cfg.SessionID,
         ProviderSessionID: ocSessionID,
         Config:            cfg.Config,
-        Status:            SessionStatusReady, // 无冷启动
+        Status:            SessionStatusReady, // 立即 Ready — 无冷启动
         CreatedAt:         time.Now(),
         LastActive:        time.Now(),
         statusChange:      make(chan SessionStatus, 10),
@@ -606,7 +626,6 @@ func (s *HTTPSessionStarter) consumeSSE(sess *Session) {
             _ = cb("raw_line", line)
         }
     }
-    // SSE 断连 → 标记 Dead
     sess.SetStatus(SessionStatusDead)
     if cb := sess.GetCallback(); cb != nil {
         _ = cb("runner_exit", nil)
@@ -627,9 +646,9 @@ type OpenCodeConfig struct {
     Model      string `json:"model,omitempty" koanf:"model"`
     Port       int    `json:"port,omitempty" koanf:"port"`
     // 新增
-    ServerURL string `json:"server_url,omitempty" koanf:"server_url"` // http://127.0.0.1:4096
-    Agent     string `json:"agent,omitempty" koanf:"agent"`           // build|plan
-    Password  string `json:"password,omitempty" koanf:"password"`     // Basic Auth
+    ServerURL string `json:"server_url,omitempty" koanf:"server_url"`
+    Agent     string `json:"agent,omitempty" koanf:"agent"`
+    Password  string `json:"password,omitempty" koanf:"password"`
 }
 ```
 
@@ -664,32 +683,34 @@ start_opencode_server() {
 
 ## 8. 错误映射
 
-| OpenCode Error | → HotPlex ProviderEvent |
-|----------------|------------------------|
-| `ProviderAuthError` | `error` — API key 无效 |
-| `UnknownError` | `error` — 透传 message |
-| `MessageOutputLengthError` | `error` — 输出过长 |
-| `MessageAbortedError` | `result` — 用户取消 |
-| `APIError` (retryable) | `system` — 等待重试 |
-| `APIError` (fatal) | `error` — statusCode |
+> **编辑注记**: 本节为错误映射速查表。完整代码实现（含 Go 代码）见 §16。
+
+| OpenCode Error             | HotPlex 处理           | ProviderEventType |
+| -------------------------- | ---------------------- | ----------------- |
+| `ProviderAuthError`        | API key 无效 提示       | `error`           |
+| `UnknownError`             | 透传 message           | `error`           |
+| `MessageOutputLengthError` | 输出过长               | `error`           |
+| `MessageAbortedError`      | 用户主动取消           | `result`          |
+| `APIError` (retryable)     | 等待自动重试           | `system`          |
+| `APIError` (fatal)         | 带 statusCode          | `error`           |
 
 ---
 
 ## 9. 文件变更清单
 
-| 操作 | 文件 | 说明 | 原则 |
-|------|------|------|------|
-| **[NEW]** | `provider/transport.go` | Transport 接口 | SRP · ISP · DIP |
-| **[NEW]** | `provider/transport_http.go` | HTTPTransport (SSE+REST+重连) | SRP |
-| **[NEW]** | `provider/opencode_types.go` | 共享类型 | DRY |
-| **[NEW]** | `provider/opencode_server_provider.go` | Server Provider + Plugin | OCP · LSP |
-| **[NEW]** | `provider/opencode_server_provider_test.go` | 单元测试 | — |
-| **[NEW]** | `internal/engine/session_starter.go` | SessionStarter 策略 | SRP · DIP |
-| **[MODIFY]** | `provider/provider.go` | `ProviderTypeOpenCodeServer` | OCP |
-| **[MODIFY]** | `internal/server/opencode_http.go` | 引用共享类型 | DRY |
-| **[MODIFY]** | `internal/engine/pool.go` | 注入 SessionStarter | DIP |
-| **[MODIFY]** | `docker/docker-entrypoint.sh` | sidecar 启动 | — |
-| **[DEPRECATE]** | `provider/opencode_provider.go` | 标记废弃 | — |
+| 操作         | 文件                                        | 说明                          | 原则            |
+| ------------ | ------------------------------------------- | ----------------------------- | --------------- |
+| **[NEW]**    | `provider/transport.go`                     | Transport 接口                | SRP · ISP · DIP |
+| **[NEW]**    | `provider/transport_http.go`                | HTTPTransport (SSE+REST+重连) | SRP             |
+| **[NEW]**    | `provider/opencode_types.go`                | 共享类型                      | DRY             |
+| **[NEW]**    | `provider/opencode_server_provider.go`      | Server Provider + Plugin      | OCP · LSP       |
+| **[NEW]**    | `provider/opencode_server_provider_test.go` | 单元测试                      | —               |
+| **[NEW]**    | `internal/engine/session_starter.go`        | SessionStarter 策略           | SRP · DIP       |
+| **[MODIFY]** | `provider/provider.go`                      | `ProviderTypeOpenCodeServer`  | OCP             |
+| **[MODIFY]** | `internal/server/opencode_http.go`          | 引用共享类型                  | DRY             |
+| **[MODIFY]** `internal/engine/pool.go`                   | 注入 SessionStarter           | DIP             |
+| **[MODIFY]** `docker/docker-entrypoint.sh`               | sidecar 启动                  | —               |
+| **[DELETE]** | `provider/opencode_provider.go`            | 删除                          | —               |
 
 ---
 
@@ -713,6 +734,8 @@ curl -s -X POST http://localhost:4096/session/{id}/message \
 ---
 
 ## 11. Pool 集成 — SessionStarter 策略
+
+> **编辑注记**: 本节从问题背景与集成视角描述 SessionStarter 设计，与 §5 从接口定义视角的描述互为补充。
 
 ### 11.1 问题
 
@@ -761,11 +784,9 @@ type HTTPSessionStarter struct {
 }
 
 func (s *HTTPSessionStarter) StartSession(ctx context.Context, cfg StartSessionConfig) (*Session, error) {
-    // 1. 通过 Transport 创建 OpenCode Server 端 Session
     ocSessionID, err := s.transport.CreateSession(ctx, cfg.SessionID)
     if err != nil { return nil, err }
 
-    // 2. 构建 Session 对象（无 cmd/stdin/stdout）
     sess := &Session{
         ID:                cfg.SessionID,
         ProviderSessionID: ocSessionID,
@@ -778,7 +799,6 @@ func (s *HTTPSessionStarter) StartSession(ctx context.Context, cfg StartSessionC
         // cmd, stdin, stdout, stderr 均为 nil
     }
 
-    // 3. 启动 SSE 事件消费 goroutine
     go s.consumeSSE(sess)
     return sess, nil
 }
@@ -789,7 +809,6 @@ func (s *HTTPSessionStarter) consumeSSE(sess *Session) {
             _ = cb("raw_line", line)
         }
     }
-    // SSE 断连 → 标记 session dead
     sess.SetStatus(SessionStatusDead)
     if cb := sess.GetCallback(); cb != nil {
         _ = cb("runner_exit", nil)
@@ -803,7 +822,7 @@ func (s *HTTPSessionStarter) consumeSSE(sess *Session) {
 // pool.go 修改
 type SessionPool struct {
     // ...existing fields...
-    starter SessionStarter  // 注入 CLISessionStarter 或 HTTPSessionStarter
+    starter SessionStarter // 注入 CLISessionStarter 或 HTTPSessionStarter
 }
 
 func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg SessionConfig, prompt string) (*Session, error) {
@@ -837,14 +856,11 @@ POST /session/{OC_Session_ID}/message
 func (p *OpenCodeServerProvider) getOrCreateOCSession(
     ctx context.Context, providerSessionID string,
 ) (string, error) {
-    // 1. 检查缓存
     if id, ok := p.sessions.Load(providerSessionID); ok {
         return id.(string), nil
     }
-    // 2. 创建新 OC Session
     ocID, err := p.transport.CreateSession(ctx, providerSessionID)
     if err != nil { return "", err }
-    // 3. 缓存映射
     p.sessions.Store(providerSessionID, ocID)
     return ocID, nil
 }
@@ -852,7 +868,9 @@ func (p *OpenCodeServerProvider) getOrCreateOCSession(
 
 ---
 
-## 13. SSE 断连重连 · 详细实现
+## 13. SSE 断连重连 · 详细展开
+
+> **编辑注记**: 本节为 §3.2 `streamSSE` / `connectAndStream` 的完整实现版本，补充了 `attempt` 退避计数重置逻辑。
 
 ```go
 func (t *HTTPTransport) streamSSE(ctx context.Context) {
@@ -868,10 +886,9 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 
         err := t.connectAndStream(ctx)
         if ctx.Err() != nil {
-            return // 正常关闭
+            return
         }
 
-        // 断连重连
         delay := backoff[min(attempt, len(backoff)-1)]
         t.logger.Warn("SSE connection lost, reconnecting",
             "attempt", attempt, "delay", delay, "error", err)
@@ -907,7 +924,6 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context) error {
                 t.logger.Warn("SSE event buffer full, dropping event")
             }
         }
-        // 忽略 ": keepalive" 注释行和空行
     }
 
     t.mu.Lock()
@@ -920,9 +936,11 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context) error {
 
 ---
 
-## 14. Constructor + Plugin 注册 · 完整代码
+## 14. Constructor + Plugin 注册
 
 ### 14.1 Constructor
+
+> HTTPTransport 定义见 §3.2。
 
 ```go
 func NewOpenCodeServerProvider(cfg ProviderConfig, logger *slog.Logger) (*OpenCodeServerProvider, error) {
@@ -956,12 +974,12 @@ func NewOpenCodeServerProvider(cfg ProviderConfig, logger *slog.Logger) (*OpenCo
         BinaryName:  "opencode",
         InstallHint: "brew install anomalyco/tap/opencode",
         Features: ProviderFeatures{
-            SupportsResume:     true,
-            SupportsStreamJSON: true,
-            SupportsSSE:        true,
-            SupportsHTTPAPI:    true,
-            SupportsSessionID:  true,
-            MultiTurnReady:     true,
+            SupportsResume:      true,
+            SupportsStreamJSON:  true,
+            SupportsSSE:         true,
+            SupportsHTTPAPI:     true,
+            SupportsSessionID:   true,
+            MultiTurnReady:      true,
         },
     }
 
@@ -1014,17 +1032,17 @@ func init() {
 case OCEventPermissionUpdated:
     var perm struct {
         ID        string         `json:"id"`
-        Type      string         `json:"type"`      // e.g. "tool"
+        Type      string         `json:"type"`
         SessionID string         `json:"sessionID"`
-        Title     string         `json:"title"`      // 工具名称
-        Metadata  map[string]any `json:"metadata"`   // 输入详情
+        Title     string         `json:"title"`
+        Metadata  map[string]any `json:"metadata"`
     }
     json.Unmarshal(evt.Properties, &perm)
     return []*ProviderEvent{{
         Type:     EventTypePermissionRequest,
         RawType:  evt.Type,
         ToolName: perm.Title,
-        ToolID:   perm.ID, // 用于后续 respond 关联
+        ToolID:   perm.ID,
         Content:  fmt.Sprintf("[Permission] %s: %s", perm.Type, perm.Title),
         Metadata: &ProviderEventMeta{
             Status: "pending",
@@ -1060,14 +1078,14 @@ func (t *HTTPTransport) RespondPermission(
 
 ## 16. 错误类型映射
 
-| OpenCode Error Name | HotPlex 处理 | ProviderEventType |
-|---------------------|-------------|-------------------|
-| `ProviderAuthError` | "API key invalid" 提示 | `error` |
-| `UnknownError` | 透传 message | `error` |
-| `MessageOutputLengthError` | "Output too long" | `error` |
-| `MessageAbortedError` | 用户主动取消 | `result` |
-| `APIError` (isRetryable=true) | 等待自动重试 | `system` |
-| `APIError` (isRetryable=false) | 带 statusCode | `error` |
+| OpenCode Error Name            | HotPlex 处理           | ProviderEventType |
+| ------------------------------ | ---------------------- | ----------------- |
+| `ProviderAuthError`            | API key 无效 提示       | `error`           |
+| `UnknownError`                | 透传 message           | `error`           |
+| `MessageOutputLengthError`     | 输出过长               | `error`           |
+| `MessageAbortedError`          | 用户主动取消           | `result`          |
+| `APIError` (isRetryable=true)  | 等待自动重试           | `system`          |
+| `APIError` (isRetryable=false) | 带 statusCode          | `error`           |
 
 ```go
 func (p *OpenCodeServerProvider) mapOCError(ocErr *OCError) *ProviderEvent {
@@ -1093,61 +1111,10 @@ func (p *OpenCodeServerProvider) mapOCError(ocErr *OCError) *ProviderEvent {
 
 ---
 
-## 17. 补充类型定义
+## 17. 远期规划
 
-以下类型已含于 §2 `opencode_types.go`，此处列出完整字段供实现参考:
-
-```go
-type OCSession struct {
-    ID        string      `json:"id"`
-    ProjectID string      `json:"projectID"`
-    Directory string      `json:"directory"`
-    ParentID  string      `json:"parentID,omitempty"`
-    Title     string      `json:"title"`
-    Version   string      `json:"version"`
-    Time      OCTimeStamp `json:"time"`
-}
-
-type OCTimeStamp struct {
-    Created int64 `json:"created"`
-    Updated int64 `json:"updated"`
-}
-
-type OCAssistantMessage struct {
-    ID         string   `json:"id"`
-    SessionID  string   `json:"sessionID"`
-    Role       string   `json:"role"` // "assistant"
-    ParentID   string   `json:"parentID"`
-    ModelID    string   `json:"modelID"`
-    ProviderID string   `json:"providerID"`
-    Cost       float64  `json:"cost"`
-    Tokens     OCTokens `json:"tokens"`
-    Finish     string   `json:"finish,omitempty"`
-    Error      *OCError `json:"error,omitempty"`
-}
-
-type OCUserMessage struct {
-    ID        string          `json:"id"`
-    SessionID string          `json:"sessionID"`
-    Role      string          `json:"role"` // "user"
-    Agent     string          `json:"agent"`
-    Model     OCModelRef      `json:"model"`
-    System    string          `json:"system,omitempty"`
-    Tools     map[string]bool `json:"tools,omitempty"`
-}
-
-type OCModelRef struct {
-    ProviderID string `json:"providerID"`
-    ModelID    string `json:"modelID"`
-}
-```
-
----
-
-## 18. 远期规划
-
-| Phase | 内容 | 时间线 |
-|-------|------|--------|
-| ✅ **Phase 1** | Server Provider 实现 | **当前** |
-| 🔮 Phase 2 | ACP Provider (`transport_acp.go`) | 远期 |
-| 🔮 Phase 3 | HotPlex ACP Server | 远期 |
+| Phase         | 内容                              | 时间线 |
+| ------------- | --------------------------------- | ------ |
+| ✅ **Phase 1** | Server Provider 方案              | 当前   |
+| 🔮 Phase 2     | ACP Provider (`transport_acp.go`) | 远期   |
+| 🔮 Phase 3     | HotPlex ACP Server                | 远期   |
