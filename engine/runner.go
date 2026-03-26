@@ -637,11 +637,12 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 		// Use the last API call's token counts, not the accumulated stats.
 		// Formula: total_input = input_tokens + cache_read + cache_write
 		// Note: input_tokens represents tokens AFTER last cache breakpoint (not total input)
-		// Context window size varies by model:
-		// - Claude 3.5 Sonnet: 200K tokens
-		// - Claude 3 Opus: 200K tokens
-		// Default to 200K for all Claude models
-		const contextWindowTokens = 200000
+		// Context window size is provided by modelUsage.contextWindow field from provider.
+		// Default to 200K if not provided (backward compatibility).
+		contextWindowTokens := int32(200000) // Default 200K
+		if pevt.Metadata != nil && pevt.Metadata.ContextWindow > 0 {
+			contextWindowTokens = pevt.Metadata.ContextWindow
+		}
 		totalInputTokens := stats.lastInputTokens + stats.lastCacheReadTokens + stats.lastCacheWriteTokens
 		contextUsedPercent := 0.0
 		if contextWindowTokens > 0 && totalInputTokens > 0 {

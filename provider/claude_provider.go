@@ -244,6 +244,7 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 		var totalInput, totalOutput, totalCacheWrite, totalCacheRead int32
 		var totalCost float64
 		hasModelUsage := false
+		var contextWindow int32
 		if len(msg.ModelUsage) > 0 {
 			for _, mUsage := range msg.ModelUsage {
 				totalInput += mUsage.InputTokens
@@ -251,6 +252,10 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 				totalCacheWrite += mUsage.CacheCreationInputTokens
 				totalCacheRead += mUsage.CacheReadInputTokens
 				totalCost += mUsage.CostUSD
+				// Extract context window from first model (all models should have same window)
+				if contextWindow == 0 && mUsage.ContextWindow > 0 {
+					contextWindow = mUsage.ContextWindow
+				}
 			}
 			if totalInput > 0 || totalOutput > 0 || totalCacheWrite > 0 || totalCacheRead > 0 {
 				hasModelUsage = true
@@ -262,6 +267,7 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 			event.Metadata.OutputTokens = totalOutput
 			event.Metadata.CacheWriteTokens = totalCacheWrite
 			event.Metadata.CacheReadTokens = totalCacheRead
+			event.Metadata.ContextWindow = contextWindow
 			if event.Metadata.TotalCostUSD == 0 {
 				event.Metadata.TotalCostUSD = totalCost
 			}

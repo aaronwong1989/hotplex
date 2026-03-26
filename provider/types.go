@@ -37,6 +37,8 @@ type ModelUsageStats struct {
 	CacheReadInputTokens     int32   `json:"cacheReadInputTokens"`
 	CacheCreationInputTokens int32   `json:"cacheCreationInputTokens"`
 	CostUSD                  float64 `json:"costUSD"`
+	ContextWindow            int32   `json:"contextWindow"`        // Model's context window size (tokens)
+	MaxOutputTokens          int32   `json:"maxOutputTokens"`      // Model's max output tokens
 }
 
 // UsageStats represents the token consumption breakdown.

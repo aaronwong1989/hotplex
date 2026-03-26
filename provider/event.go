@@ -170,7 +170,9 @@ type ProviderEventMeta struct {
 	TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
 
 	// Model information
-	Model string `json:"model,omitempty"`
+	Model            string `json:"model,omitempty"`
+	ContextWindow    int32 `json:"context_window,omitempty"`    // Model's context window size (tokens)
+	MaxOutputTokens  int32 `json:"max_output_tokens,omitempty"` // Model's max output tokens
 
 	// Progress tracking
 	Progress    int32 `json:"progress,omitempty"`
