@@ -239,8 +239,8 @@ func (w *StreamingWriter) Write(p []byte) (n int, err error) {
 		}
 		w.cardID = cardID
 
-		// 发送卡片消息
-		messageID, err := w.adapter.client.SendCardMessage(w.ctx, token, w.chatID, cardID)
+		// 发送卡片消息（带重试）
+		messageID, err := w.adapter.client.SendCardWithRetry(w.ctx, token, w.chatID, cardID)
 		if err != nil {
 			return 0, fmt.Errorf("send card message: %w", err)
 		}

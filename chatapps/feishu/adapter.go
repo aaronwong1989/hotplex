@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hrygo/hotplex/chatapps"
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/hrygo/hotplex/chatapps/command"
 	"github.com/hrygo/hotplex/engine"
@@ -39,6 +40,9 @@ type Adapter struct {
 	interactiveHandler *InteractiveHandler
 	// Command registry
 	commandRegistry *command.Registry
+
+	// Processor chain for message processing (Issue #172)
+	processorChain *chatapps.ProcessorChain
 }
 
 // Compile-time interface compliance checks
@@ -100,6 +104,12 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 	// Initialize command handler (Phase 2.3) after base adapter is created
 	a.commandHandler = NewCommandHandler(a, a.commandRegistry)
 
+	// Initialize processor chain with Feishu-specific converter (Issue #172)
+	feishuConverter := NewFeishuConverter()
+	a.processorChain = chatapps.NewDefaultProcessorChain(context.Background(), logger, chatapps.ProcessorChainOptions{
+		FormatConverter: feishuConverter,
+	})
+
 	// Set default sender
 	a.sender.SetSender(a.defaultSender)
 
@@ -153,9 +163,23 @@ func (a *Adapter) NewStreamWriter(ctx context.Context, userID, chatID, _ string)
 
 // defaultSender sends message via Feishu API
 // Routes different message types to appropriate handlers
+// Issue #172: Routes through ProcessorChain for message processing
 func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base.ChatMessage) error {
 	if a.client == nil {
 		return ErrMessageSendFailed
+	}
+
+	// Issue #172: Process message through processor chain before sending
+	if a.processorChain != nil {
+		processedMsg, err := a.processorChain.Process(ctx, msg)
+		if err != nil {
+			return err
+		}
+		if processedMsg == nil {
+			// Message was filtered/dropped by processor chain
+			return nil
+		}
+		msg = processedMsg
 	}
 
 	// Get access token with context
