@@ -2478,45 +2478,33 @@ handle_menu_choice() {
 install_opencode() {
     step "安装 OpenCode..."
 
-    local opencode_dir="${HOME}/.opencode"
-    local opencode_bin="${opencode_dir}/bin/opencode"
-
-    if [[ -f "$opencode_bin" ]]; then
-        info "OpenCode 已安装 (${opencode_bin})"
+    if command_exists opencode; then
+        info "OpenCode 已安装 ($(opencode --version 2>/dev/null || echo "unknown version"))"
         if confirm "是否重新安装?" "n"; then
-            rm -rf "$opencode_bin"
+            step "卸载旧版本..."
+            sudo rm -f "$(which opencode)"
         else
             return 0
         fi
     fi
 
-    mkdir -p "${opencode_dir}/bin"
+    info "使用官方安装脚本..."
+    info "curl -fsSL https://opencode.ai/install | bash"
 
-    # 检测平台
-    local os arch
-    os=$(uname -s | tr '[:upper:]' '[:lower:]')
-    arch=$(uname -m)
-    case "$arch" in
-        x86_64) arch="amd64" ;;
-        aarch64|arm64) arch="arm64" ;;
-    esac
+    if curl -fsSL https://opencode.ai/install | bash; then
+        success "OpenCode 安装成功"
 
-    local version
-    version=$(curl -sL "https://api.github.com/repos/opencode-ai/opencode/releases/latest" 2>/dev/null | grep '"tag_name"' | cut -d'"' -f4 || echo "v2.0.0")
-    local download_url="https://github.com/opencode-ai/opencode/releases/download/${version}/opencode-${os}-${arch}"
-
-    info "下载 OpenCode ${version} (${os}/${arch})..."
-    if curl -fsSL "$download_url" -o "$opencode_bin"; then
-        chmod +x "$opencode_bin"
-        success "OpenCode 安装成功: ${opencode_bin}"
-
-        # 添加到 PATH 提示
-        echo ""
-        echo -e "  ${BOLD}请确保 PATH 包含 ${opencode_dir}/bin${NC}"
-        echo -e "  ${DIM}建议添加到 ~/.bashrc 或 ~/.zshrc:${NC}"
-        echo -e "    ${GREEN}export PATH=\"${opencode_dir}/bin:\$PATH\"${NC}"
+        if command_exists opencode; then
+            echo ""
+            info "版本: $(opencode --version 2>/dev/null || echo "unknown")"
+        fi
     else
-        error "OpenCode 下载失败"
+        error "OpenCode 安装失败"
+        echo ""
+        echo -e "  ${DIM}备选安装方式:${NC}"
+        echo -e "  ${CYAN}npm:${NC} npm install -g opencode-ai"
+        echo -e "  ${CYAN}Homebrew:${NC} brew install opencode-ai/tap/opencode"
+        echo -e "  ${CYAN}Go:${NC} go install github.com/opencode-ai/opencode@latest"
     fi
 }
 
