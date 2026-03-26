@@ -11,12 +11,12 @@ import (
 func TestContextWindowCalculation(t *testing.T) {
 	// Test cases based on real stream-json output
 	testCases := []struct {
-		name                string
-		inputTokens         int32
-		cacheReadTokens     int32
-		cacheWriteTokens    int32
-		expectedPercent     float64
-		contextWindow       int32
+		name             string
+		inputTokens      int32
+		cacheReadTokens  int32
+		cacheWriteTokens int32
+		expectedPercent  float64
+		contextWindow    int32
 	}{
 		{
 			name:             "Turn 1: Simple question",

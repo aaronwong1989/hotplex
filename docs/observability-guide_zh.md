@@ -57,6 +57,21 @@ GET /metrics
 
 从 `docs/grafana-dashboard.json` 导入仪表盘。
 
+## Token 与上下文监控
+
+HotPlex 会动态追踪受支持 Provider（如 Claude Code）的 Token 消耗和上下文窗口使用情况。
+
+### 实时使用统计
+在会话期间，可以通过 `session_stats` 事件和遥测数据获取以下指标：
+- **输入 Token (Input Tokens)**: 发送到模型的 Token 数（不含缓存命中部分）。
+- **缓存读写 (Cache Read/Write)**: 提示词缓存效率（命中部分可享受 90% 折扣）。
+- **上下文占用百分比 (Context Percentage)**: 模型上下文窗口（如 200K 或 1M）的实时占用情况。
+
+### 计算公式
+```text
+占用率 % = (输入 + 缓存读 + 缓存写) / 上下文窗口总量 * 100
+```
+
 ## 健康检查
 
 ### 接口地址

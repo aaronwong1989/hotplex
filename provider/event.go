@@ -170,9 +170,10 @@ type ProviderEventMeta struct {
 	TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
 
 	// Model information
-	Model            string `json:"model,omitempty"`
-	ContextWindow    int32 `json:"context_window,omitempty"`    // Model's context window size (tokens)
-	MaxOutputTokens  int32 `json:"max_output_tokens,omitempty"` // Model's max output tokens
+	Model           string `json:"model,omitempty"`
+	ModelName       string `json:"model_name,omitempty"`        // ModelName is the primary model name from modelUsage (the most active model).
+	ContextWindow   int32  `json:"context_window,omitempty"`    // ContextWindow is the model's total context capacity (tokens).
+	MaxOutputTokens int32  `json:"max_output_tokens,omitempty"` // MaxOutputTokens is the model's maximum output limit.
 
 	// Progress tracking
 	Progress    int32 `json:"progress,omitempty"`

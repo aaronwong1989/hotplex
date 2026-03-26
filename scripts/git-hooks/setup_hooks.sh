@@ -6,7 +6,7 @@ set -e
 
 # Get repo root
 REPO_ROOT=$(git rev-parse --show-toplevel)
-HOOK_SOURCE_DIR="$REPO_ROOT/scripts"
+HOOK_SOURCE_DIR="$REPO_ROOT/scripts/git-hooks"
 HOOK_TARGET_DIR="$REPO_ROOT/.git/hooks"
 
 # ANSI colors

@@ -245,16 +245,28 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 		var totalCost float64
 		hasModelUsage := false
 		var contextWindow int32
+		var maxOutputTokens int32
+		var primaryModelName string
+		var primaryModelInput int32
 		if len(msg.ModelUsage) > 0 {
-			for _, mUsage := range msg.ModelUsage {
+			for modelName, mUsage := range msg.ModelUsage {
 				totalInput += mUsage.InputTokens
 				totalOutput += mUsage.OutputTokens
 				totalCacheWrite += mUsage.CacheCreationInputTokens
 				totalCacheRead += mUsage.CacheReadInputTokens
 				totalCost += mUsage.CostUSD
-				// Extract context window from first model (all models should have same window)
-				if contextWindow == 0 && mUsage.ContextWindow > 0 {
-					contextWindow = mUsage.ContextWindow
+				// Select the most active model (highest inputTokens) for context window.
+				// This handles multi-model sessions where /model switching creates
+				// multiple entries in modelUsage with different contextWindow values.
+				if mUsage.InputTokens > primaryModelInput || primaryModelName == "" {
+					primaryModelInput = mUsage.InputTokens
+					primaryModelName = modelName
+					if mUsage.ContextWindow > 0 {
+						contextWindow = mUsage.ContextWindow
+					}
+					if mUsage.MaxOutputTokens > 0 {
+						maxOutputTokens = mUsage.MaxOutputTokens
+					}
 				}
 			}
 			if totalInput > 0 || totalOutput > 0 || totalCacheWrite > 0 || totalCacheRead > 0 {
@@ -268,6 +280,8 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 			event.Metadata.CacheWriteTokens = totalCacheWrite
 			event.Metadata.CacheReadTokens = totalCacheRead
 			event.Metadata.ContextWindow = contextWindow
+			event.Metadata.MaxOutputTokens = maxOutputTokens
+			event.Metadata.ModelName = primaryModelName
 			if event.Metadata.TotalCostUSD == 0 {
 				event.Metadata.TotalCostUSD = totalCost
 			}

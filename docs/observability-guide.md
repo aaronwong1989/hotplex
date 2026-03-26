@@ -57,6 +57,21 @@ GET /metrics
 
 Import the dashboard from `docs/grafana-dashboard.json`.
 
+## Token & Context Monitoring
+
+HotPlex dynamically tracks token consumption and context window utilization for supported providers (e.g., Claude Code).
+
+### Real-time Usage Stats
+During a session, the following metrics are available via the `session_stats` event and telemetry:
+- **Input Tokens**: Tokens sent to the model (excluding cache hits).
+- **Cache Read/Write**: Prompt caching efficiency (90% discount for hits).
+- **Context Percentage**: Real-time utilization of the model's context window (e.g., 200K or 1M).
+
+### Calculation Formula
+```text
+Usage % = (input + cache_read + cache_write) / context_window * 100
+```
+
 ## Health Checks
 
 ### Endpoints

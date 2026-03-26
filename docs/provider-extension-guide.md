@@ -108,7 +108,14 @@ func (p *myProviderImpl) BuildInputMessage(prompt string, taskInstructions strin
 }
 
 func (p *myProviderImpl) ParseEvent(line string) ([]*provider.ProviderEvent, error) {
-    // Parse CLI output into events
+    // Parse CLI output into events. 
+    // If your CLI provides token usage (e.g. stream-json), populate ModelUsage:
+    // stats := provider.ModelUsageStats{
+    //     InputTokens: 100, 
+    //     OutputTokens: 20,
+    //     ContextWindow: 200000,   // Required for context % calculation
+    //     MaxOutputTokens: 32000,
+    // }
     return nil, nil
 }
 

@@ -76,7 +76,7 @@ LOG_FILE      := $(LOG_DIR)/daemon.log
 all: help
 
 # Service management script
-SERVICE_SCRIPT := ./scripts/service.sh
+SERVICE_SCRIPT := ./scripts/ops/service.sh
 
 # =============================================================================
 # 🎯 Helper: Styled Section Header
@@ -265,8 +265,8 @@ clean: ## @dev Remove build artifacts
 
 install-hooks: ## @dev Install Git hooks
 	@printf "${CYAN}🔗 Installing HotPlex Git Hooks...${NC}\n"
-	@chmod +x scripts/*.sh 2>/dev/null || true
-	@if [ -d scripts ] && [ -f scripts/setup_hooks.sh ]; then ./scripts/setup_hooks.sh; fi
+	@chmod +x scripts/git-hooks/*.sh 2>/dev/null || true
+	@if [ -d scripts/git-hooks ] && [ -f scripts/git-hooks/setup_hooks.sh ]; then ./scripts/git-hooks/setup_hooks.sh; fi
 	@printf "${GREEN}✅ Hooks are active.${NC}\n"
 
 # =============================================================================
@@ -296,7 +296,7 @@ stop: ## @runtime Stop the running daemon and all its child processes
 
 restart: sync build config-info ## @runtime Restart daemon with latest source code
 	@mkdir -p $(LOG_DIR)
-	@./scripts/restart_helper.sh "$$(pwd)/$(DIST_DIR)/$(BINARY_NAME)" "$(LOG_FILE)"
+	@./scripts/ops/restart_helper.sh "$$(pwd)/$(DIST_DIR)/$(BINARY_NAME)" "$(LOG_FILE)"
 
 # =============================================================================
 # 📦 SERVICE (System Service)
@@ -349,8 +349,8 @@ service-disable: ## @service Disable auto-start on boot
 # =============================================================================
 svg2png: ## @util Convert SVG to 4K PNG
 	@printf "${CYAN}🖼️  Converting SVG to PNG...${NC}\n"
-	@chmod +x scripts/svg2png.sh 2>/dev/null || true
-	@./scripts/svg2png.sh
+	@chmod +x scripts/tools/svg2png.sh 2>/dev/null || true
+	@./scripts/tools/svg2png.sh
 	@printf "${GREEN}✅ PNG assets generated in docs/images/png/${NC}\n"
 
 # =============================================================================

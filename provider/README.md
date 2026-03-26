@@ -98,41 +98,18 @@ See `docs/provider-extension-guide.md` for detailed extension guide.
 
 ### 1. Implementing a New Provider
 
-To support a new AI CLI tool, implement the `Provider` interface:
+To support a new AI CLI tool, implement the `Provider` interface (defined in `provider.go`):
 
 ```go
-func (p *MyNewProvider) Name() string { return "my-new-ai" }
-
-func (p *MyNewProvider) Metadata() provider.ProviderMeta {
-    return provider.ProviderMeta{ Type: "my-new-ai", BinaryName: "my-ai" }
-}
-
-func (p *MyNewProvider) BuildCLIArgs(providerSessionID string, opts *provider.ProviderSessionOptions) []string {
-    // Construct command line arguments (e.g., --session-id, --model)
-}
-
-func (p *MyNewProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
-    // Format the stdin payload for the CLI
-}
-
-func (p *MyNewProvider) ParseEvent(line string) ([]*provider.ProviderEvent, error) {
-    // Convert a raw line of stdout to normalized events
-}
-
-func (p *MyNewProvider) DetectTurnEnd(event *provider.ProviderEvent) bool {
-    // Return true when a turn is complete
-}
-
-func (p *MyNewProvider) ValidateBinary() (string, error) {
-    // Check if CLI binary exists
-}
-
-func (p *MyNewProvider) CleanupSession(providerSessionID string, workDir string) error {
-    // Clean up session files
-}
-
-func (p *MyNewProvider) VerifySession(providerSessionID string, workDir string) bool {
-    // Check if session data exists on disk
+type Provider interface {
+    Name() string
+    Metadata() ProviderMeta
+    BuildCLIArgs(sessionID string, opts *ProviderSessionOptions) []string
+    BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error)
+    ParseEvent(line string) ([]*ProviderEvent, error)
+    DetectTurnEnd(event *ProviderEvent) bool
+    ValidateBinary() (string, error)
+    CleanupSession(sessionID string, workDir string) error
 }
 ```
 
@@ -178,6 +155,43 @@ Each provider must map its internal events to these standard types:
 | `answer`             | Final or streaming text response.                  |
 | `permission_request` | AI needs user approval for a sensitive action.     |
 | `error`              | A provider-level or tool-level error.              |
+
+---
+
+## 📊 Token Usage & Context Window Management
+
+HotPlex provides deep integration with Claude Code's `stream-json` mode to track costs and monitor context window limits in real-time.
+
+### 1. Claude Code `modelUsage` Structure
+
+In `stream-json` mode, the `result` event contains a `modelUsage` map. HotPlex maps this to `ModelUsageStats` in `types.go`:
+
+| Field | Description |
+| :--- | :--- |
+| `inputTokens` | Cumulative input tokens (not including cache hits). |
+| `outputTokens` | Cumulative output tokens (including thinking blocks). |
+| `cacheReadInputTokens` | Tokens retrieved from Anthropic's prompt cache (90% discount). |
+| `cacheCreationInputTokens` | Tokens written to cache (ephemeral 5m or 1h). |
+| `contextWindow` | The model's total context capacity (e.g., 200,000 or 1,000,000). |
+| `maxOutputTokens` | The model's maximum output limit. |
+| `webSearchRequests` | Count of tool-level web search operations. |
+
+### 2. Multi-Model Context Strategy
+
+Claude Code supports switching models mid-session (via `/model`). In such cases, `modelUsage` may contain multiple entries. HotPlex applies the following logic:
+
+- **Token Aggregation**: `InputTokens`, `OutputTokens`, and `Cost` are summed across all models for total session reporting.
+- **Primary Model Selection**: The model with the highest `inputTokens` is considered the **Primary Model**.
+- **Context Reporting**: The `ContextWindow` and `MaxOutputTokens` of the **Primary Model** are propagated in `ProviderEventMeta` to drive UI usage indicators.
+
+### 3. Context Window Calculation
+
+The HotPlex Engine calculates context utilization percentage using the normalized metadata:
+
+```text
+Total Context Used = inputTokens + cacheReadInputTokens + cacheCreationInputTokens
+Usage % = (Total Context Used / ContextWindow) * 100
+```
 
 ---
 

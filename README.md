@@ -210,6 +210,7 @@ HotPlex acts as a WAF for the local system.
 ### 5. Telemetry & Monitoring (internal/telemetry)
 - **OpenTelemetry**: Deeply integrated OTEL, not only tracking request latency but also tracing every "Permission Decision" made by the AI.
 - **Monitoring Metrics**: Exports Prometheus-compatible metrics covering session success rates, token costs, and security interception frequency.
+- **Deep Token & Context Telemetry**: Real-time tracking of input/output tokens, prompt caching efficiency, and context window utilization (supporting 200K to 1M+ windows).
 
 ### 6. Management Tools (Management CLI)
 `hotplexd` is not just a daemon; it is also a full-featured management tool:
@@ -285,7 +286,7 @@ hotplex/
 | ⏰ **Background Cron** | Native scheduling for periodic AI tasks with failure recovery and webhooks | Automation & Monitoring |
 | Packaged **Go SDK** | Zero-overhead embedded engine for direct integration into Go business logic | Custom Agents |
 | 🔌 **Protocol Compatibility** | Full OpenCode HTTP/SSE protocol support for seamless frontend integration | Cross-language frontend |
-| 📊 **Deep Telemetry** | Built-in OpenTelemetry tracing for tool execution and permission decisions | Production monitoring |
+| 📊 **Deep Telemetry** | Built-in OpenTelemetry tracing and **Real-time Context Window/Token Tracking** | Production monitoring & Cost Control |
 | 🐳 **BaaS Architecture** | Docker 1+n containerization scheme with pre-installed major language environments | Rapid deployment |
 
 ---

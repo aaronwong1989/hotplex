@@ -152,6 +152,12 @@ main() {
     echo -e "${BLUE}  Slack Token Verification Script${NC}"
     echo -e "${BLUE}============================================${NC}"
 
+    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+        echo "Usage: $0 [env-file]"
+        echo "If no env-file is provided, verifies all .env-* files in $MATRIX_DIR"
+        return 0
+    fi
+
     local exit_code=0
 
     if [ -n "$1" ]; then

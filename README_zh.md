@@ -211,6 +211,7 @@ HotPlex 充当了本地系统的 WAF。
 ### 5. 遥测与监控 (internal/telemetry)
 - **OpenTelemetry**: 深度集成 OTEL，不仅记录请求延迟，更追踪了 AI 权力的每一次“出笼” (Permission Decisions)。
 - **监控指标**: 导出 Prometheus 兼容指标，涵盖会话成功率、Token 成本及安全拦截频次。
+- **深度 Token 与上下文遥测**: 实时追踪输入/输出 Token、Prompt 缓存效率及上下文窗口占用（支持 200K 到 1M+ 窗口）。
 
 ### 6. 管理工具 (Management CLI)
 `hotplexd` 不仅仅是一个守护进程，它也是一个功能完善的管理工具：
@@ -286,7 +287,7 @@ hotplex/
 | ⏰ **后台 Cron** | 原生支持 AI 任务定时调度，具备失败恢复与 Webhook 回调 | 自动化与监控 |
 | Packaged **Go SDK** | 零开销嵌入式引擎，直接集成到 Go 业务逻辑 | 自定义 Agent |
 | 🔌 **协议兼容** | 完整 OpenCode HTTP/SSE 协议支持，无缝对接主流前端 | 跨语言前端 |
-| 📊 **深度遥测** | 内置 OpenTelemetry 链路追踪，详解工具执行与权限决策 | 生产监控 |
+| 📊 **深度遥测** | 内置 OpenTelemetry 链路追踪与 **实时上下文/Token 监控** | 生产监控与成本控制 |
 | 🐳 **BaaS 架构** | Docker 1+n 容器化方案，预装主流语言开发环境 | 快速部署 |
 
 ---

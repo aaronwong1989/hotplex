@@ -1,97 +1,75 @@
 # HotPlex Scripts
 
-Utility scripts and Git hooks for development, deployment, and asset generation.
+Standardized utility scripts and Git hooks for development, operations, and verification.
 
-## Git Hooks
+## Directory Structure
+
+| Directory | Focus | Key Scripts |
+|-----------|-------|-------------|
+| [`git-hooks/`](./git-hooks) | Developer experience & quality | `setup_hooks.sh`, `pre-commit`, `commit-msg` |
+| [`ops/`](./ops) | Deployment & service management | `service.sh`, `restart_helper.sh`, `setup_gitconfig.sh` |
+| [`verify/`](./verify) | Automated validation & diagnostics | `verify_claude_stream_tokens.py`, `check_links.py` |
+| [`tools/`](./tools) | Asset generation & GitHub management | `generate_assets.sh`, `manage-labels.py` |
+
+---
+
+## 🔗 Git Hooks (`git-hooks/`)
 
 Ensure code quality and consistent commit messages.
 
-| Script | Description |
-|--------|-------------|
-| `setup_hooks.sh` | Links hooks from `scripts/` to `.git/hooks/` |
-| `pre-commit` | Runs `go fmt` and dependency checks before commit |
-| `commit-msg` | Validates Conventional Commits format |
-| `pre-push` | Final checks (e.g., full test suite) before push |
+- `setup_hooks.sh`: Links hooks from `scripts/git-hooks/` to `.git/hooks/`.
+- `pre-commit`: Runs `go fmt` and dependency checks.
+- `commit-msg`: Validates [Conventional Commits](https://www.conventionalcommits.org/) format.
+- `pre-push`: Runs full test suite before pushing.
 
-Setup: `bash scripts/setup_hooks.sh`
+**Setup:** `make install-hooks` (or `bash scripts/git-hooks/setup_hooks.sh`)
 
-## Documentation
+---
 
-| Script | Description |
-|--------|-------------|
-| `check_links.py` | Audits internal docs links to prevent dead links |
+## 🚀 Operations (`ops/`)
 
-## Asset Generation
+Deployment and runtime management.
 
-| Script | Description |
-|--------|-------------|
-| `generate_assets.sh` | Generates `favicon.ico`, OG images, and PNGs from SVG sources |
-| `svg2png.sh` | Converts SVG files to high-resolution PNGs with customizable zoom/colors |
+- `service.sh`: Install/manage `hotplexd` as a system service (launchd/systemd).
+- `restart_helper.sh`: Gracefully restart the daemon (used by `Makefile`).
+- `setup_gitconfig.sh`: Generate isolated git identity for bot containers.
 
-## GitHub Management
+---
 
-| Script | Description |
-|--------|-------------|
-| `manage-labels.py` | Manages GitHub issue/PR labels — 7 categories, 34 labels total |
+## 🧪 Verification (`verify/`)
 
-```bash
-python3 scripts/manage-labels.py --dry-run  # Preview changes
-python3 scripts/manage-labels.py --apply    # Apply changes
-```
+Validation of tokens, links, and engine behavior.
 
-See [docs/github-labels.md](../docs/github-labels.md) for the full label system guide.
+- `verify_claude_stream_tokens.py`: Verify token usage data in Claude Code stream-json.
+- `verify_slack_tokens.sh`: Check validity of Slack Bot/App tokens.
+- `check_links.py`: Audit internal documentation for dead links.
+- `analyze_model_usage_fields.py`: Analyze model usage data fields.
 
-## Verification & Diagnostics
+---
 
-| Script | Description |
-|--------|-------------|
-| `verify_claude_stream_tokens.py` | Verify Claude Code CLI returns token data in stream-json output format |
-| `verify_slack_tokens.sh` | Verify Slack Bot Token (xoxb-) and App Token (xapp-) validity |
+## 🛠️ Tools & Assets (`tools/`)
 
-### verify_claude_stream_tokens.py
+Asset generation and repository management.
 
-Validates that Claude Code CLI provides token usage data (including cache tokens) in stream-json mode.
+- `generate_assets.sh`: Generate `favicon.ico`, OG images, and PNGs from SVGs.
+- `svg2png.sh`: Convert SVG to high-resolution PNGs.
+- `manage-labels.py`: Sync GitHub issue/PR labels with project standards.
 
-**Usage:**
-```bash
-python3 scripts/verify_claude_stream_tokens.py
-```
+---
 
-**Requirements:**
-- Claude Code CLI installed (`~/.local/bin/claude`)
-- `ANTHROPIC_AUTH_TOKEN` environment variable set
-
-**Output:**
-- Event summary (all event types in the stream)
-- Token data extraction (input/output/cache tokens)
-- Verification status (passed/failed)
-
-**Token Fields Verified:**
-- `input_tokens`: Total input tokens consumed
-- `output_tokens`: Total output tokens generated
-- `cache_creation_input_tokens`: Tokens written to cache
-- `cache_read_input_tokens`: Tokens read from cache (cache hits)
-
-**Related Issues:** #350, #351
-
-## Deployment & DevOps
-
-| Script | Description |
-|--------|-------------|
-| `service.sh` | Install/manage hotplexd as a system service (launchd/systemd) |
-| `setup_gitconfig.sh` | Generate isolated git identity for each bot container |
-| `verify_slack_tokens.sh` | Verify Slack Bot Token (xoxb-) and App Token (xapp-) validity |
-| `restart_helper.sh` | Gracefully restart the hotplexd daemon (used by Makefile) |
+## Usage Examples
 
 ```bash
-# Service management
-bash scripts/service.sh install    # Install as system service
-bash scripts/service.sh start      # Start service
-bash scripts/service.sh status     # Check status
+# Install hooks
+make install-hooks
 
-# Verify Slack tokens
-bash scripts/verify_slack_tokens.sh
+# Manage service
+make service-status
+make service-restart
 
-# Setup bot git identities
-bash scripts/setup_gitconfig.sh
+# Verify tokens
+bash scripts/verify/verify_slack_tokens.sh
+
+# Sync GitHub labels
+python3 scripts/tools/manage-labels.py --apply
 ```

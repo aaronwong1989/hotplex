@@ -36,9 +36,10 @@ type ModelUsageStats struct {
 	OutputTokens             int32   `json:"outputTokens"`
 	CacheReadInputTokens     int32   `json:"cacheReadInputTokens"`
 	CacheCreationInputTokens int32   `json:"cacheCreationInputTokens"`
+	WebSearchRequests        int32   `json:"webSearchRequests"` // WebSearchRequests is the count of tool-level web search operations.
 	CostUSD                  float64 `json:"costUSD"`
-	ContextWindow            int32   `json:"contextWindow"`        // Model's context window size (tokens)
-	MaxOutputTokens          int32   `json:"maxOutputTokens"`      // Model's max output tokens
+	ContextWindow            int32   `json:"contextWindow"`   // ContextWindow is the model's total context capacity (tokens). Used for utilization calculation.
+	MaxOutputTokens          int32   `json:"maxOutputTokens"` // MaxOutputTokens is the model's maximum output limit.
 }
 
 // UsageStats represents the token consumption breakdown.

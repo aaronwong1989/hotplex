@@ -278,13 +278,13 @@ Issue: [feat] 支持 Telegram 平台
 
 ```bash
 # 预览变更
-python scripts/manage-labels.py --dry-run
+python scripts/tools/manage-labels.py --dry-run
 
 # 应用变更
-python scripts/manage-labels.py --apply
+python scripts/tools/manage-labels.py --apply
 
 # 跳过删除旧标签
-python scripts/manage-labels.py --apply --skip-delete
+python scripts/tools/manage-labels.py --apply --skip-delete
 ```
 
 ### 2. GitHub Actions 自动化
