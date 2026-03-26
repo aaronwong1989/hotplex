@@ -84,10 +84,23 @@ if [[ "$(id -u)" = "0" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 1.5. Generate statusline.sh from seed
-#      Copies seed file and ensures correct permissions
+# 1.5. Initialize plugins directory
+#      The seed plugins/ is mounted read-only as .seed,
+#      writable layer is at plugins/ (named volume hotplex-matrix-plugins)
+#      Merge seed plugins into writable layer
 # ------------------------------------------------------------------------------
 CLAUDE_DIR="${HOTPLEX_HOME}/.claude"
+PLUGINS_SEED="${CLAUDE_DIR}/plugins.seed"
+PLUGINS_WRITABLE="${CLAUDE_DIR}/plugins"
+
+# Ensure writable plugins directory exists (from named volume)
+run_as_hotplex mkdir -p "${PLUGINS_WRITABLE}"
+
+# Copy seed plugins to writable layer if writable layer is empty
+if [[ -d "${PLUGINS_SEED}" ]] && [[ -z "$(ls -A "${PLUGINS_WRITABLE}" 2>/dev/null)" ]]; then
+    echo "--> Copying seed plugins to writable layer..."
+    cp -r "${PLUGINS_SEED}"/* "${PLUGINS_WRITABLE}/" 2>/dev/null || true
+fi
 STATUSLINE_SEED="${CLAUDE_DIR}/statusline.sh.seed"
 STATUSLINE_TARGET="${CLAUDE_DIR}/statusline.sh"
 
@@ -144,18 +157,27 @@ CREDENTIALS_JSON="${CLAUDE_DIR}/credentials.json"
 # Ensure container-private .claude directory exists (named volume auto-creates)
 run_as_hotplex mkdir -p "${CLAUDE_DIR}"
 
-# Ensure .claude.json exists (Claude Code CLI requires this file)
-# Create empty JSON object if missing to prevent "configuration file not found" warnings
-# This file is a runtime state file containing userID, project configs, MCP servers, etc.
-# Reference: https://code.claude.com/docs/en/settings
-if [[ ! -f "${CLAUDE_JSON}" ]]; then
-    echo "--> Creating empty .claude.json configuration file..."
-    run_as_hotplex sh -c "echo '{}' > '${CLAUDE_JSON}'"
-    # Ensure correct permissions
-    if [[ "$(id -u)" = "0" ]]; then
-        chown hotplex:hotplex "${CLAUDE_JSON}" 2>/dev/null || true
+# ------------------------------------------------------------------------------
+# 4.5. Initialize Claude Configuration from Seed
+# ------------------------------------------------------------------------------
+initialize_claude_config() {
+    local claude_json="${HOTPLEX_HOME}/.claude.json"
+    local seed_claude_json="${HOTPLEX_HOME}/.claude/.claude.json"
+
+    # Skip if seed file not available
+    [[ ! -f "${seed_claude_json}" ]] && return 0
+
+    # Skip if container already has config (preserve user runtime state)
+    [[ -f "${claude_json}" ]] && return 0
+
+    # Copy seed config to container home
+    if cp "${seed_claude_json}" "${claude_json}" 2>/dev/null; then
+        [[ "$(id -u)" = "0" ]] && chown hotplex:hotplex "${claude_json}" 2>/dev/null || true
     fi
-fi
+}
+
+# Run initialization
+initialize_claude_config
 
 # ------------------------------------------------------------------------------
 # 5. Cleanup Orphaned Claude userID (prevent OAuth prompts in containers)

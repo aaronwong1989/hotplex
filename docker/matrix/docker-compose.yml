@@ -4,6 +4,8 @@
 volumes:
   # Shared across instances (module download cache - read-mostly, safe to share)
   hotplex-matrix-go-mod: { name: hotplex-matrix-go-mod }
+  # Writable plugins cache (marketplaces, etc.)
+  hotplex-matrix-plugins: { name: hotplex-matrix-plugins }
   # Per-instance build cache (isolated to avoid cross-contamination)
   hotplex-matrix-go-build-01: { name: hotplex-matrix-go-build-01 }
   hotplex-matrix-go-build-02: { name: hotplex-matrix-go-build-02 }

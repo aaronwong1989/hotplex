@@ -98,12 +98,15 @@ services:
     command: ["hotplexd", "start"]
     volumes:
       # Claude config from preprocessed seed (read-only, container-compatible)
+      - ${HOME}/.hotplex/claude-seed/.claude.json:/home/hotplex/.claude/.claude.json:ro
       - ${HOME}/.hotplex/claude-seed/settings.json:/home/hotplex/.claude/settings.json:ro
       - ${HOME}/.hotplex/claude-seed/settings.local.json:/home/hotplex/.claude/settings.local.json:ro
       - ${HOME}/.hotplex/claude-seed/skills:/home/hotplex/.claude/skills:ro
       - ${HOME}/.hotplex/claude-seed/scripts:/home/hotplex/.claude/scripts:ro
-      - ${HOME}/.hotplex/claude-seed/plugins:/home/hotplex/.claude/plugins:ro
       - ${HOME}/.hotplex/claude-seed/hooks:/home/hotplex/.claude/hooks:ro
+      - ${HOME}/.hotplex/claude-seed/plugins:/home/hotplex/.claude/plugins.seed:ro
+      # Writable plugins directory (created from named volume)
+      - hotplex-matrix-plugins:/home/hotplex/.claude/plugins:rw
       # statusline.sh is mounted as .seed file and processed by entrypoint
       - ${HOME}/.hotplex/claude-seed/statusline.sh:/home/hotplex/.claude/statusline.sh.seed:ro
       # Shared Go module cache (safe to share across instances)

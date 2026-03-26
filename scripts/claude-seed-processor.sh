@@ -30,6 +30,14 @@ HOST_USER=$(whoami)
 CONTAINER_USER="hotplex"
 LOG_FILE="${HOME}/.hotplex/claude-seed.log"
 
+# Detect sed compatibility (BSD vs GNU)
+# Store sed command prefix for reuse
+if sed --version 2>&1 | grep -q "GNU"; then
+    SED_CMD=("sed" "-i")
+else
+    SED_CMD=("sed" "-i" "")
+fi
+
 # Parse arguments
 VERIFY_ONLY=false
 if [[ "${1:-}" == "--verify" ]]; then
@@ -55,6 +63,15 @@ log_warn() {
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1" >&2
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE"
+}
+
+# ------------------------------------------------------------------------------
+# Helper: Replace user paths in files (cross-platform, single sed pass)
+# ------------------------------------------------------------------------------
+replace_paths() {
+    local file="$1"
+    # Single sed call: replace both macOS and Linux paths atomically
+    "${SED_CMD[@]}" "s|/Users/${HOST_USER}|/home/${CONTAINER_USER}|g; s|/home/${HOST_USER}|/home/${CONTAINER_USER}|g" "$file" 2>/dev/null || true
 }
 
 # Verify seed directory
@@ -132,16 +149,9 @@ process_seed() {
         if [[ -f "$SOURCE_DIR/$file" ]]; then
             log_info "  Processing $file"
 
-            # Replace hardcoded paths
-            # macOS pattern: /Users/username -> /home/hotplex
-            sed "s|/Users/${HOST_USER}|/home/${CONTAINER_USER}|g" \
-                "$SOURCE_DIR/$file" > "$OUTPUT_DIR/$file"
-
-            # Additional replacements for safety
-            # Linux pattern (if running on Linux host)
-            if [[ "$(uname)" == "Linux" ]]; then
-                sed -i "s|/home/${HOST_USER}|/home/${CONTAINER_USER}|g" "$OUTPUT_DIR/$file"
-            fi
+            # Copy file first, then replace paths in single operation
+            cp "$SOURCE_DIR/$file" "$OUTPUT_DIR/$file"
+            replace_paths "$OUTPUT_DIR/$file"
 
             log_success "  ✓ $file processed"
         else
@@ -169,16 +179,7 @@ process_seed() {
 
             mkdir -p "$(dirname "$target_path")"
             cp "$file" "$target_path"
-
-            # Process paths in skill files
-            if file "$target_path" | grep -q "text"; then
-                sed -i '' "s|/Users/${HOST_USER}|/home/${CONTAINER_USER}|g" "$target_path" 2>/dev/null || \
-                sed -i "s|/Users/${HOST_USER}|/home/${CONTAINER_USER}|g" "$target_path" 2>/dev/null || true
-
-                if [[ "$(uname)" == "Linux" ]]; then
-                    sed -i "s|/home/${HOST_USER}|/home/${CONTAINER_USER}|g" "$target_path" 2>/dev/null || true
-                fi
-            fi
+            replace_paths "$target_path"
         done
 
         log_success "  ✓ skills/ processed (symlinks, caches, backups, and benchmarks skipped)"
@@ -192,11 +193,12 @@ process_seed() {
     # Process scripts
     if [[ -d "$SOURCE_DIR/scripts" ]]; then
         mkdir -p "$OUTPUT_DIR/scripts"
-        find "$SOURCE_DIR/scripts" -type f ! -type l -print0 | while IFS= read -r -d '' file; do
+        find "$SOURCE_DIR/scripts" -type f -print0 | while IFS= read -r -d '' file; do
             rel_path="${file#$SOURCE_DIR/scripts/}"
             target_path="$OUTPUT_DIR/scripts/$rel_path"
             mkdir -p "$(dirname "$target_path")"
             cp "$file" "$target_path"
+            replace_paths "$target_path"
         done
         log_success "  ✓ scripts/ processed"
     else
@@ -206,11 +208,12 @@ process_seed() {
     # Process hooks
     if [[ -d "$SOURCE_DIR/hooks" ]]; then
         mkdir -p "$OUTPUT_DIR/hooks"
-        find "$SOURCE_DIR/hooks" -type f ! -type l -print0 | while IFS= read -r -d '' file; do
+        find "$SOURCE_DIR/hooks" -type f -print0 | while IFS= read -r -d '' file; do
             rel_path="${file#$SOURCE_DIR/hooks/}"
             target_path="$OUTPUT_DIR/hooks/$rel_path"
             mkdir -p "$(dirname "$target_path")"
             cp "$file" "$target_path"
+            replace_paths "$target_path"
         done
         log_success "  ✓ hooks/ processed"
     else
@@ -220,38 +223,84 @@ process_seed() {
     # Process statusline.sh
     if [[ -f "$SOURCE_DIR/statusline.sh" ]]; then
         mkdir -p "$OUTPUT_DIR"
-        # Resolve if symlink
-        if [[ -L "$SOURCE_DIR/statusline.sh" ]]; then
-            cp "$SOURCE_DIR/statusline.sh" "$OUTPUT_DIR/statusline.sh"
-        else
-            cp "$SOURCE_DIR/statusline.sh" "$OUTPUT_DIR/statusline.sh"
-        fi
-
-        # Process paths in statusline.sh
-        if file "$OUTPUT_DIR/statusline.sh" | grep -q "text"; then
-            sed -i '' "s|/Users/${HOST_USER}|/home/${CONTAINER_USER}|g" "$OUTPUT_DIR/statusline.sh" 2>/dev/null || \
-            sed -i "s|/Users/${HOST_USER}|/home/${CONTAINER_USER}|g" "$OUTPUT_DIR/statusline.sh" 2>/dev/null || true
-
-            if [[ "$(uname)" == "Linux" ]]; then
-                sed -i "s|/home/${HOST_USER}|/home/${CONTAINER_USER}|g" "$OUTPUT_DIR/statusline.sh" 2>/dev/null || true
-            fi
-        fi
+        cp "$SOURCE_DIR/statusline.sh" "$OUTPUT_DIR/statusline.sh"
+        replace_paths "$OUTPUT_DIR/statusline.sh"
         chmod +x "$OUTPUT_DIR/statusline.sh"
         log_success "  ✓ statusline.sh processed"
     else
         log_info "  statusline.sh not found (optional)"
     fi
 
-    # 4. Copy additional config files (exclude large directories)
-    log_info "Copying additional config files..."
-    for file in ".claude.json" "statusline.sh"; do
-        if [[ -f "$SOURCE_DIR/$file" ]]; then
-            cp "$SOURCE_DIR/$file" "$OUTPUT_DIR/"
-            log_success "  ✓ $file copied"
-        fi
-    done
+    # 4. Process plugins directory (copy entire structure including marketplaces)
+    log_info "Processing plugins directory..."
+    if [[ -d "$SOURCE_DIR/plugins" ]]; then
+        mkdir -p "$OUTPUT_DIR/plugins"
+        # Copy all files preserving directory structure, skip cache
+        find "$SOURCE_DIR/plugins" -type f -print0 | while IFS= read -r -d '' file; do
+            rel_path="${file#$SOURCE_DIR/plugins/}"
+            # Skip large cache files only; copy marketplaces with full structure
+            if [[ "$rel_path" =~ ^cache/ ]]; then
+                continue
+            fi
+            target_path="$OUTPUT_DIR/plugins/$rel_path"
+            mkdir -p "$(dirname "$target_path")"
+            cp "$file" "$target_path"
+            replace_paths "$target_path"
+        done
+        # Copy marketplaces subdirectories (with full structure) and local/repos (flat copy)
+        for subdir in marketplaces local repos; do
+            if [[ -d "$SOURCE_DIR/plugins/$subdir" ]]; then
+                mkdir -p "$OUTPUT_DIR/plugins/$subdir"
+                if [[ "$subdir" == "marketplaces" ]]; then
+                    # marketplaces has nested structure: copy directories recursively
+                    find "$SOURCE_DIR/plugins/$subdir" -mindepth 1 -maxdepth 1 -type d | while IFS= read -r -d '' mdir; do
+                        mname=$(basename "$mdir")
+                        cp -r "$mdir" "$OUTPUT_DIR/plugins/$subdir/$mname/"
+                    done
+                else
+                    # repos/local: flat file copy
+                    cp "$SOURCE_DIR/plugins/$subdir"/* "$OUTPUT_DIR/plugins/$subdir/" 2>/dev/null || true
+                fi
+            fi
+        done
+        log_success "  ✓ plugins/ processed"
+    else
+        log_info "  plugins/ directory not found"
+    fi
 
-    # 5. Final verification
+    # 5. Extract minimal ~/.claude.json configuration
+    #    Only hasCompletedOnboarding + mcpServers (~450 bytes vs ~53KB original)
+    log_info "Extracting minimal ~/.claude.json configuration..."
+    local host_claude_json="${HOME}/.claude.json"
+
+    if [[ -f "$host_claude_json" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            tmp_file="$OUTPUT_DIR/.claude.json.tmp"
+
+            # Extract ONLY essential fields for container initialization
+            if jq '{
+                hasCompletedOnboarding,
+                mcpServers
+            }' "$host_claude_json" > "$tmp_file" 2>/dev/null; then
+                # Replace user paths in MCP server configs (if any)
+                replace_paths "$tmp_file"
+                mv "$tmp_file" "$OUTPUT_DIR/.claude.json"
+                log_success "  ✓ .claude.json processed (onboarding + MCP servers only)"
+            else
+                log_warn "  Failed to extract .claude.json with jq, creating minimal config"
+                echo '{"hasCompletedOnboarding":true}' > "$OUTPUT_DIR/.claude.json"
+                rm -f "$tmp_file" 2>/dev/null || true
+            fi
+        else
+            log_warn "  jq not available, creating minimal .claude.json"
+            echo '{"hasCompletedOnboarding":true}' > "$OUTPUT_DIR/.claude.json"
+        fi
+    else
+        log_warn "  ~/.claude.json not found, creating minimal config"
+        echo '{"hasCompletedOnboarding":true}' > "$OUTPUT_DIR/.claude.json"
+    fi
+
+    # 6. Final verification
     log_info "Running final verification..."
     if verify_seed; then
         log_success "══════════════════════════════════════════"
