@@ -30,8 +30,30 @@ permissions:
   pull-requests: write  # Required for Codecov PR comments
 
 jobs:
+  # 检测文件变更
+  changes:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Makefile'
+
   # Unit Tests
   test-unit:
+    needs: [changes]
     name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -71,6 +93,8 @@ jobs:
 
   # 当 Go 文件变化时运行，否则跳过（跳过视为成功）
   test-integration:
+    needs: [changes]
+    if: needs.changes.outputs.go == 'true'
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -95,6 +119,8 @@ jobs:
 
   # Code quality check
   lint:
+    needs: [changes]
+    if: needs.changes.outputs.go == 'true'
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -213,6 +213,7 @@ jobs:
             type=raw,value=latest-go,enable=${{ github.ref == 'refs/heads/main' && matrix.variant.name == 'go-default' }}
 
       - name: Build and push ${{ matrix.variant.name }}
+        id: build-push
         uses: docker/build-push-action@v7
         with:
           context: .
