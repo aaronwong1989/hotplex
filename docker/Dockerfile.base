@@ -100,8 +100,9 @@ COPY --from=tools-collector /usr/local/bin/websocat /usr/local/bin/websocat
 # Claude Code is already installed via curl installer in Stage 2
 # Install additional npm tools (opencode-ai, pi-coding-agent)
 RUN npm install -g opencode-ai @mariozechner/pi-coding-agent && \
-    npm cache clean --force && \
-    # Create symlinks for npm tools
+    npm cache clean --force
+
+# Create symlinks for npm tools
 RUN ln -sf /usr/local/lib/node_modules/opencode-ai/bin/opencode /usr/local/bin/opencode && \
     ln -sf /usr/local/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js /usr/local/bin/pi
 

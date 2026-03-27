@@ -10,7 +10,7 @@ inherits: ../base/slack.yaml
 # Provider Configuration
 # Switch between claude-code (default) and opencode-server
 provider:
-  type: opencode-server  # claude-code | opencode-server
+  type: opencode-server  # enum: claude-code | opencode | opencode-server | pi
 
   # OpenCode Server Configuration
   opencode:

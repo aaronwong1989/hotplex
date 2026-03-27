@@ -171,7 +171,7 @@ assistant:
 
 | 变量                                            | 默认值        | 描述                            |
 | ----------------------------------------------- | ------------- | ------------------------------- |
-| `HOTPLEX_PROVIDER_TYPE`                         | `claude-code` | Provider：claude-code, opencode |
+| `HOTPLEX_PROVIDER_TYPE`                         | `claude-code` | Provider：claude-code, opencode, opencode-server, pi |
 | `HOTPLEX_PROVIDER_MODEL`                        | `sonnet`      | 默认模型：sonnet, haiku, opus   |
 | `HOTPLEX_PROVIDER_BINARY`                       | *(自动检测)*  | CLI 二进制路径                  |
 | `HOTPLEX_PROVIDER_DANGEROUSLY_SKIP_PERMISSIONS` | `false`       | 跳过所有权限检查                |
@@ -297,7 +297,7 @@ security:
 
 | 字段                           | 描述                                                                        |
 | ------------------------------ | --------------------------------------------------------------------------- |
-| `type`                         | Provider 类型：`claude-code`, `opencode`                                    |
+| `type`                         | Provider 类型：`claude-code`, `opencode`, `opencode-server`, `pi`            |
 | `enabled`                      | 启用/禁用 provider                                                          |
 | `default_model`                | 默认模型 ID                                                                 |
 | `default_permission_mode`      | 权限模式：`bypassPermissions`, `acceptEdits`, `default`, `dontAsk`, `plan` |
@@ -305,6 +305,49 @@ security:
 | `binary_path`                  | 自定义二进制路径                                                            |
 | `allowed_tools`                | 工具白名单                                                                  |
 | `disallowed_tools`             | 工具黑名单                                                                  |
+
+### Provider 类型说明
+
+| 类型              | 描述                                         | 传输方式   |
+| ----------------- | -------------------------------------------- | ---------- |
+| `claude-code`     | Claude Code CLI 提供者（默认）               | stdin/stdout |
+| `opencode`        | OpenCode CLI 提供者                          | stdin/stdout |
+| `opencode-server` | OpenCode Server 提供者（HTTP 传输，持久会话）| HTTP API   |
+| `pi`              | Pi AI 提供者（本地 CLI，支持 15+ LLM）      | stdin/stdout |
+
+### OpenCode Server 配置
+
+使用 `opencode-server` 类型时，通过 HTTP API 与运行中的 `opencode serve` 实例通信：
+
+```yaml
+provider:
+  type: opencode-server
+
+  # OpenCode Server 专用配置
+  opencode:
+    server_url: "http://127.0.0.1:4096"  # OpenCode 服务地址（必填）
+    agent: "default"                      # 使用的 Agent 名称
+    password: ""                          # 服务认证密码
+    work_dir: ""                          # 项目工作目录（通过 HTTP 头传递）
+```
+
+### Pi 配置
+
+使用 `pi` 类型时，通过 pi-coding-agent CLI 与 15+ 种 LLM 提供者交互：
+
+```yaml
+provider:
+  type: pi
+
+  # Pi 专用配置
+  pi:
+    provider: "anthropic"    # LLM 提供者：anthropic, openai, google 等
+    model: "opus"            # 模型名称
+    thinking: "high"         # 思考级别：off, minimal, low, medium, high, xhigh
+    use_rpc: false           # 使用 RPC 模式（进程集成）
+    session_dir: ""          # 自定义会话存储目录
+    no_session: false        # 禁用会话持久化（临时模式）
+```
 
 ### Engine 部分
 

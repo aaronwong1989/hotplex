@@ -11,6 +11,7 @@ graph TD
     Engine[HotPlex Engine] --> Factory[Provider Factory]
     Factory --> Claude[Claude Code Provider]
     Factory --> OpenCode[OpenCode Provider]
+    Factory --> OpenCodeServer[OpenCode Server Provider]
     Factory --> Pi[Pi Provider]
     Factory --> Plugin[Plugin Registry]
     Plugin --> Custom[Third-party Providers]
@@ -22,6 +23,7 @@ graph TD
 
     Claude -.-> Provider
     OpenCode -.-> Provider
+    OpenCodeServer -.-> Provider
     Pi -.-> Provider
     Custom -.-> Provider
 ```
@@ -33,6 +35,7 @@ graph TD
 - **Factory Pattern**: The `ProviderFactory` allows for dynamic registration and creation of providers based on configuration.
 - **Plugin System**: Third-party providers can be registered via `RegisterPlugin()` without modifying core code.
 - **Protocol Translation**: Each provider implementation handles the specific "dialect" of its underlying CLI.
+- **Transport Layer**: HTTP transport (`transport_http.go`) for server-based providers (e.g., OpenCode Server) vs CLI subprocess for local providers (e.g., Claude Code, Pi).
 
 ---
 
@@ -214,16 +217,19 @@ provider:
 
 ```
 provider/
-├── provider.go        # Core interfaces and types
-├── types.go           # Configuration and constant definitions
-├── plugin.go          # Plugin system (RFC #216)
-├── factory.go         # Provider factory and registry
-├── event.go           # Event types and normalization
-├── permission.go      # Permission handling
-├── claude_provider.go # Claude Code implementation
-├── opencode_provider.go # OpenCode implementation
-├── pi_provider.go     # Pi implementation
-└── README.md          # This file
+├── provider.go                 # Core interfaces and types
+├── types.go                    # Configuration and constant definitions
+├── plugin.go                   # Plugin system (RFC #216)
+├── factory.go                  # Provider factory and registry
+├── event.go                    # Event types and normalization
+├── permission.go               # Permission handling
+├── transport.go                # Transport interface
+├── transport_http.go           # HTTP transport implementation
+├── claude_provider.go          # Claude Code implementation
+├── opencode_server_provider.go # OpenCode Server implementation (HTTP transport)
+├── opencode_types.go           # OpenCode type definitions
+├── pi_provider.go              # Pi implementation
+└── README.md                   # This file
 ```
 
 ---

@@ -9,7 +9,7 @@
 
   <p>
     <a href="https://github.com/hrygo/hotplex/releases/latest">
-      <img src="https://img.shields.io/badge/版本-v0.34.0-00ADD8?style=flat-square&logo=go" alt="Release">
+      <img src="https://img.shields.io/badge/版本-v0.36.0-00ADD8?style=flat-square&logo=go" alt="Release">
     </a>
     <a href="https://pkg.go.dev/github.com/hrygo/hotplex">
       <img src="https://img.shields.io/badge/go-reference-00ADD8?style=flat-square&logo=go" alt="Go Reference">

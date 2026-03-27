@@ -4,7 +4,7 @@
 
 HotPlex is a high-performance **Agent Runtime** for AI CLI Agents, designed to transform one-off terminal-based AI tools (like Claude Code or OpenCode) into production-ready, long-lived interactive services. Its core philosophy is "Leverage vs Build"—by maintaining a persistent process pool with hardened security boundaries and a normalized full-duplex protocol layer, HotPlex eliminates the spin-up overhead of headless CLI environments and enables millisecond-level responsiveness.
 
-**Version**: v0.34.0 | **Core Role**: AI Agent Engineering Protocol (Cli-as-a-Service)
+**Version**: v0.36.0 | **Core Role**: AI Agent Engineering Protocol (Cli-as-a-Service)
 
 ---
 
@@ -17,9 +17,12 @@ HotPlex follows a layered architecture with strict visibility rules, separating 
 - **Root (`/`)**: SDK entry points. Contains `hotplex.go` (public aliases) and `client.go`.
 - **`cmd/`**: Entry points for the daemon and the CLI. Contains sub-packages for various commands.
 - **`engine/`**: Public execution runner (`Engine`). Orchestrates prompt execution, security WAF, and event dispatching.
-- **`provider/`**: Abstraction layer for diverse AI CLI agents. Contains the `Provider` interface and concrete implementations for `claude-code` and `opencode`.
+- **`provider/`**: Abstraction layer for diverse AI CLI agents. Contains the `Provider` interface and concrete implementations for `claude-code`, `opencode`, `opencode-server`, and `pi`.
+- **`brain/`**: Native Brain — orchestration, routing, and memory compression. Contains `brain/llm/` for LLM-powered intelligence.
+- **`cache/`**: Response cache layer for reducing redundant AI calls.
 - **`types/`**: Fundamental data structures (`Config`, `StreamMessage`, `UsageStats`).
 - **`event/`**: Unified event protocol and callback definitions (`Callback`, `EventWithMeta`).
+- **`hooks/`**: Event hook system for webhooks and audit sinks (Slack, generic webhooks).
 - **`chatapps/`**: **Platform Access Layer**. Connects HotPlex to social platforms with multi-adapter support:
   - **Slack Adapter** (`chatapps/slack/`): Block Kit UI, Socket Mode, Native Streaming, Assistant Status API
   - **Feishu Adapter** (`chatapps/feishu/`): Lark/Feishu custom bot support
@@ -28,6 +31,19 @@ HotPlex follows a layered architecture with strict visibility rules, separating 
     - `manager.go`: Lifecycle management for bot adapters
     - `processor_*.go`: Middleware chain for message formatting, rate limiting, thread management, chunking
     - `base/adapter.go`: Abstract base adapter with session management
+    - `command/`: Built-in command handlers
+    - `dedup/`: Message deduplication
+    - `session/`: Session state management
+    - `internal/`: Internal platform utilities
+- **`plugins/storage/`**: Message persistence backends (SQLite, PostgreSQL).
+- **`sdks/`**: Client SDKs for third-party integration — Python SDK (`sdks/python/`) and TypeScript SDK (`sdks/typescript/`).
+- **`scripts/`**: Shell scripts and operational utilities (asset generation, git hooks, testing, provider switching).
+- **`install/`**: One-click installation scripts (`hotplex-install.sh` for Unix, `hotplex-install.ps1` for Windows).
+- **`_examples/`**: Example implementations covering Go, Python, TypeScript, Java, and Node.js integrations.
+- **`docker/`**: Dockerfiles and container orchestration configs.
+- **`configs/`**: SSOT configuration templates with inheritance support.
+- **`docs/`**: Architecture documentation and design references.
+- **`docs-site/`**: Project documentation website source.
 - **`internal/engine/`**: Core execution engine. Manages `SessionPool` (thread-safe process multiplexing) and `Session` (I/O piping and state management).
 - **`internal/persistence/`**: **Session Resiliency**. Manages `SessionMarkerStore` for detecting and resuming persistent CLI sessions after system restarts.
 - **`internal/security/`**: Regex-based WAF (`Detector`) for command auditing and `danger_block` closed-loop security.
@@ -35,10 +51,17 @@ HotPlex follows a layered architecture with strict visibility rules, separating 
 - **`internal/server/`**: Protocol adapters. Contains `hotplex_ws.go` (WebSocket) and `opencode_http.go` (REST/SSE).
 - **`internal/config/`**: Configuration hot-reloading with file watchers.
 - **`internal/admin/`**: **Management Plane**. Admin API server (port 9080) for session management, diagnostics, and config validation.
+- **`internal/adminapi/`**: Admin API HTTP handlers for authentication, domain logic, and request routing.
+- **`internal/agent/`**: Agent registry for card-based agent management.
+- **`internal/brain/`**: Brain internal implementation — cron intent processing and scheduling.
+- **`internal/bridgewire/`**: Bridge wire communication protocol for cross-process coordination.
+- **`internal/permission/`**: Permission management with matcher-based access control and policy store.
+- **`internal/panicx/`**: Panic recovery utilities for goroutine safety.
 - **`internal/cron/`**: **Automation Engine**. `CronScheduler` for managing periodic AI tasks with persistent history.
 - **`internal/relay/`**: **Inter-Agent Communication**. `RelayManager` for cross-platform bot-to-bot message routing.
+- **`internal/secrets/`**: Secrets provider for API key management and credential rotation.
+- **`internal/telemetry/`**: OpenTelemetry integration for tracing and metrics.
 - **`internal/strutil/`**: High-performance string manipulation and path cleaning.
-- **`configs/`**: SSOT configuration templates with inheritance support.
 
 ### 1.2 Design Principles
 
@@ -114,7 +137,7 @@ configs/
 Standardizes diverse CLI protocols into a unified "HotPlex Event Stream":
 *   **Provider Interface**: Handles CLI argument construction, input payload formatting, and event parsing.
 *   **Factory & Registry**: `ProviderFactory` manages provider instantiation, while `ProviderRegistry` caches active instances for reuse.
-*   **Supported Providers**: Claude Code (default), OpenCode.
+*   **Supported Providers**: Claude Code (default), OpenCode, OpenCode Server (HTTP transport), Pi.
 
 ### 2.3 Session Manager (`internal/engine/pool.go`)
 *   **Hot-Multiplexing**: The `SessionPool` maintains a registry of active processes. Repeat requests to the same sessionID perform a "Hot Execution" (stdin injection).

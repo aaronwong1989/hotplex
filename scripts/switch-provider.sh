@@ -30,6 +30,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MATRIX_DIR="$PROJECT_ROOT/docker/matrix"
 
+# Cleanup temp files on exit (after PROJECT_ROOT is defined)
+cleanup() { find "$PROJECT_ROOT" -name "*.tmp" -delete 2>/dev/null || true; }
+trap cleanup EXIT
+
 # --- Constants ---
 PROVIDER_TYPES=("claude-code" "opencode" "opencode-server" "pi")
 VALID_MODELS=("opus" "sonnet" "haiku")
@@ -37,6 +41,24 @@ VALID_MODELS=("opus" "sonnet" "haiku")
 # Env key names (standardized across host + docker matrix)
 ENV_KEY_TYPE="HOTPLEX_PROVIDER_TYPE"
 ENV_KEY_MODEL="HOTPLEX_PROVIDER_MODEL"
+
+# --- Early Flags ---
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    cat <<'USAGE'
+Usage: ./scripts/switch-provider.sh
+
+Interactive script to switch AI provider for HotPlex bot instances.
+
+Targets:
+  admin       Host-mode admin bot (.env + configs/admin/slack.yaml)
+  bot-NN      Docker matrix bot (docker/matrix/.env-NN + configs/bot-NN/base/slack.yaml)
+  all         All bots (admin + all docker matrix bots)
+
+Providers:  claude-code | opencode | opencode-server | pi
+Models:     opus | sonnet | haiku
+USAGE
+    exit 0
+fi
 
 # --- Banner ---
 printf "${BLUE}${BOLD}╭──────────────────────────────────────────────────────────────────╮${NC}\n"
@@ -53,26 +75,14 @@ env_get() {
     grep "^${key}=" "$file" 2>/dev/null | head -1 | sed "s/^${key}=//" | tr -d '"' | tr -d "'"
 }
 
-# Set or update a value in .env file (preserves values containing '=')
+# Set or update a value in .env file (single-pass awk, macOS-compatible)
 env_set() {
     local file="$1" key="$2" value="$3"
-    if grep -q "^${key}=" "$file" 2>/dev/null; then
-        # Use sed to replace the value after the first '=' on matching lines
-        # The ^ anchor ensures we only match at start of line
-        # The replacement keeps key= and replaces everything after
-        # macOS-compatible: no sed -i, use tmp file
-        grep -v "^${key}=" "$file" > "${file}.tmp"
-        echo "${key}=${value}" >> "${file}.tmp"
-        # Preserve original line order by re-sorting isn't needed; append is fine
-        # But we should keep the comment/section structure. Use awk instead:
-        awk -v k="$key" -v v="$value" '
-            $0 ~ "^" k "=" { print k "=" v; next }
-            { print }
-        ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
-    else
-        # Key not found, append
-        echo "${key}=${value}" >> "$file"
-    fi
+    awk -v k="$key" -v v="$value" '
+        $0 ~ "^" k "=" { print k "=" v; found=1; next }
+        { print }
+        END { if (!found) print k "=" v }
+    ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
 }
 
 # Read provider type from YAML config (first `type:` under `provider:`)
@@ -94,11 +104,12 @@ yaml_get_provider() {
 # Set provider type in YAML config (only the first `type:` under `provider:`)
 yaml_set_provider() {
     local file="$1" value="$2"
-    awk -v v="$value" '
+    local comment="# enum: claude-code | opencode | opencode-server | pi"
+    awk -v v="$value" -v c="$comment" '
         /^[[:space:]]*type:/ && !done {
             match($0, /^[[:space:]]*/);
             indent = substr($0, RSTART, RLENGTH);
-            $0 = indent "type: " v "             # enum: claude-code | opencode | opencode-server | pi"
+            $0 = indent "type: " v "  " c
             done = 1
         }
         { print }
@@ -107,10 +118,9 @@ yaml_set_provider() {
 
 # Validate provider type
 validate_provider() {
-    local pt="$1"
-    for t in "${PROVIDER_TYPES[@]}"; do
-        [[ "$pt" == "$t" ]] && return 0
-    done
+    case "$1" in
+        claude-code|opencode|opencode-server|pi) return 0 ;;
+    esac
     return 1
 }
 
@@ -122,6 +132,17 @@ provider_display() {
         opencode-server)  printf "🟢 opencode-server" ;;
         pi)               printf "🟣 pi" ;;
         *)                printf "❓ $1" ;;
+    esac
+}
+
+# Provider color code for table formatting
+provider_color() {
+    case "$1" in
+        claude-code)      printf "%s" "$YELLOW" ;;
+        opencode)         printf "%s" "$BLUE" ;;
+        opencode-server)  printf "%s" "$GREEN" ;;
+        pi)               printf "%s" "$RED" ;;
+        *)                printf "%s" "$DIM" ;;
     esac
 }
 
@@ -150,9 +171,9 @@ if [[ -f "$ADMIN_ENV" ]]; then
     ADMIN_MODEL=$(env_get "$ADMIN_ENV" "$ENV_KEY_MODEL")
     [[ -z "$ADMIN_MODEL" ]] && ADMIN_MODEL="-"
 
-    printf "  ${CYAN}%-6s${NC} %-12s " "admin" "host"
-    provider_display "${ADMIN_PROVIDER:-?}"
-    printf " %-10s %-12s\n" "$ADMIN_MODEL" ".env"
+    p_color=$(provider_color "${ADMIN_PROVIDER:-?}")
+    printf "  ${CYAN}%-6s${NC} %-12s ${p_color}%-20s${NC} %-10s %-12s\n" \
+        "admin" "host" "${ADMIN_PROVIDER:-?}" "$ADMIN_MODEL" ".env"
 fi
 
 # --- Docker Matrix Bots ---
@@ -160,22 +181,22 @@ BOT_COUNT=0
 for env_file in "$MATRIX_DIR"/.env-[0-9][0-9]; do
     [[ -f "$env_file" ]] || continue
     ((BOT_COUNT++)) || true
-    BOT_IDX="$(basename "$env_file" | sed 's/^\.env-//')"
+    BOT_IDX="${env_file##*/.env-}"
 
     BOT_PROVIDER=$(env_get "$env_file" "$ENV_KEY_TYPE")
     BOT_MODEL=$(env_get "$env_file" "$ENV_KEY_MODEL")
     [[ -z "$BOT_MODEL" ]] && BOT_MODEL="-"
 
-    printf "  ${CYAN}%-6s${NC} %-12s " "bot-$BOT_IDX" "docker"
-    provider_display "${BOT_PROVIDER:-?}"
-    printf " %-10s %-12s\n" "$BOT_MODEL" ".env-$BOT_IDX"
+    p_color=$(provider_color "${BOT_PROVIDER:-?}")
+    printf "  ${CYAN}%-6s${NC} %-12s ${p_color}%-20s${NC} %-10s %-12s\n" \
+        "bot-$BOT_IDX" "docker" "${BOT_PROVIDER:-?}" "$BOT_MODEL" ".env-$BOT_IDX"
 done
 
 if [[ $BOT_COUNT -eq 0 ]]; then
     printf "  ${DIM}(no docker matrix bots found)${NC}\n"
 fi
 
-printf "${DIM}──────────────────────────────────────────────────────────────────${NC}\n"
+printf "${DIM}  ────────────────────────────────────────────────────────────${NC}\n"
 
 # ============================================================================
 # Step 2: Select Target Bot(s)
@@ -186,7 +207,7 @@ printf "  Available: "
 printf "${CYAN}admin${NC} (host)  "
 for env_file in "$MATRIX_DIR"/.env-[0-9][0-9]; do
     [[ -f "$env_file" ]] || continue
-    BOT_IDX="$(basename "$env_file" | sed 's/^\.env-//')"
+    BOT_IDX="${env_file##*/.env-}"
     printf "${CYAN}bot-%s${NC}  " "$BOT_IDX"
 done
 printf "${CYAN}all${NC}\n"
@@ -217,7 +238,7 @@ case "$TARGET" in
         [[ -f "$ADMIN_ENV" ]] && TARGETS+=("admin")
         for env_file in "$MATRIX_DIR"/.env-[0-9][0-9]; do
             [[ -f "$env_file" ]] || continue
-            BOT_IDX="$(basename "$env_file" | sed 's/^\.env-//')"
+            BOT_IDX="${env_file##*/.env-}"
             TARGETS+=("bot-${BOT_IDX}")
         done
         ;;
@@ -289,6 +310,12 @@ printf "  ${YELLOW}Model [${CURRENT_MODEL}]:${NC} "
 read -r INPUT_MODEL
 NEW_MODEL="${INPUT_MODEL:-$CURRENT_MODEL}"
 
+# Validate model
+case "$NEW_MODEL" in
+    opus|sonnet|haiku) ;;
+    *) printf "  ${YELLOW}⚠ Unknown model '%s' — expected: opus | sonnet | haiku${NC}\n" "$NEW_MODEL" ;;
+esac
+
 printf "  ${GREEN}✓${NC} Model: ${BOLD}${NEW_MODEL}${NC}\n"
 
 # ============================================================================
@@ -338,7 +365,7 @@ for t in "${TARGETS[@]}"; do
     # Update YAML config
     if [[ -f "$TARGET_YAML" ]]; then
         yaml_set_provider "$TARGET_YAML" "$NEW_PROVIDER"
-        printf "  ${GREEN}✓${NC} ${BOLD}$(echo "$TARGET_YAML" | sed "s|$PROJECT_ROOT/||")${NC}: type: ${NEW_PROVIDER}\n"
+        printf "  ${GREEN}✓${NC} ${BOLD}${TARGET_YAML#$PROJECT_ROOT/}${NC}: type: ${NEW_PROVIDER}\n"
         ((CHANGES++)) || true
     else
         printf "  ${YELLOW}⚠${NC} YAML not found at ${TARGET_YAML#$PROJECT_ROOT/}, skipping YAML update\n"

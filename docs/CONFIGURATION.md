@@ -84,7 +84,7 @@ configs/
 
 | Variable                                        | Default         | Description                            |
 | ----------------------------------------------- | --------------- | -------------------------------------- |
-| `HOTPLEX_PROVIDER_TYPE`                         | `claude-code`   | Provider: claude-code, opencode        |
+| `HOTPLEX_PROVIDER_TYPE`                         | `claude-code`   | Provider: claude-code, opencode, opencode-server, pi |
 | `HOTPLEX_PROVIDER_MODEL`                        | `sonnet`        | Default model: sonnet, haiku, opus     |
 | `HOTPLEX_PROVIDER_BINARY`                       | *(auto-detect)* | Path to CLI binary                     |
 | `HOTPLEX_PROVIDER_DANGEROUSLY_SKIP_PERMISSIONS` | `false`         | Skip all permission checks             |
@@ -229,7 +229,7 @@ If an environment variable is not set, it will be replaced with an empty string.
 
 | Field                          | Description                                                                        |
 | ------------------------------ | ---------------------------------------------------------------------------------- |
-| `type`                         | Provider type: `claude-code`, `opencode`                                           |
+| `type`                         | Provider type: `claude-code`, `opencode`, `opencode-server`, `pi`                  |
 | `enabled`                      | Enable/disable provider                                                            |
 | `default_model`                | Default model ID                                                                   |
 | `default_permission_mode`      | Permission mode: `bypassPermissions`, `acceptEdits`, `default`, `dontAsk`, `plan` |
@@ -237,6 +237,52 @@ If an environment variable is not set, it will be replaced with an empty string.
 | `binary_path`                  | Custom binary path                                                                 |
 | `allowed_tools`                | Tool whitelist                                                                     |
 | `disallowed_tools`             | Tool blacklist                                                                     |
+
+### OpenCode Server Provider (`opencode-server`)
+
+Uses HTTP transport to communicate with a running `opencode serve` instance. Supports persistent sessions via HTTP API.
+
+```yaml
+provider:
+  type: opencode-server
+  opencode:
+    server_url: http://127.0.0.1:4096   # OpenCode server URL (required)
+    agent: build                         # Agent name (e.g., "build", "plan")
+    password: ${HOTPLEX_OPENCODE_PASSWORD}  # Server authentication password
+    work_dir: ~/projects/myproject       # Project directory (passed via HTTP header)
+```
+
+| Field                   | Required | Default                  | Description                                  |
+| ----------------------- | -------- | ------------------------ | -------------------------------------------- |
+| `opencode.server_url`   | **Yes**  | `http://127.0.0.1:4096`  | OpenCode server HTTP endpoint                |
+| `opencode.agent`        | No       | *(default agent)*        | Agent name to use (e.g., `build`, `plan`)    |
+| `opencode.password`     | **Yes**  | *(empty)*                | Basic Auth password for opencode serve       |
+| `opencode.work_dir`     | No       | *(engine work_dir)*      | Project directory (passed via HTTP header)   |
+
+### Pi Provider (`pi`)
+
+Uses the `pi` CLI (pi-coding-agent) for local AI coding sessions. Supports 15+ LLM providers through a unified API.
+
+```yaml
+provider:
+  type: pi
+  pi:
+    provider: anthropic         # LLM provider (anthropic, openai, google, etc.)
+    model: claude-sonnet-4-20250514    # Model ID or provider/id format
+    thinking: medium            # Thinking level: off, minimal, low, medium, high, xhigh
+    use_rpc: true               # Enable RPC mode (stdin/stdout integration)
+    session_dir: ~/.pi/sessions # Custom session storage directory
+    no_session: false           # Disable session persistence (ephemeral mode)
+```
+
+| Field              | Required | Default    | Description                                              |
+| ------------------ | -------- | ---------- | -------------------------------------------------------- |
+| `pi.provider`      | No       | *(auto)*   | LLM provider: anthropic, openai, google, etc.            |
+| `pi.model`         | No       | *(auto)*   | Model ID (supports `provider/id` format)                 |
+| `pi.thinking`      | No       | *(off)*    | Thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `pi.use_rpc`       | No       | `false`    | Enable RPC mode for process integration (stdin/stdout)   |
+| `pi.session_dir`   | No       | *(default)*| Custom session storage directory                         |
+| `pi.no_session`    | No       | `false`    | Disable session persistence (ephemeral mode)             |
 
 ### Engine Section
 

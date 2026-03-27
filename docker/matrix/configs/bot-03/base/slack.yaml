@@ -13,7 +13,7 @@ server_addr: :8080                 # Used for health checks or HTTP mode
 
 # 2. AI PROVIDER & ENGINE
 provider:
-  type: claude-code                # claude-code | opencode
+  type: opencode-server  # enum: claude-code | opencode | opencode-server | pi
   default_model: sonnet
   default_permission_mode: bypass-permissions
   dangerously_skip_permissions: true
