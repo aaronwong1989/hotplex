@@ -17,6 +17,7 @@ import (
 	"github.com/hrygo/hotplex/internal/cron"
 	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/permission"
+	"github.com/hrygo/hotplex/internal/persistence"
 	"github.com/hrygo/hotplex/internal/relay"
 	"github.com/hrygo/hotplex/internal/security"
 	"github.com/hrygo/hotplex/internal/sys"
@@ -89,10 +90,40 @@ func NewEngine(options EngineOptions) (*Engine, error) {
 		}
 	}
 
-	// Validate CLI binary via Provider
-	cliPath, err := prv.ValidateBinary()
-	if err != nil {
-		return nil, fmt.Errorf("cli not found: %w", err)
+	// Check provider capabilities
+	meta := prv.Metadata()
+	supportsHTTP := meta.Features.SupportsHTTPAPI
+
+	var cliPath string
+	var starter intengine.SessionStarter
+
+	if supportsHTTP {
+		// For HTTP-based providers, validate the HTTP endpoint
+		// ValidateBinary() should check HTTP health for HTTP providers
+		endpoint, err := prv.ValidateBinary()
+		if err != nil {
+			return nil, fmt.Errorf("http provider health check failed: %w", err)
+		}
+		cliPath = endpoint // Store endpoint for logging/debugging
+
+		// Extract HTTP transport from provider (if available)
+		type HTTPTransportProvider interface {
+			GetHTTPTransport() provider.Transport
+		}
+		if httpProvider, ok := prv.(HTTPTransportProvider); ok {
+			transport := httpProvider.GetHTTPTransport()
+			starter = intengine.NewHTTPSessionStarter(transport, prv, logger, options)
+		} else {
+			return nil, fmt.Errorf("http provider %s does not expose transport", meta.Type)
+		}
+	} else {
+		// For CLI-based providers, validate CLI binary exists
+		path, err := prv.ValidateBinary()
+		if err != nil {
+			return nil, fmt.Errorf("cli not found: %w", err)
+		}
+		cliPath = path
+		starter = intengine.NewCLISessionStarter(cliPath, prv, persistence.NewDefaultFileMarkerStore(), logger, options)
 	}
 
 	// Initialize danger detector for security
@@ -102,7 +133,7 @@ func NewEngine(options EngineOptions) (*Engine, error) {
 	}
 
 	// Create the session pool (shared by Engine and cron Executor)
-	manager := intengine.NewSessionPool(logger, options.IdleTimeout, options, cliPath, prv)
+	manager := intengine.NewSessionPool(logger, options.IdleTimeout, options, starter, prv)
 
 	// Initialize cron scheduler
 	cronStore, err := cron.NewCronStore("")
@@ -530,9 +561,16 @@ func (r *Engine) handleStreamRawLine(line string, cfg *types.Config, stats *Sess
 	// Diagnostic: log raw CLI JSON types for protocol analysis
 	for _, p := range pevtSlice {
 		if p.Type == provider.EventTypeResult {
+			// Safe access to Metadata fields - check for nil first
+			inputTokens := int32(0)
+			outputTokens := int32(0)
+			if p.Metadata != nil {
+				inputTokens = p.Metadata.InputTokens
+				outputTokens = p.Metadata.OutputTokens
+			}
 			r.logger.Debug("[RUNNER] result event metadata",
-				"input_tokens", p.Metadata.InputTokens,
-				"output_tokens", p.Metadata.OutputTokens,
+				"input_tokens", inputTokens,
+				"output_tokens", outputTokens,
 				"raw_line", p.RawLine)
 		} else {
 			r.logger.Debug("[RUNNER] parsed raw line", "raw_type", p.RawType, "normalized_type", p.Type, "tool_name", p.ToolName)
@@ -635,23 +673,40 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 		// Calculate context window usage percentage
 		// Context window limits apply PER API CALL, not to accumulated session totals.
 		// Use the last API call's token counts, not the accumulated stats.
-		// Formula: total_input = input_tokens + cache_read + cache_write
-		// Note: input_tokens represents tokens AFTER last cache breakpoint (not total input)
-		// Context window size is provided by modelUsage.contextWindow field from provider.
-		// Default to 200K if not provided (backward compatibility).
-		contextWindowTokens := int32(200000) // Default 200K
-		if pevt.Metadata != nil && pevt.Metadata.ContextWindow > 0 {
-			contextWindowTokens = pevt.Metadata.ContextWindow
-		}
-		totalInputTokens := stats.lastInputTokens + stats.lastCacheReadTokens + stats.lastCacheWriteTokens
-		contextUsedPercent := 0.0
-		if contextWindowTokens > 0 && totalInputTokens > 0 {
-			contextUsedPercent = float64(totalInputTokens) / float64(contextWindowTokens) * 100
+		//
+		// Priority:
+		//   1. Provider's direct percentage (ContextUsedPercent) if available
+		//   2. Calculate from tokens using ContextWindow from provider
+		//   3. Fallback to conservative default (200K)
+		var contextUsedPercent float64
+		if pevt.Metadata != nil {
+			if pevt.Metadata.ContextUsedPercent != nil && *pevt.Metadata.ContextUsedPercent > 0 {
+				// Priority 1: Provider-provided direct percentage
+				contextUsedPercent = *pevt.Metadata.ContextUsedPercent
+			} else {
+				// Priority 2-3: Calculate from tokens
+				contextWindowTokens := pevt.Metadata.ContextWindow
+				if contextWindowTokens <= 0 {
+					contextWindowTokens = int32(200000) // Default 200K
+				}
+				totalInputTokens := stats.lastInputTokens + stats.lastCacheReadTokens + stats.lastCacheWriteTokens
+				if contextWindowTokens > 0 && totalInputTokens > 0 {
+					contextUsedPercent = float64(totalInputTokens) / float64(contextWindowTokens) * 100
+				}
+			}
 		}
 
 		// CRITICAL: We DO NOT use event.WrapSafe here anymore.
 		// Any error in handleSessionStats (like fallback failure) must bubble up
 		// to the Engine so that Execute() returns an error.
+		// Use provider's model if available (e.g., OpenCode Server sends ModelID via metadata)
+		modelUsed := r.provider.Name()
+		if pevt.Metadata != nil && pevt.Metadata.Model != "" {
+			modelUsed = pevt.Metadata.Model
+		}
+		// finishReason is accessed directly: stats.mu is held by handleNormalizedResult
+		finishReason := stats.finishReason
+
 		if err := callback("session_stats", &event.SessionStatsData{
 			SessionID:        cfg.SessionID,
 			StartTime:        stats.StartTime.Unix(),
@@ -670,8 +725,9 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 			ToolsUsed:          toolsUsed,
 			FilesModified:      stats.FilesModified,
 			FilePaths:          filePaths,
-			ModelUsed:          r.provider.Name(),
+			ModelUsed:          modelUsed,
 			TotalCostUSD:       costUSD,
+			FinishReason:       finishReason,
 			IsError:            pevt.IsError,
 			ErrorMessage:       pevt.Error,
 			ContextUsedPercent: contextUsedPercent,
@@ -785,7 +841,12 @@ func (r *Engine) dispatchNormalizedCallback(pevt *provider.ProviderEvent, callba
 		return callback("answer", event.NewEventWithMeta("answer", pevt.Content, meta))
 
 	case provider.EventTypeError:
-		return callback("error", pevt.Error)
+		meta := &event.EventMeta{
+			Status:          "error",
+			TotalDurationMs: totalDur,
+			ErrorMsg:        pevt.Error,
+		}
+		return callback("error", event.NewEventWithMeta("error", pevt.Content, meta))
 
 	case provider.EventTypePermissionRequest:
 		// Permission request from Claude Code - route to callback for Slack display
@@ -846,6 +907,23 @@ func (r *Engine) dispatchNormalizedCallback(pevt *provider.ProviderEvent, callba
 			TotalDurationMs: totalDur,
 		}
 		return callback("permission_denied", event.NewEventWithMeta("permission_denied", pevt.Content, meta))
+
+	case provider.EventTypeStepStart:
+		meta := &event.EventMeta{TotalDurationMs: totalDur}
+		return callback("step_start", event.NewEventWithMeta("step_start", pevt.Content, meta))
+
+	case provider.EventTypeStepFinish:
+		meta := &event.EventMeta{
+			TotalDurationMs: totalDur,
+			CurrentStep:     pevt.Metadata.CurrentStep,
+			TotalSteps:      pevt.Metadata.TotalSteps,
+			Status:          pevt.Status,
+		}
+		// Record finish reason in stats
+		if pevt.Status != "" {
+			stats.SetFinishReason(pevt.Status)
+		}
+		return callback("step_finish", event.NewEventWithMeta("step_finish", pevt.Content, meta))
 
 	default:
 		// Fallback for other event types

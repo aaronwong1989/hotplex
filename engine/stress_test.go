@@ -12,6 +12,7 @@ import (
 	"time"
 
 	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/internal/persistence"
 	"github.com/hrygo/hotplex/provider"
 )
 
@@ -40,7 +41,8 @@ func TestStress1000Sessions(t *testing.T) {
 		AllowedTools: []string{"Bash", "Read", "Write"},
 	}
 
-	manager := intengine.NewSessionPool(logger, opts.IdleTimeout, opts, cliPath, prv)
+	starter := intengine.NewCLISessionStarter(cliPath, prv, persistence.NewDefaultFileMarkerStore(), logger, opts)
+	manager := intengine.NewSessionPool(logger, opts.IdleTimeout, opts, starter, prv)
 	defer manager.Shutdown()
 
 	sessionCount := 100

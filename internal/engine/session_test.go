@@ -171,9 +171,14 @@ func TestSession_SetExt_GetExt(t *testing.T) {
 }
 
 func TestSession_WriteInput_InvalidJSON(t *testing.T) {
+	// Create a pipe so stdin has a valid writer (the json.Marshal will fail before Write)
+	r, w := io.Pipe()
+	defer func() { _ = r.Close(); _ = w.Close() }()
+
 	sess := &Session{
 		Status:       SessionStatusReady,
 		statusChange: make(chan SessionStatus, 10),
+		io:           NewCLISessionIO(nil, w, nil, nil, nil, newTestLogger()),
 	}
 
 	// WriteInput should handle invalid types gracefully
@@ -191,7 +196,7 @@ func TestSession_WriteInput_InvalidJSON(t *testing.T) {
 func TestSessionPool_GetSession(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	// Get nonexistent session
 	_, ok := pool.GetSession("nonexistent")
@@ -203,7 +208,7 @@ func TestSessionPool_GetSession(t *testing.T) {
 func TestSessionPool_ListActiveSessions(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	// Should return empty list
 	sessions := pool.ListActiveSessions()
@@ -215,7 +220,7 @@ func TestSessionPool_ListActiveSessions(t *testing.T) {
 func TestSessionPool_TerminateSession_Nonexistent(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	// Terminating nonexistent session should be a no-op
 	err := pool.TerminateSession("nonexistent")
@@ -227,7 +232,7 @@ func TestSessionPool_TerminateSession_Nonexistent(t *testing.T) {
 func TestSessionPool_Shutdown(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	// Shutdown should be safe to call
 	pool.Shutdown()
@@ -277,14 +282,18 @@ func TestSession_close_Idempotent(t *testing.T) {
 
 func TestSession_WriteInput_Valid(t *testing.T) {
 	// Create a pipe to capture stdin
-	r, w := io.Pipe()
-	defer func() { _ = r.Close() }()
-	defer func() { _ = w.Close() }()
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	defer func() { _ = pr.Close() }()
+	defer func() { _ = pw.Close() }()
 
+	cliIO := NewCLISessionIO(nil, pw, nil, nil, nil, newTestLogger())
 	sess := &Session{
 		Status:       SessionStatusReady,
 		statusChange: make(chan SessionStatus, 10),
-		stdin:        w,
+		io:           cliIO,
 	}
 
 	// Write valid JSON
@@ -298,12 +307,12 @@ func TestSession_WriteInput_Valid(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		buf := make([]byte, 1024)
-		n, _ := r.Read(buf)
+		n, _ := pr.Read(buf)
 		received = buf[:n]
 		close(done)
 	}()
 
-	err := sess.WriteInput(msg)
+	err = sess.WriteInput(msg)
 	if err != nil {
 		t.Errorf("WriteInput() error: %v", err)
 	}
@@ -360,7 +369,7 @@ func TestSession_isAliveLocked(t *testing.T) {
 func TestSessionPool_Shutdown_WithSessions(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	// Add mock sessions directly to the pool
 	pool.mu.Lock()
@@ -388,7 +397,7 @@ func TestSessionPool_Shutdown_WithSessions(t *testing.T) {
 func TestSessionPool_CleanupSessionLocked(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	// Add mock session
 	pool.mu.Lock()
@@ -420,7 +429,7 @@ func TestSessionPool_CleanupSessionLocked(t *testing.T) {
 func TestSessionPool_CleanupSessionLocked_NonExistent(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	// Cleanup non-existent session should return nil
 	pool.mu.Lock()
@@ -437,7 +446,7 @@ func TestSessionPool_CleanupSessionLocked_NonExistent(t *testing.T) {
 func TestSessionPool_Shutdown_WithCallback(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	callbackCalled := false
 	cb := func(eventType string, data any) error {
@@ -467,7 +476,7 @@ func TestSessionPool_Shutdown_WithCallback(t *testing.T) {
 func TestSessionPool_ListActiveSessions_Multiple(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 
 	// Initially empty
 	sessions := pool.ListActiveSessions()
@@ -503,13 +512,13 @@ func TestSession_ReadStderr_LogFileWriteError(t *testing.T) {
 		t.Fatalf("Failed to create pipe: %v", err)
 	}
 
-	// Create session with a read-only log file (writing will fail)
+	cliIO := NewCLISessionIO(nil, nil, nil, r, nil, logger)
 	se := &Session{
 		ID:                "test-stderr-error",
 		ProviderSessionID: "test-provider",
 		Status:            SessionStatusBusy,
 		logger:            logger,
-		stderr:            r,
+		io:                cliIO,
 		statusChange:      make(chan SessionStatus, 10),
 	}
 
@@ -678,9 +687,10 @@ func TestSession_ReadStdout_DispatchesLines(t *testing.T) {
 		return nil
 	}
 
+	cliIO := NewCLISessionIO(nil, nil, r, nil, nil, newTestLogger())
 	sess := &Session{
 		ID:           "test-read-stdout",
-		stdout:       r,
+		io:           cliIO,
 		logger:       newTestLogger(),
 		callback:     cb,
 		statusChange: make(chan SessionStatus, 10),
@@ -705,7 +715,7 @@ func TestSession_ReadStdout_DispatchesLines(t *testing.T) {
 func TestSession_ReadStdout_NilStdout(t *testing.T) {
 	sess := &Session{
 		ID:     "test-read-stdout-nil",
-		stdout: nil,
+		io:     nil,
 		logger: newTestLogger(),
 	}
 
@@ -729,9 +739,10 @@ func TestSession_ReadStdout_CallsRunnerExitOnCompletion(t *testing.T) {
 		return nil
 	}
 
+	cliIO := NewCLISessionIO(nil, nil, r, nil, nil, newTestLogger())
 	sess := &Session{
 		ID:           "test-exit-callback",
-		stdout:       r,
+		io:           cliIO,
 		logger:       newTestLogger(),
 		callback:     cb,
 		statusChange: make(chan SessionStatus, 10),
@@ -775,9 +786,10 @@ func TestSession_ReadStdout_SkipsEmptyLines(t *testing.T) {
 		return nil
 	}
 
+	cliIO := NewCLISessionIO(nil, nil, r, nil, nil, newTestLogger())
 	sess := &Session{
 		ID:           "test-empty-lines",
-		stdout:       r,
+		io:           cliIO,
 		logger:       newTestLogger(),
 		callback:     cb,
 		statusChange: make(chan SessionStatus, 10),
@@ -803,9 +815,10 @@ func TestSession_ReadStdout_NilCallback(t *testing.T) {
 		t.Fatalf("Failed to create pipe: %v", err)
 	}
 
+	cliIO := NewCLISessionIO(nil, nil, r, nil, nil, newTestLogger())
 	sess := &Session{
 		ID:           "test-nil-callback",
-		stdout:       r,
+		io:           cliIO,
 		logger:       newTestLogger(),
 		callback:     nil,
 		statusChange: make(chan SessionStatus, 10),
@@ -823,8 +836,8 @@ func TestSession_ReadStdout_NilCallback(t *testing.T) {
 func TestSession_ReadStderr_NilStderr(t *testing.T) {
 	sess := &Session{
 		ID:     "test-read-stderr-nil",
-		stderr: nil,
 		logger: newTestLogger(),
+		io:     nil,
 	}
 
 	// Should not panic
@@ -839,7 +852,7 @@ func TestSession_ReadStderr_NilLogger(t *testing.T) {
 
 	sess := &Session{
 		ID:     "test-nil-logger",
-		stderr: r,
+		io:     NewCLISessionIO(nil, nil, nil, r, nil, nil),
 		logger: nil,
 	}
 
@@ -855,9 +868,18 @@ func TestSession_ReadStderr_NilLogger(t *testing.T) {
 // --- close with pipes ---
 
 func TestSession_close_WithPipes(t *testing.T) {
-	stdinR, stdinW := io.Pipe()
-	stdoutR, stdoutW := io.Pipe()
-	stderrR, stderrW := io.Pipe()
+	stdinR, stdinW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create stdin pipe: %v", err)
+	}
+	stdoutR, stdoutW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create stdout pipe: %v", err)
+	}
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create stderr pipe: %v", err)
+	}
 
 	// Create a temp log file
 	tmpFile, err := os.CreateTemp("", "session-close-test-*.log")
@@ -876,9 +898,7 @@ func TestSession_close_WithPipes(t *testing.T) {
 	sess := &Session{
 		Status:       SessionStatusReady,
 		statusChange: make(chan SessionStatus, 10),
-		stdin:        stdinW,
-		stdout:       stdoutR,
-		stderr:       stderrR,
+		io:           NewCLISessionIO(nil, stdinW, stdoutR, stderrR, nil, newTestLogger()),
 		logFile:      logFile,
 	}
 
@@ -1128,7 +1148,7 @@ func TestSession_WriteInput_UpdatesLastActive(t *testing.T) {
 	sess := &Session{
 		Status:       SessionStatusReady,
 		statusChange: make(chan SessionStatus, 10),
-		stdin:        w,
+		io:           NewCLISessionIO(nil, w, nil, nil, nil, newTestLogger()),
 		LastActive:   time.Now().Add(-1 * time.Hour),
 	}
 
@@ -1162,7 +1182,7 @@ func TestSession_WriteInput_NilStdin_Panics(t *testing.T) {
 	sess := &Session{
 		Status:       SessionStatusReady,
 		statusChange: make(chan SessionStatus, 10),
-		stdin:        nil,
+		io:           NewCLISessionIO(nil, nil, nil, nil, nil, newTestLogger()),
 	}
 
 	msg := map[string]any{"type": "user", "message": "test"}
@@ -1176,7 +1196,7 @@ func TestSession_WriteInput_SetsBusyStatus(t *testing.T) {
 	sess := &Session{
 		Status:       SessionStatusReady,
 		statusChange: make(chan SessionStatus, 10),
-		stdin:        w,
+		io:           NewCLISessionIO(nil, w, nil, nil, nil, newTestLogger()),
 	}
 
 	var wg sync.WaitGroup
@@ -1224,7 +1244,7 @@ func TestSession_ReadStderr_DispatchesLines(t *testing.T) {
 		ID:                "stderr-dispatch",
 		ProviderSessionID: "stderr-provider",
 		Config:            SessionConfig{WorkDir: "/tmp/test"},
-		stderr:            r,
+		io:                NewCLISessionIO(nil, nil, nil, r, nil, newTestLogger()),
 		logger:            newTestLogger(),
 		logFile:           logFile,
 		statusChange:      make(chan SessionStatus, 10),
@@ -1269,7 +1289,7 @@ func TestSession_ReadStderr_SkipsEmptyLines(t *testing.T) {
 
 	sess := &Session{
 		ID:           "stderr-skip-empty",
-		stderr:       r,
+		io:           NewCLISessionIO(nil, nil, nil, r, nil, newTestLogger()),
 		logger:       newTestLogger(),
 		logFile:      logFile,
 		statusChange: make(chan SessionStatus, 10),

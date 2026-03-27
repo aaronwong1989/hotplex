@@ -11,23 +11,49 @@ import (
 	"github.com/hrygo/hotplex/types"
 )
 
-// Engine abstracts the engine functionality for dependency inversion
-type Engine interface {
+// EngineExecutor handles execution operations (ISP: execution-focused interface)
+// Use this interface when you only need to execute prompts and manage configs
+type EngineExecutor interface {
 	Execute(ctx context.Context, cfg *types.Config, prompt string, callback event.Callback) error
-	CheckDanger(prompt string) (blocked bool, operation, reason string)
-	GetSession(sessionID string) (Session, bool)
-	Close() error
-	GetSessionStats(sessionID string) *SessionStats
 	ValidateConfig(cfg *types.Config) error
+	GetOptions() engine.EngineOptions
+}
+
+// SessionManager handles session lifecycle (ISP: session management interface)
+// Use this interface when you only need session operations
+type SessionManager interface {
+	GetSession(sessionID string) (Session, bool)
+	GetSessionStats(sessionID string) *SessionStats
 	StopSession(sessionID string, reason string) error
+	Close() error
+}
+
+// DangerController handles security operations (ISP: security interface)
+// Use this interface when you only need danger detection and permission control
+type DangerController interface {
+	CheckDanger(prompt string) (blocked bool, operation, reason string)
 	SetDangerAllowPaths(paths []string)
 	SetDangerBypassEnabled(token string, enabled bool) error
+	PermissionMatcher() *permission.PermissionMatcher
+}
+
+// ToolController handles tool permissions (ISP: tool management interface)
+// Use this interface when you only need tool allowlist/blocklist management
+type ToolController interface {
 	SetAllowedTools(tools []string)
 	SetDisallowedTools(tools []string)
 	GetAllowedTools() []string
 	GetDisallowedTools() []string
-	GetOptions() engine.EngineOptions
-	PermissionMatcher() *permission.PermissionMatcher
+}
+
+// Engine abstracts the engine functionality for dependency inversion
+// Combines all specialized interfaces for backward compatibility
+// New code should prefer specialized interfaces (EngineExecutor, SessionManager, etc.)
+type Engine interface {
+	EngineExecutor
+	SessionManager
+	DangerController
+	ToolController
 }
 
 // Session abstracts session state and operations

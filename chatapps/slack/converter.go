@@ -57,15 +57,175 @@ func convertMarkdownToSlackMrkdwn(text string) string {
 			result.WriteString(escapeSlackChars(segment.text))
 		} else {
 			converted := segment.text
-			converted = convertItalic(converted)
+			// Convert bold (**text**) before italic (*text*) to prevent the italic converter
+			// from matching the first asterisk of **text** as an italic marker.
+			// Order matters: bold creates *inner* with markers, then italic skips markers.
 			converted = convertBold(converted)
+			converted = convertItalic(converted)
+			// Remove bold markers after italic conversion
+			converted = strings.ReplaceAll(converted, "\x00", "")
 			converted = convertLinks(converted)
+			converted = convertGitHubEmojiToUnicode(converted)
 			converted = escapeSlackChars(converted)
 			result.WriteString(converted)
 		}
 	}
 
 	return result.String()
+}
+
+// convertGitHubEmojiToUnicode converts GitHub-style :emoji: to Unicode characters
+// Slack uses Unicode emoji, not :emoji: syntax
+func convertGitHubEmojiToUnicode(text string) string {
+	// Common GitHub emoji mappings
+	emojiMap := map[string]string{
+		":bar_chart:":                  "📊",
+		":warning:":                    "⚠️",
+		":white_check_mark:":           "✅",
+		":x:":                          "❌",
+		":arrow_forward:":              "▶️",
+		":arrow_backward:":             "◀️",
+		":arrow_up:":                   "⬆️",
+		":arrow_down:":                 "⬇️",
+		":checkered_flag:":             "🏁",
+		":construction:":               "🚧",
+		":rocket:":                     "🚀",
+		":bug:":                        "🐛",
+		":sparkles:":                   "✨",
+		":memo:":                       "📝",
+		":book:":                       "📖",
+		":bulb:":                       "💡",
+		":fire:":                       "🔥",
+		":heart:":                      "❤️",
+		":thumbsup:":                   "👍",
+		":thumbsdown:":                 "👎",
+		":laughing:":                   "😆",
+		":tada:":                       "🎉",
+		":heavy_check_mark:":           "✔️",
+		":heavy_multiplication_x:":     "✖️",
+		":information_source:":         "ℹ️",
+		":lock:":                       "🔒",
+		":unlock:":                     "🔓",
+		":star:":                       "⭐",
+		":zap:":                        "⚡",
+		":boom:":                       "💥",
+		":wrench:":                     "🔧",
+		":hammer:":                     "🔨",
+		":gear:":                       "⚙️",
+		":mag:":                        "🔍",
+		":chart_with_upwards_trend:":   "📈",
+		":chart_with_downwards_trend:": "📉",
+		":stop_sign:":                  "🛑",
+		":traffic_light:":              "🚦",
+		":hourglass:":                  "⏳",
+		":clock1:":                     "🕐",
+		":calendar:":                   "📅",
+		":package:":                    "📦",
+		":computer:":                   "💻",
+		":file_folder:":                "📁",
+		":page_facing_up:":             "📄",
+		":link:":                       "🔗",
+		":email:":                      "📧",
+		":phone:":                      "📞",
+		":speech_balloon:":             "💬",
+		":thought_balloon:":            "💭",
+		":bell:":                       "🔔",
+		":pushpin:":                    "📌",
+		":round_pushpin:":              "📍",
+		":paperclip:":                  "📎",
+		":pencil2:":                    "✏️",
+		":crayon:":                     "🖍️",
+		":art:":                        "🎨",
+		":musical_score:":              "🎼",
+		":guitar:":                     "🎸",
+		":camera:":                     "📷",
+		":video_camera:":               "📹",
+		":movie_camera:":               "🎥",
+		":microphone:":                 "🎤",
+		":headphones:":                 "🎧",
+		":radio:":                      "📻",
+		":globe_with_meridians:":       "🌐",
+		":map:":                        "🗺️",
+		":compass:":                    "🧭",
+		":mountain:":                   "⛰️",
+		":beach:":                      "🏖️",
+		":desert:":                     "🏜️",
+		":island:":                     "🏝️",
+		":cityscape:":                  "🏙️",
+		":night_with_stars:":           "🌃",
+		":sunrise:":                    "🌅",
+		":sunset:":                     "🌇",
+		":bridge_at_night:":            "🌉",
+		":ferris_wheel:":               "🎡",
+		":roller_coaster:":             "🎢",
+		":fountain:":                   "⛲",
+		":circus_tent:":                "🎪",
+		":steam_locomotive:":           "🚂",
+		":train:":                      "🚋",
+		":bullettrain_side:":           "🚄",
+		":bullettrain_front:":          "🚅",
+		":train2:":                     "🚆",
+		":metro:":                      "🚇",
+		":light_rail:":                 "🚈",
+		":station:":                    "🚉",
+		":tram:":                       "🚊",
+		":monorail:":                   "🚝",
+		":mountain_railway:":           "🚞",
+		":bus:":                        "🚌",
+		":oncoming_bus:":               "🚍",
+		":trolleybus:":                 "🚎",
+		":minibus:":                    "🚐",
+		":ambulance:":                  "🚑",
+		":fire_engine:":                "🚒",
+		":police_car:":                 "🚓",
+		":oncoming_police_car:":        "🚔",
+		":taxi:":                       "🚕",
+		":oncoming_taxi:":              "🚖",
+		":car:":                        "🚗",
+		":oncoming_automobile:":        "🚘",
+		":blue_car:":                   "🚙",
+		":truck:":                      "🚚",
+		":articulated_lorry:":          "🚛",
+		":tractor:":                    "🚜",
+		":racing_car:":                 "🏎️",
+		":motorcycle:":                 "🏍️",
+		":motor_scooter:":              "🛵",
+		":bike:":                       "🚲",
+		":kick_scooter:":               "🛴",
+		":busstop:":                    "🚏",
+		":motorway:":                   "🛣️",
+		":railway_track:":              "🛤️",
+		":oil_drum:":                   "🛢️",
+		":fuelpump:":                   "⛽",
+		":rotating_light:":             "🚨",
+		":vertical_traffic_light:":     "🚦",
+		":octagonal_sign:":             "🛑",
+		":anchor:":                     "⚓",
+		":boat:":                       "⛵",
+		":canoe:":                      "🛶",
+		":speedboat:":                  "🚤",
+		":passenger_ship:":             "🛳️",
+		":ferry:":                      "⛴️",
+		":motor_boat:":                 "🛥️",
+		":ship:":                       "🚢",
+		":airplane:":                   "✈️",
+		":small_airplane:":             "🛩️",
+		":flight_departure:":           "🛫",
+		":flight_arrival:":             "🛬",
+		":seat:":                       "💺",
+		":helicopter:":                 "🚁",
+		":suspension_railway:":         "🚟",
+		":mountain_cableway:":          "🚠",
+		":aerial_tramway:":             "🚡",
+		":artificial_satellite:":       "🛰️",
+		":flying_saucer:":              "🛸",
+	}
+
+	result := text
+	for github, unicode := range emojiMap {
+		result = strings.ReplaceAll(result, github, unicode)
+	}
+	return result
 }
 
 // textSegment represents a portion of text with code block status
@@ -142,17 +302,29 @@ func convertBold(text string) string {
 		}
 		end += start + 2
 		inner := result[start+2 : end]
-		result = result[:start] + "*" + inner + "*" + result[end+2:]
+		// Use \x01BOLD\x01 marker to prevent italic conversion, will be replaced with * later
+		result = result[:start] + "\x01BOLD\x01" + inner + "\x01BOLD\x01" + result[end+2:]
 	}
 	return result
 }
 
-// convertItalic converts *text* to _text_ (but not ** or ***)
+// convertItalic converts *text* to _text_ (but not ** or *** or marked bold)
 func convertItalic(text string) string {
 	result := text
 	for {
 		start := -1
 		for i := 0; i < len(result)-1; i++ {
+			// Skip if this is part of \x01BOLD\x01 marker
+			if result[i] == '\x01' {
+				// Skip to end of marker
+				for j := i + 1; j < len(result); j++ {
+					if result[j] == '\x01' {
+						i = j
+						break
+					}
+				}
+				continue
+			}
 			if result[i] == '*' && result[i+1] != '*' {
 				if i > 0 && result[i-1] == '*' {
 					continue
@@ -166,8 +338,23 @@ func convertItalic(text string) string {
 		}
 
 		end := -1
-		for i := start + 1; i < len(result)-1; i++ {
-			if result[i] == '*' && result[i+1] != '*' {
+		for i := start + 1; i < len(result); i++ {
+			// Skip if this is part of \x01BOLD\x01 marker
+			if result[i] == '\x01' {
+				// Skip to end of marker
+				for j := i + 1; j < len(result); j++ {
+					if result[j] == '\x01' {
+						i = j
+						break
+					}
+				}
+				continue
+			}
+			if i < len(result)-1 && result[i] == '*' && result[i+1] != '*' {
+				end = i
+				break
+			}
+			if i == len(result)-1 && result[i] == '*' {
 				end = i
 				break
 			}
@@ -179,6 +366,9 @@ func convertItalic(text string) string {
 		inner := result[start+1 : end]
 		result = result[:start] + "_" + inner + "_" + result[end+1:]
 	}
+
+	// Replace bold markers with * after italic conversion
+	result = strings.ReplaceAll(result, "\x01BOLD\x01", "*")
 	return result
 }
 

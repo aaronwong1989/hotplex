@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -351,6 +352,7 @@ func createEngine(logger *slog.Logger, serverCfg *config.ServerLoader) (*hotplex
 		baseSystemPrompt = serverCfg.GetSystemPrompt()
 	}
 
+	// Determine provider type: env var > default
 	providerType := provider.ProviderType(os.Getenv("HOTPLEX_PROVIDER_TYPE"))
 	if providerType == "" {
 		providerType = provider.ProviderTypeClaudeCode
@@ -359,11 +361,30 @@ func createEngine(logger *slog.Logger, serverCfg *config.ServerLoader) (*hotplex
 	providerBinary := os.Getenv("HOTPLEX_PROVIDER_BINARY")
 	providerModel := os.Getenv("HOTPLEX_PROVIDER_MODEL")
 
+	// Build OpenCode config from env vars if needed
+	var openCodeCfg *provider.OpenCodeConfig
+	if providerType == provider.ProviderTypeOpenCodeServer {
+		openCodeCfg = &provider.OpenCodeConfig{
+			ServerURL: os.Getenv("HOTPLEX_OPEN_CODE_SERVER_URL"),
+			Password:  os.Getenv("HOTPLEX_OPEN_CODE_PASSWORD"),
+		}
+		if portStr := os.Getenv("HOTPLEX_OPEN_CODE_PORT"); portStr != "" {
+			if port, err := strconv.Atoi(portStr); err == nil {
+				openCodeCfg.Port = port
+			}
+		}
+		logger.Debug("Using OpenCode config from environment variables",
+			"server_url", openCodeCfg.ServerURL,
+			"port", openCodeCfg.Port,
+			"has_password", openCodeCfg.Password != "")
+	}
+
 	prv, err := provider.CreateProvider(provider.ProviderConfig{
 		Type:         providerType,
 		Enabled:      provider.PtrBool(true),
 		BinaryPath:   providerBinary,
 		DefaultModel: providerModel,
+		OpenCode:     openCodeCfg,
 	})
 	if err != nil {
 		logger.Error("Failed to create provider", "type", providerType, "error", err)

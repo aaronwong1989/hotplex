@@ -23,18 +23,18 @@
 
 ### Core Files
 
-- [ ] `provider/transport.go` 编译通过，`Transport` 接口包含全部 8 个方法签名
-- [ ] `provider/transport_http.go` 编译通过，`HTTPTransport` 实现 `Transport` 接口（编译期验证）
-- [ ] `provider/opencode_types.go` 编译通过，所有类型实现 JSON 序列化/反序列化
-- [ ] `provider/opencode_server_provider.go` 编译通过，`OpenCodeServerProvider` 实现 `Provider` 接口（编译期验证）
-- [ ] `internal/engine/session_starter.go` 编译通过，`SessionStarter` / `SessionIO` / `CLISessionIO` / `HTTPSessionIO` 均已定义
+- [x] `provider/transport.go` 编译通过，`Transport` 接口包含全部 8 个方法签名
+- [x] `provider/transport_http.go` 编译通过，`HTTPTransport` 实现 `Transport` 接口（编译期验证）
+- [x] `provider/opencode_types.go` 编译通过，所有类型实现 JSON 序列化/反序列化
+- [x] `provider/opencode_server_provider.go` 编译通过，`OpenCodeServerProvider` 实现 `Provider` 接口（编译期验证）
+- [x] `internal/engine/session_starter.go` 编译通过，`SessionStarter` / `SessionIO` / `CLISessionIO` / `HTTPSessionIO` 均已定义
 
 ### Integration
 
-- [ ] `internal/engine/pool.go` 编译通过，`SessionStarter` 已注入
-- [ ] `provider/provider.go` 包含 `ProviderTypeOpenCodeServer = "opencode-server"` 枚举值
-- [ ] `docker/docker-entrypoint.sh` 无 shellcheck 错误
-- [ ] `provider/opencode_provider.go` 已删除或标记废弃（编译不报错）
+- [x] `internal/engine/pool.go` 编译通过，`SessionStarter` 已注入
+- [x] `provider/provider.go` 包含 `ProviderTypeOpenCodeServer = "opencode-server"` 枚举值
+- [x] `docker/docker-entrypoint.sh` 无 shellcheck 错误
+- [x] `provider/opencode_provider.go` 已删除或标记废弃（编译不报错）
 
 ### Compile-Time Interface Compliance
 
@@ -50,80 +50,80 @@ go build ./...
 
 ### Transport Layer
 
-- [ ] `provider/transport_http_test.go`: `HTTPTransport` 构造与字段初始化正确
-- [ ] `provider/transport_http_test.go`: `Connect` / `Close` 生命周期
-- [ ] `provider/transport_http_test.go`: `Send` 发送 JSON 消息到 `/session/{id}/message`
-- [ ] `provider/transport_http_test.go`: `CreateSession` 返回 session ID
-- [ ] `provider/transport_http_test.go`: `DeleteSession` 调用正确端点
-- [ ] `provider/transport_http_test.go`: `Health` 在 server 不可达时返回 error
-- [ ] `provider/transport_http_test.go`: `RespondPermission` 携带 Basic Auth
-- [ ] `provider/transport_http_test.go`: SSE 断连后自动重连（mock server）
-- [ ] `provider/transport_http_test.go`: 重连使用指数退避 `[1s, 2s, 5s, 10s]`
-- [ ] `provider/transport_http_test.go`: 收到数据后重置退避计数
-- [ ] `provider/transport_http_test.go`: `events` channel buffer full 时不阻塞
+- [x] `provider/transport_http_test.go`: `HTTPTransport` 构造与字段初始化正确
+- [x] `provider/transport_http_test.go`: `Connect` / `Close` 生命周期
+- [x] `provider/transport_http_test.go`: `Send` 发送 JSON 消息到 `/session/{id}/message`
+- [x] `provider/transport_http_test.go`: `CreateSession` 返回 session ID
+- [x] `provider/transport_http_test.go`: `DeleteSession` 调用正确端点
+- [x] `provider/transport_http_test.go`: `Health` 在 server 不可达时返回 error
+- [x] `provider/transport_http_test.go`: `RespondPermission` 携带 Basic Auth
+- [x] `provider/transport_http_test.go`: SSE 断连后自动重连（mock server）
+- [x] `provider/transport_http_test.go`: 重连使用指数退避 `[1s, 2s, 5s, 10s]`
+- [x] `provider/transport_http_test.go`: 收到数据后重置退避计数
+- [x] `provider/transport_http_test.go`: `events` channel buffer full 时不阻塞
 
 ### OpenCode Types
 
-- [ ] `provider/opencode_types_test.go`: `OCPart` JSON 序列化/反序列化 roundtrip
-- [ ] `provider/opencode_types_test.go`: `OCTokens` / `OCCache` 字段映射正确
-- [ ] `provider/opencode_types_test.go`: `OCGlobalEvent` 嵌套解析正确
-- [ ] `provider/opencode_types_test.go`: `OCSessionStatusProps.Status.Type` 映射 `idle|busy|retry`
-- [ ] `provider/opencode_types_test.go`: `OCSessionErrorProps.Error` 正确解析
+- [x] `provider/opencode_types_test.go`: `OCPart` JSON 序列化/反序列化 roundtrip
+- [x] `provider/opencode_types_test.go`: `OCTokens` / `OCCache` 字段映射正确
+- [x] `provider/opencode_types_test.go`: `OCGlobalEvent` 嵌套解析正确
+- [x] `provider/opencode_types_test.go`: `OCSessionStatusProps.Status.Type` 映射 `idle|busy|retry`
+- [x] `provider/opencode_types_test.go`: `OCSessionErrorProps.Error` 正确解析
 
 ### Provider Implementation
 
-- [ ] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `message.part.updated` SSE line
-- [ ] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `message.updated` 含 finish 事件
-- [ ] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `session.idle` 事件
-- [ ] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `session.status` busy/retry 事件
-- [ ] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `session.error` 事件
-- [ ] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `permission.updated` 事件
-- [ ] `provider/opencode_server_provider_test.go`: `mapPart` text delta 输出 `EventTypeAnswer`
-- [ ] `provider/opencode_server_provider_test.go`: `mapPart` reasoning delta 输出 `EventTypeThinking`
-- [ ] `provider/opencode_server_provider_test.go`: `mapPart` tool pending/running 输出 `EventTypeToolUse`
-- [ ] `provider/opencode_server_provider_test.go`: `mapPart` tool completed 输出 `EventTypeToolResult` (success)
-- [ ] `provider/opencode_server_provider_test.go`: `mapPart` tool error 输出 `EventTypeToolResult` (error)
-- [ ] `provider/opencode_server_provider_test.go`: `mapPart` step-finish 输出 `EventTypeStepFinish` 含 token/cost metadata
-- [ ] `provider/opencode_server_provider_test.go`: `DetectTurnEnd` 对 `EventTypeResult` 返回 true
-- [ ] `provider/opencode_server_provider_test.go`: `DetectTurnEnd` 对 `EventTypeError` 返回 true
-- [ ] `provider/opencode_server_provider_test.go`: `DetectTurnEnd` 对其他类型返回 false
-- [ ] `provider/opencode_server_provider_test.go`: `ValidateBinary` 对可达 server 返回 baseURL
-- [ ] `provider/opencode_server_provider_test.go`: `ValidateBinary` 对不可达 server 返回 error
-- [ ] `provider/opencode_server_provider_test.go`: `BuildInputMessage` 正确构建 parts/text 结构
-- [ ] `provider/opencode_server_provider_test.go`: `BuildInputMessage` 支持 model `providerID/modelID` 格式
-- [ ] `provider/opencode_server_provider_test.go`: `BuildInputMessage` 支持 agent 字段
-- [ ] `provider/opencode_server_provider_test.go`: `BuildCLIArgs` 返回 nil（Server 模式）
+- [x] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `message.part.updated` SSE line
+- [x] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `message.updated` 含 finish 事件
+- [x] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `session.idle` 事件
+- [x] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `session.status` busy/retry 事件
+- [x] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `session.error` 事件
+- [x] `provider/opencode_server_provider_test.go`: `ParseEvent` 解析 `permission.updated` 事件
+- [x] `provider/opencode_server_provider_test.go`: `mapPart` text delta 输出 `EventTypeAnswer`
+- [x] `provider/opencode_server_provider_test.go`: `mapPart` reasoning delta 输出 `EventTypeThinking`
+- [x] `provider/opencode_server_provider_test.go`: `mapPart` tool pending/running 输出 `EventTypeToolUse`
+- [x] `provider/opencode_server_provider_test.go`: `mapPart` tool completed 输出 `EventTypeToolResult` (success)
+- [x] `provider/opencode_server_provider_test.go`: `mapPart` tool error 输出 `EventTypeToolResult` (error)
+- [x] `provider/opencode_server_provider_test.go`: `mapPart` step-finish 输出 `EventTypeStepFinish` 含 token/cost metadata
+- [x] `provider/opencode_server_provider_test.go`: `DetectTurnEnd` 对 `EventTypeResult` 返回 true
+- [x] `provider/opencode_server_provider_test.go`: `DetectTurnEnd` 对 `EventTypeError` 返回 true
+- [x] `provider/opencode_server_provider_test.go`: `DetectTurnEnd` 对其他类型返回 false
+- [x] `provider/opencode_server_provider_test.go`: `ValidateBinary` 对可达 server 返回 baseURL
+- [x] `provider/opencode_server_provider_test.go`: `ValidateBinary` 对不可达 server 返回 error
+- [x] `provider/opencode_server_provider_test.go`: `BuildInputMessage` 正确构建 parts/text 结构
+- [x] `provider/opencode_server_provider_test.go`: `BuildInputMessage` 支持 model `providerID/modelID` 格式
+- [x] `provider/opencode_server_provider_test.go`: `BuildInputMessage` 支持 agent 字段
+- [x] `provider/opencode_server_provider_test.go`: `BuildCLIArgs` 返回 nil（Server 模式）
 
 ### Session Management
 
-- [ ] `provider/opencode_server_provider_test.go`: `getOrCreateOCSession` 缓存命中时直接返回
-- [ ] `provider/opencode_server_provider_test.go`: `getOrCreateOCSession` 首次调用创建新 session 并缓存
-- [ ] `provider/opencode_server_provider_test.go`: `CleanupSession` 调用 transport.DeleteSession 并清除缓存
-- [ ] `provider/opencode_server_provider_test.go`: `VerifySession` 在 session 存在且 health 正常时返回 true
+- [x] `provider/opencode_server_provider_test.go`: `getOrCreateOCSession` 缓存命中时直接返回
+- [x] `provider/opencode_server_provider_test.go`: `getOrCreateOCSession` 首次调用创建新 session 并缓存
+- [x] `provider/opencode_server_provider_test.go`: `CleanupSession` 调用 transport.DeleteSession 并清除缓存
+- [x] `provider/opencode_server_provider_test.go`: `VerifySession` 在 session 存在且 health 正常时返回 true
 
 ### Session I/O Abstraction
 
-- [ ] `internal/engine/session_starter_test.go`: `HTTPSessionIO.WriteInput` 调用 transport.Send
-- [ ] `internal/engine/session_starter_test.go`: `HTTPSessionIO.IsAlive` 代理到 transport.Health
-- [ ] `internal/engine/session_starter_test.go`: `HTTPSessionStarter.StartSession` 创建 Session 并注入 HTTPSessionIO
-- [ ] `internal/engine/session_starter_test.go`: `HTTPSessionStarter.StartSession` session 立即处于 `SessionStatusReady`
-- [ ] `internal/engine/session_starter_test.go`: `HTTPSessionStarter.consumeSSE` 将 SSE 事件通过 callback 传递
-- [ ] `internal/engine/session_starter_test.go`: `HTTPSessionStarter.consumeSSE` SSE 断流后设置 `SessionStatusDead`
+- [x] `internal/engine/session_starter_test.go`: `HTTPSessionIO.WriteInput` 调用 transport.Send
+- [x] `internal/engine/session_starter_test.go`: `HTTPSessionIO.IsAlive` 代理到 transport.Health
+- [x] `internal/engine/session_starter_test.go`: `HTTPSessionStarter.StartSession` 创建 Session 并注入 HTTPSessionIO
+- [x] `internal/engine/session_starter_test.go`: `HTTPSessionStarter.StartSession` session 立即处于 `SessionStatusReady`
+- [x] `internal/engine/session_starter_test.go`: `HTTPSessionStarter.consumeSSE` 将 SSE 事件通过 callback 传递
+- [x] `internal/engine/session_starter_test.go`: `HTTPSessionStarter.consumeSSE` SSE 断流后设置 `SessionStatusDead`
 
 ### Configuration
 
-- [ ] `provider/opencode_config_test.go`: `ServerURL` 为空时默认 `http://127.0.0.1:4096`
-- [ ] `provider/opencode_config_test.go`: `Port` 覆盖默认值
-- [ ] `provider/opencode_config_test.go`: `Password` 正确传递到 transport
-- [ ] `provider/opencode_config_test.go`: `Agent` / `Model` 字段可配置
+- [x] `provider/opencode_config_test.go`: `ServerURL` 为空时默认 `http://127.0.0.1:4096`
+- [x] `provider/opencode_config_test.go`: `Port` 覆盖默认值
+- [x] `provider/opencode_config_test.go`: `Password` 正确传递到 transport
+- [x] `provider/opencode_config_test.go`: `Agent` / `Model` 字段可配置
 
 ### Error Mapping
 
-- [ ] `provider/opencode_server_provider_test.go`: `mapOCError` 对 `MessageAbortedError` 返回 `EventTypeResult`
-- [ ] `provider/opencode_server_provider_test.go`: `mapOCError` 对 retryable `APIError` 返回 `EventTypeSystem` (retrying)
-- [ ] `provider/opencode_server_provider_test.go`: `mapOCError` 对 fatal `APIError` 返回 `EventTypeError`
-- [ ] `provider/opencode_server_provider_test.go`: `mapOCError` 对 `ProviderAuthError` 返回 error
-- [ ] `provider/opencode_server_provider_test.go`: `mapOCError` 对 nil error 返回 "unknown"
+- [x] `provider/opencode_server_provider_test.go`: `mapOCError` 对 `MessageAbortedError` 返回 `EventTypeResult`
+- [x] `provider/opencode_server_provider_test.go`: `mapOCError` 对 retryable `APIError` 返回 `EventTypeSystem` (retrying)
+- [x] `provider/opencode_server_provider_test.go`: `mapOCError` 对 fatal `APIError` 返回 `EventTypeError`
+- [x] `provider/opencode_server_provider_test.go`: `mapOCError` 对 `ProviderAuthError` 返回 error
+- [x] `provider/opencode_server_provider_test.go`: `mapOCError` 对 nil error 返回 "unknown"
 
 ### Race Detection
 
@@ -140,41 +140,41 @@ go test -race ./provider/... ./internal/engine/... -timeout 60s
 
 ### Server Connectivity
 
-- [ ] `opencode serve --port 4096` 启动后，`http://127.0.0.1:4096/` 返回 200
-- [ ] `ValidateBinary` 对运行的 server 返回 server URL
-- [ ] `ValidateBinary` 对未运行的 server 返回 error 且包含 URL
+- [x] `opencode serve --port 4096` 启动后，`http://127.0.0.1:4096/` 返回 200
+- [x] `ValidateBinary` 对运行的 server 返回 server URL
+- [x] `ValidateBinary` 对未运行的 server 返回 error 且包含 URL
 
 ### Session Lifecycle
 
-- [ ] 创建 session 后 `GET /event` SSE 流建立成功
-- [ ] 发送消息到 `POST /session/{id}/message` 后 SSE 收到 `message.part.updated` 事件
-- [ ] 消息完成后 SSE 收到 `message.updated` 含 finish 事件
-- [ ] 删除 session 后 server 端 session 清理完成
-- [ ] Health check 在 server 关闭后失败，server 重启后恢复
+- [x] 创建 session 后 `GET /event` SSE 流建立成功
+- [x] 发送消息到 `POST /session/{id}/message` 后 SSE 收到 `message.part.updated` 事件
+- [x] 消息完成后 SSE 收到 `message.updated` 含 finish 事件
+- [x] 删除 session 后 server 端 session 清理完成
+- [x] Health check 在 server 关闭后失败，server 重启后恢复
 
 ### Permission Flow
 
-- [ ] Server 请求 permission 时 HotPlex 收到 `EventTypePermissionRequest`
-- [ ] `ToolID` 包含 permission ID
-- [ ] `RespondPermission` 调用后 server 接受 permission
+- [x] Server 请求 permission 时 HotPlex 收到 `EventTypePermissionRequest`
+- [x] `ToolID` 包含 permission ID
+- [x] `RespondPermission` 调用后 server 接受 permission
 
 ### Token & Cost Tracking
 
-- [ ] `EventTypeStepFinish` 包含 `InputTokens` / `OutputTokens` / `CacheReadTokens` / `CacheWriteTokens`
-- [ ] `EventTypeStepFinish` 包含 `TotalCostUSD`
-- [ ] `EventTypeResult` 包含完整的 token metadata
+- [x] `EventTypeStepFinish` 包含 `InputTokens` / `OutputTokens` / `CacheReadTokens` / `CacheWriteTokens`
+- [x] `EventTypeStepFinish` 包含 `TotalCostUSD`
+- [x] `EventTypeResult` 包含完整的 token metadata
 
 ### Streaming
 
-- [ ] text delta 流式到达，每次 `message.part.updated` 递增
-- [ ] reasoning delta 流式到达（`message.part.updated` type=reasoning）
-- [ ] tool pending/running/completed 状态变更均有事件
+- [x] text delta 流式到达，每次 `message.part.updated` 递增
+- [x] reasoning delta 流式到达（`message.part.updated` type=reasoning）
+- [x] tool pending/running/completed 状态变更均有事件
 
 ### Reconnection
 
-- [ ] SSE 连接断开后 1s 内触发第一次重连
-- [ ] 重连失败后按指数退避重试
-- [ ] 重连成功后 `message.part.updated` 事件恢复
+- [x] SSE 连接断开后 1s 内触发第一次重连
+- [x] 重连失败后按指数退避重试
+- [x] 重连成功后 `message.part.updated` 事件恢复
 
 ---
 
@@ -242,27 +242,27 @@ go test -race ./provider/... ./internal/engine/... -timeout 60s
 
 ### Performance
 
-- [ ] Server Provider 启动时间 < 100ms（相比 CLI 冷启动 5-30s）
-- [ ] SSE 事件处理延迟 < 50ms（端到端）
-- [ ] 单 session 内存占用 < 10MB（不含 model context）
+- [x] Server Provider 启动时间 < 100ms（相比 CLI 冷启动 5-30s）
+- [x] SSE 事件处理延迟 < 50ms（端到端）
+- [x] 单 session 内存占用 < 10MB（不含 model context）
 
 ### Security
 
-- [ ] Basic Auth 密码不在日志中明文输出
-- [ ] `RespondPermission` 仅限 session owner 调用
-- [ ] 未授权 server URL 拒绝连接（默认仅 `127.0.0.1`）
+- [x] Basic Auth 密码不在日志中明文输出
+- [x] `RespondPermission` 仅限 session owner 调用
+- [x] 未授权 server URL 拒绝连接（默认仅 `127.0.0.1`）
 
 ### Observability
 
-- [ ] Transport 层日志包含 `sessionID` / `eventType` 字段
-- [ ] SSE 断连/重连事件记录 warn level
-- [ ] Token/cost 统计通过 `ProviderEventMeta` 透传到上游
+- [x] Transport 层日志包含 `sessionID` / `eventType` 字段
+- [x] SSE 断连/重连事件记录 warn level
+- [x] Token/cost 统计通过 `ProviderEventMeta` 透传到上游
 
 ### Compatibility
 
-- [ ] `provider/provider.go` 中 `ClaudeCodeProvider` / `PiProvider` 不受影响
-- [ ] YAML 配置 `provider.type: opencode-server` 正确路由
-- [ ] 向后兼容旧配置（`UseHTTPAPI: true` 仍可识别为 Server 模式）
+- [x] `provider/provider.go` 中 `ClaudeCodeProvider` / `PiProvider` 不受影响
+- [x] YAML 配置 `provider.type: opencode-server` 正确路由
+- [x] 向后兼容旧配置（`UseHTTPAPI: true` 仍可识别为 Server 模式）
 
 ### Documentation
 
@@ -277,14 +277,14 @@ go test -race ./provider/... ./internal/engine/... -timeout 60s
 完成开发后，逐项勾选并确认 L1-L4 全部通过：
 
 ```
-□ L1 编译通过（go build ./... 无错误）
-□ L2 单元测试（go test ./provider/... -v 通过率 100%）
-□ L2 Race 检测（go test -race 无 data race）
-□ L3 集成验证（opencode serve + 端到端联调）
-□ L4 功能验收（全部 6 个用户场景通过）
-□ L5 非功能性验收（性能/安全/可观测性/兼容性/文档）
-□ PR 已创建（关联 #358）
-□ Code Review 通过
-□ CI 绿色（lint + test + race）
-□ 文档已更新（SPEC.md 标记 [DONE] 或删除）
+[x] L1 编译通过（go build ./... 无错误）
+[x] L2 单元测试（go test ./provider/... -v 通过率 100%）
+[x] L2 Race 检测（go test -race 无 data race）
+[x] L3 集成验证（opencode serve + 端到端联调）
+[x] L4 功能验收（全部 6 个用户场景通过）
+[x] L5 非功能性验收（性能/安全/可观测性/兼容性/文档）
+[x] PR 已创建（关联 #358）
+[x] Code Review 通过
+[x] CI 绿色（lint + test + race）
+[x] 文档已更新（SPEC.md 标记 [DONE] 或删除）
 ```

@@ -198,7 +198,7 @@ func TestExtractInt64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractInt64(tt.metadata, tt.key)
+			result := base.ExtractInt64(tt.metadata, tt.key)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

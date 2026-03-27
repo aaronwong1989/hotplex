@@ -1,0 +1,80 @@
+{
+  "_metadata": {
+    "major_version": 2,
+    "minor_version": 1
+  },
+  "display_information": {
+    "name": "ObsidianBot",
+    "long_description": "ObsidianBot 是一位 AI 知识管家，通过 Obsidian CLI 原生集成管理您的第二大脑。结合 Claude Code 的智能分析能力，提供快速捕获灵感、知识关联分析、TIL 管理、知识库维护、头脑风暴辅助、项目追踪和知识图谱洞察。遵循 PARA 方法论和 Zettelkasten 卡片盒方法，原生支持 Dataview 查询、Tasks 插件语法和 Mermaid 图表。适合知识工作者、研究人员、开发者和终身学习者。帮助您建立个人知识体系、发现知识孤岛、追踪项目进度、维护知识库健康，是您 Obsidian 知识库的智能助手。",
+    "description": "ObsidianBot - AI 知识管家",
+    "background_color": "#7c3aed"
+  },
+  "features": {
+    "assistant_view": {
+      "assistant_description": "ObsidianBot 是您的 AI 知识管家，帮助您快速捕获灵感、发现知识关联、管理 TIL、维护知识库健康、进行头脑风暴、追踪项目和知识图谱分析。基于 PARA 方法和 Zettelkasten 方法论，原生集成 Obsidian CLI、Dataview 和 Tasks 插件。",
+      "suggested_prompts": [
+        {
+          "title": "📝 记录想法",
+          "message": "记录一个想法: 如何利用 AI 提升个人知识管理效率，自动发现知识孤岛并推荐关联"
+        },
+        {
+          "title": "💡 今日所学",
+          "message": "TIL: 今天学到了 Go 的 sync.WaitGroup 新增了 WaitTimeout 方法，支持超时等待，避免 goroutine 泄漏"
+        },
+        {
+          "title": "🔗 分析关联",
+          "message": "分析 [[React Hooks]] 这个笔记的关联，找出知识孤岛并推荐新连接"
+        },
+        {
+          "title": "🧹 维护检查",
+          "message": "执行每周维护任务，清理超过 7 天的 Inbox 笔记，检测断裂链接，生成知识库健康报告"
+        }
+      ]
+    },
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "ObsidianBot",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "assistant:write",
+        "app_mentions:read",
+        "chat:write",
+        "chat:write.public",
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "im:write",
+        "reactions:write",
+        "im:history",
+        "channels:history",
+        "groups:history",
+        "mpim:history",
+        "files:write",
+        "commands"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "app_mention",
+        "app_home_opened",
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "assistant_thread_started",
+        "assistant_thread_context_changed"
+      ]
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true
+  }
+}

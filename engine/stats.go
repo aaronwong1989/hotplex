@@ -44,6 +44,9 @@ type SessionStats struct {
 	thinkingStart   time.Time `json:"-"`
 	generationStart time.Time `json:"-"`
 	hasGeneration   bool      `json:"-"` // Tracks if any content was generated
+
+	// Finish reason from the last step_finish event
+	finishReason string `json:"-"` // Original reason: end_turn / tool_use / max_tokens
 }
 
 // GetCurrentToolName returns the current tool name being tracked.
@@ -298,5 +301,20 @@ func (s *SessionStats) FinalizeDuration() *SessionStats {
 		ToolsUsed:            s.ToolsUsed,
 		FilesModified:        s.FilesModified,
 		FilePaths:            s.FilePaths,
+		finishReason:         s.finishReason,
 	}
+}
+
+// SetFinishReason records the finish reason from a step_finish event.
+func (s *SessionStats) SetFinishReason(reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.finishReason = reason
+}
+
+// GetFinishReason returns the recorded finish reason.
+func (s *SessionStats) GetFinishReason() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.finishReason
 }

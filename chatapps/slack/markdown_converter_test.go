@@ -8,8 +8,8 @@ import (
 
 func TestNewMarkdownConverter(t *testing.T) {
 	config := ConverterConfig{
-		EnableTables:      true,
-		EnableCodeBlocks:  true,
+		EnableTables:     true,
+		EnableCodeBlocks: true,
 		EnableQuotes:     true,
 		EnableLists:      true,
 	}

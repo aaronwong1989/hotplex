@@ -16,9 +16,10 @@ func PtrBool(b bool) *bool {
 type ProviderType string
 
 const (
-	ProviderTypeClaudeCode ProviderType = "claude-code"
-	ProviderTypeOpenCode   ProviderType = "opencode"
-	ProviderTypePi         ProviderType = "pi"
+	ProviderTypeClaudeCode     ProviderType = "claude-code"
+	ProviderTypeOpenCode       ProviderType = "opencode"
+	ProviderTypePi             ProviderType = "pi"
+	ProviderTypeOpenCodeServer ProviderType = "opencode-server"
 )
 
 // Valid checks if the provider type is registered in the global factory.
@@ -34,7 +35,7 @@ func (t ProviderType) Valid() bool {
 func (t ProviderType) IsRegistered() bool {
 	// First check built-in types for fast path
 	switch t {
-	case ProviderTypeClaudeCode, ProviderTypeOpenCode, ProviderTypePi:
+	case ProviderTypeClaudeCode, ProviderTypeOpenCode, ProviderTypePi, ProviderTypeOpenCodeServer:
 		return true
 	}
 	// Then check plugin registry
@@ -210,6 +211,20 @@ type OpenCodeConfig struct {
 
 	// Model is the model ID
 	Model string `json:"model,omitempty" koanf:"model"`
+
+	// ServerURL is the HTTP endpoint for opencode serve (e.g., "http://127.0.0.1:4096").
+	// Used by OpenCodeServerProvider (opencode-server type).
+	ServerURL string `json:"server_url,omitempty" koanf:"server_url"`
+
+	// Agent is the opencode serve --agent flag (e.g., "build", "plan").
+	Agent string `json:"agent,omitempty" koanf:"agent"`
+
+	// Password is the Basic Auth password for opencode serve.
+	Password string `json:"password,omitempty" koanf:"password"`
+
+	// WorkDir is the working directory for OpenCode Server context.
+	// This is passed via x-opencode-directory HTTP header to specify project directory.
+	WorkDir string `json:"work_dir,omitempty" koanf:"work_dir"`
 }
 
 // PiConfig contains pi-mono (pi-coding-agent) specific configuration.

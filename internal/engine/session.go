@@ -3,7 +3,6 @@ package engine
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,11 +31,13 @@ type Session struct {
 	Config            SessionConfig // Snapshot of the configuration used to initialize the session
 	TaskInstructions  string        // Persistent instructions for the session
 
-	// Process management
+	// io abstracts the I/O transport (CLI pipes or HTTP/SSE).
+	// It replaces the individual stdin/stdout/stderr/cancel/cmd/jobHandle fields.
+	io SessionIO
+
+	// CLI-specific fields (used only when io.IsCLI() == true).
+	// These are set by CLISessionStarter and cleaned up via sys.KillProcessGroup.
 	cmd       *exec.Cmd
-	stdin     io.WriteCloser
-	stdout    io.ReadCloser
-	stderr    io.ReadCloser
 	cancel    context.CancelFunc
 	jobHandle uintptr // Windows Job Object handle (0 on Unix)
 
@@ -82,12 +83,21 @@ func (s *Session) Wait() error {
 	return err
 }
 
-// isAliveLocked checks if the process is still running. Caller must hold lock.
+// isAliveLocked checks if the session is still active. Caller must hold lock.
+// For CLI sessions: checks if the process is still running.
+// For HTTP sessions: checks if the SessionIO is still open.
 func (s *Session) isAliveLocked() bool {
-	if s.cmd == nil || s.cmd.Process == nil || s.Status == SessionStatusDead {
+	if s.Status == SessionStatusDead {
 		return false
 	}
-	return sys.IsProcessAlive(s.cmd.Process)
+	if s.io != nil {
+		return s.io.IsAlive()
+	}
+	// Fallback for tests that manually construct Session with cmd
+	if s.cmd != nil && s.cmd.Process != nil {
+		return sys.IsProcessAlive(s.cmd.Process)
+	}
+	return false
 }
 
 // Touch updates LastActive time.
@@ -148,6 +158,7 @@ func (s *Session) waitForReady(ctx context.Context, timeout time.Duration) {
 			case <-deadlineTimer.C:
 				s.mu.Lock()
 				if s.Status == SessionStatusStarting {
+					s.logger.Warn("waitForReady: timeout, marking session as dead")
 					s.Status = SessionStatusDead
 				}
 				s.mu.Unlock()
@@ -158,9 +169,10 @@ func (s *Session) waitForReady(ctx context.Context, timeout time.Duration) {
 					s.mu.Unlock()
 					return
 				}
-				if s.isAliveLocked() {
-					// Set status directly while holding lock to avoid lock-unlock-lock pattern
+				alive := s.isAliveLocked()
+				if alive {
 					s.Status = SessionStatusReady
+					s.logger.Info("Session ready")
 					if !s.closed {
 						select {
 						case s.statusChange <- SessionStatusReady:
@@ -176,7 +188,7 @@ func (s *Session) waitForReady(ctx context.Context, timeout time.Duration) {
 	})
 }
 
-// WriteInput injects a JSON message to Stdin.
+// WriteInput injects a JSON message via the SessionIO transport.
 func (s *Session) WriteInput(msg map[string]any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -187,16 +199,11 @@ func (s *Session) WriteInput(msg map[string]any) error {
 	default:
 	}
 
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("json marshal: %w", err)
-	}
-
-	data = append(data, '\n')
-
-	_, err = s.stdin.Write(data)
-	if err != nil {
-		return fmt.Errorf("stdin write: %w", err)
+	if err := s.io.WriteInput(msg); err != nil {
+		if s.logger != nil {
+			s.logger.Error("WriteInput failed", "error", err)
+		}
+		return fmt.Errorf("session write: %w", err)
 	}
 
 	s.LastActive = time.Now()
@@ -208,19 +215,14 @@ func (s *Session) WriteInput(msg map[string]any) error {
 func (s *Session) close() {
 	s.Status = SessionStatusDead
 
-	// Close all pipe resources to prevent file descriptor leaks
-	// and allow ReadStdout/ReadStderr goroutines to exit
-	if s.stdin != nil {
-		_ = s.stdin.Close()
-	}
-	if s.stdout != nil {
-		_ = s.stdout.Close()
-	}
-	if s.stderr != nil {
-		_ = s.stderr.Close()
+	// Delegate to SessionIO for resource cleanup.
+	// For CLISessionIO: closes stdin/stdout/stderr pipes.
+	// For HTTPSessionIO: cancels SSE context and deletes server session.
+	if s.io != nil {
+		_ = s.io.Close()
 	}
 
-	// Close session log file
+	// Close session log file.
 	if s.logFile != nil {
 		_ = s.logFile.Close()
 		s.logFile = nil
@@ -275,14 +277,26 @@ func isExpectedCloseError(err error) bool {
 }
 
 // ReadStdout asynchronously reads CLI stdout, parses JSON, and dispatches callbacks.
+// For CLI sessions, this reads from the subprocess stdout pipe.
+// For HTTP sessions, this is a no-op (events are dispatched via HTTPSessionIO goroutines).
 func (s *Session) ReadStdout() {
 	defer panicx.Recover(s.logger, "ReadStdout")
 
-	if s.stdout == nil {
+	// No-op for HTTP sessions (HTTPSessionIO handles event dispatch internally).
+	if s.io == nil || !s.io.IsCLI() {
 		return
 	}
 
-	scanner := bufio.NewScanner(s.stdout)
+	cliIO, ok := s.io.(*CLISessionIO)
+	if !ok {
+		return
+	}
+	stdout := cliIO.Stdout()
+	if stdout == nil {
+		return
+	}
+
+	scanner := bufio.NewScanner(stdout)
 	buf := make([]byte, 0, ScannerInitialBufSize)
 	scanner.Buffer(buf, ScannerMaxBufSize)
 
@@ -320,14 +334,26 @@ func (s *Session) ReadStdout() {
 }
 
 // ReadStderr asynchronously reads CLI stderr to prevent buffer deadlocks.
+// For CLI sessions, this reads from the subprocess stderr pipe.
+// For HTTP sessions, this is a no-op.
 func (s *Session) ReadStderr() {
 	defer panicx.Recover(s.logger, "ReadStderr")
 
-	if s.stderr == nil {
+	// No-op for HTTP sessions.
+	if s.io == nil || !s.io.IsCLI() {
 		return
 	}
 
-	scanner := bufio.NewScanner(s.stderr)
+	cliIO, ok := s.io.(*CLISessionIO)
+	if !ok {
+		return
+	}
+	stderr := cliIO.Stderr()
+	if stderr == nil {
+		return
+	}
+
+	scanner := bufio.NewScanner(stderr)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {

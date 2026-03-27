@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hrygo/hotplex/internal/persistence"
 	"github.com/hrygo/hotplex/provider"
 )
 
@@ -61,6 +63,32 @@ func TestSetupCmdPipes(t *testing.T) {
 	_ = stderr.Close()
 }
 
+// newCLISessionStarter is a test helper that creates a *SessionPool with a CLISessionStarter.
+func newCLISessionStarter(logger *slog.Logger, timeout time.Duration, opts EngineOptions, cliPath string, prv provider.Provider) *SessionPool {
+	return NewSessionPool(logger, timeout, opts, NewCLISessionStarter(cliPath, prv, persistence.NewDefaultFileMarkerStore(), logger, opts), prv)
+}
+
+// testMonitorStartup is a package-level wrapper for testing monitorStartup behavior.
+// It mimics the original pool-level monitorStartup function signature.
+func testMonitorStartup(ctx context.Context, startedCh <-chan error, cancel func()) {
+	// Mimics the original monitorStartup logic without needing a CLISessionStarter instance.
+	select {
+	case err := <-startedCh:
+		if err != nil {
+			cancel()
+		}
+	case <-ctx.Done():
+		select {
+		case err := <-startedCh:
+			if err != nil {
+				cancel()
+			}
+		default:
+			cancel()
+		}
+	}
+}
+
 func TestMonitorStartup_Success(t *testing.T) {
 	ctx, cancel := createTestContext()
 	defer cancel()
@@ -74,7 +102,7 @@ func TestMonitorStartup_Success(t *testing.T) {
 		cancelCalled = true
 	}
 
-	monitorStartup(ctx, startedCh, testCancel)
+	testMonitorStartup(ctx, startedCh, testCancel)
 
 	if cancelCalled {
 		t.Error("cancel should not be called on success")
@@ -94,7 +122,7 @@ func TestMonitorStartup_Error(t *testing.T) {
 		cancelCalled = true
 	}
 
-	monitorStartup(ctx, startedCh, testCancel)
+	testMonitorStartup(ctx, startedCh, testCancel)
 
 	if !cancelCalled {
 		t.Error("cancel should be called on error")
@@ -113,7 +141,7 @@ func TestMonitorStartup_Timeout(t *testing.T) {
 		cancelCalled = true
 	}
 
-	monitorStartup(ctx, startedCh, testCancel)
+	testMonitorStartup(ctx, startedCh, testCancel)
 
 	if !cancelCalled {
 		t.Error("cancel should be called on timeout")
@@ -131,7 +159,7 @@ func TestSessionPool_buildCLIArgs(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{
 		Namespace:        "test",
 		PermissionMode:   "bypassPermissions",
 		AllowedTools:     []string{"bash", "edit"},
@@ -174,7 +202,7 @@ func TestSessionPool_buildCLIArgs_Resume(t *testing.T) {
 	}
 
 	// Create pool with marker store
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{
 		Namespace: "test",
 	}, "/tmp/claude", prv)
 
@@ -230,7 +258,7 @@ func TestStartSession_ResolvesRelativeWorkDir(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{
 		Namespace: "test",
 	}, "/tmp/claude", prv)
 
@@ -309,7 +337,7 @@ func TestSessionPool_CleanupIdleSessions(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
 	// Use a short idle timeout
-	pool := NewSessionPool(logger, 100*time.Millisecond, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	// Add a session with a LastActive time in the past (exceeds idle timeout)
@@ -337,7 +365,7 @@ func TestSessionPool_CleanupIdleSessions_ActiveSession(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
 	// Use a long idle timeout
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	// Add a session that was active recently
@@ -365,7 +393,7 @@ func TestSessionPool_CleanupIdleSessions_PerSessionTimeout(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
 	// Pool default timeout is very long (1 hour)
-	pool := NewSessionPool(logger, 1*time.Hour, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	// Session has a per-session idle timeout of 50ms
@@ -393,7 +421,7 @@ func TestSessionPool_CleanupIdleSessions_PerSessionTimeout(t *testing.T) {
 func TestSessionPool_CleanupIdleSessions_Multiple(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 100*time.Millisecond, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	pool.mu.Lock()
@@ -465,7 +493,7 @@ func TestSessionPool_CleanupInterval(t *testing.T) {
 func TestSessionPool_DeleteMarker(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	// Empty ID should be no-op
@@ -486,7 +514,7 @@ func TestSessionPool_DeleteMarker(t *testing.T) {
 func TestSessionPool_CleanupSessionFiles(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	// Nil provider should be safe
@@ -512,7 +540,7 @@ func TestSessionPool_CleanupSessionFiles_NilProvider(t *testing.T) {
 func TestSessionPool_GetOrCreateSession_EmptyID(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	_, _, err := pool.GetOrCreateSession(context.Background(), "", SessionConfig{}, "test")
@@ -524,7 +552,7 @@ func TestSessionPool_GetOrCreateSession_EmptyID(t *testing.T) {
 func TestSessionPool_GetOrCreateSession_ContextCancelled(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -539,7 +567,7 @@ func TestSessionPool_GetOrCreateSession_ContextCancelled(t *testing.T) {
 func TestSessionPool_GetOrCreateSession_RecursionLimit(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	// Manually create a pending entry that will never resolve
@@ -563,7 +591,7 @@ func TestSessionPool_GetOrCreateSession_RecursionLimit(t *testing.T) {
 func TestSessionPool_GetOrCreateSession_DoubleCheck(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	// Pre-insert a dead session (simulates a session whose process died)
@@ -618,7 +646,7 @@ func TestSessionPool_BuildCLIArgs_StaleMarker(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test-stale"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test-stale"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	// Create a marker for a session that doesn't actually exist
@@ -650,7 +678,7 @@ func TestSessionPool_BuildCLIArgs_NewSession_NoMarker(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test-new"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test-new"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	newID := "f1e2d3c4-b5a6-7890-abcd-new000000001"
@@ -669,7 +697,7 @@ func TestSessionPool_BuildCLIArgs_SessionSystemPromptOverride(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{
 		Namespace:        "test-override",
 		BaseSystemPrompt: "Engine-level prompt",
 	}, "/tmp", prv)
@@ -697,7 +725,7 @@ func TestSessionPool_BuildCLIArgs_EngineSystemPrompt(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{
 		Namespace:        "test-engine-prompt",
 		BaseSystemPrompt: "Engine default prompt",
 	}, "/tmp", prv)
@@ -780,7 +808,7 @@ func TestClearClaudeJSONUserID_WithValidOAuth(t *testing.T) {
 func TestSessionPool_TerminateSession_EmptyID(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	err := pool.TerminateSession("")
@@ -793,7 +821,7 @@ func TestSessionPool_TerminateSession_EmptyID(t *testing.T) {
 
 func TestNewSessionPool_NilLogger(t *testing.T) {
 	prv := newTestProvider(t)
-	pool := NewSessionPool(nil, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(nil, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	if pool.logger == nil {
@@ -806,7 +834,7 @@ func TestNewSessionPool_NilLogger(t *testing.T) {
 func TestSessionPool_ListActiveSessions_WithSessions(t *testing.T) {
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	pool := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 	defer pool.Shutdown()
 
 	sess1 := &Session{
@@ -838,5 +866,5 @@ func TestSessionPool_ImplementsSessionManager(t *testing.T) {
 	// This runtime test verifies the interface methods are accessible
 	logger := newTestLogger()
 	prv := newTestProvider(t)
-	var _ SessionManager = NewSessionPool(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
+	var _ SessionManager = newCLISessionStarter(logger, 30*time.Minute, EngineOptions{Namespace: "test"}, "/tmp", prv)
 }

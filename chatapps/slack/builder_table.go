@@ -34,6 +34,21 @@ func NewTableBuilder(config TableConfig) *TableBuilder {
 // Displays: Duration, Input/Output Tokens (with cache), Files Modified, Tool Calls
 func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) *slack.TableBlock {
 	table := slack.NewTableBlock("session_stats")
+
+	// Configure column settings for proper rendering
+	// Column 0: Label (left-aligned, not wrapped)
+	// Column 1: Value (left-aligned, wrapped for long text)
+	table = table.WithColumnSettings(
+		slack.ColumnSetting{
+			Align:     slack.ColumnAlignmentLeft,
+			IsWrapped: false,
+		},
+		slack.ColumnSetting{
+			Align:     slack.ColumnAlignmentLeft,
+			IsWrapped: true,
+		},
+	)
+
 	metadata := msg.Metadata
 
 	if metadata == nil {
@@ -41,18 +56,18 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) *slack.TableBlock
 	}
 
 	// Row 1: Duration
-	if duration := extractInt64(metadata, "total_duration_ms"); duration > 0 {
+	if duration := base.ExtractInt64(metadata, "total_duration_ms"); duration > 0 {
 		table.AddRow(
 			tb.buildLabelCell("⏱️ Duration"),
-			tb.buildValueCell(FormatDuration(duration)),
+			tb.buildValueCell(base.FormatDuration(duration)),
 		)
 	}
 
 	// Row 2-3: Input/Output Tokens with cache info
-	tokensIn := extractInt64(metadata, "input_tokens")
-	tokensOut := extractInt64(metadata, "output_tokens")
-	cacheRead := extractInt64(metadata, "cache_read_tokens")
-	cacheWrite := extractInt64(metadata, "cache_write_tokens")
+	tokensIn := base.ExtractInt64(metadata, "input_tokens")
+	tokensOut := base.ExtractInt64(metadata, "output_tokens")
+	cacheRead := base.ExtractInt64(metadata, "cache_read_tokens")
+	cacheWrite := base.ExtractInt64(metadata, "cache_write_tokens")
 
 	if tokensIn > 0 {
 		table.AddRow(
@@ -69,7 +84,7 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) *slack.TableBlock
 	}
 
 	// Row 4: Files Modified
-	if files := extractInt64(metadata, "files_modified"); files > 0 {
+	if files := base.ExtractInt64(metadata, "files_modified"); files > 0 {
 		table.AddRow(
 			tb.buildLabelCell("📝 Files"),
 			tb.buildValueCell(fmt.Sprintf("%d modified", files)),
@@ -77,10 +92,35 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) *slack.TableBlock
 	}
 
 	// Row 5: Tool Calls
-	if tools := extractInt64(metadata, "tool_call_count"); tools > 0 {
+	if tools := base.ExtractInt64(metadata, "tool_call_count"); tools > 0 {
 		table.AddRow(
 			tb.buildLabelCell("🔧 Tools"),
 			tb.buildValueCell(fmt.Sprintf("%d calls", tools)),
+		)
+	}
+
+	// Row 6: Model Used (from SSE ModelID metadata)
+	if model := base.ExtractString(metadata, "model_used"); model != "" {
+		table.AddRow(
+			tb.buildLabelCell("🤖 Model"),
+			tb.buildValueCell(model),
+		)
+	}
+
+	// Row 7: Finish Reason (end_turn / tool_use / max_tokens)
+	if reason := base.ExtractString(metadata, "finish_reason"); reason != "" {
+		reasonLabel := reason
+		switch reason {
+		case "end_turn":
+			reasonLabel = "✅ 正常结束"
+		case "tool_use":
+			reasonLabel = "🔧 工具调用"
+		case "max_tokens":
+			reasonLabel = "⚠️ Token 超限"
+		}
+		table.AddRow(
+			tb.buildLabelCell("📋 结束原因"),
+			tb.buildValueCell(reasonLabel),
 		)
 	}
 

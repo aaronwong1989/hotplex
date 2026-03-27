@@ -132,6 +132,6 @@ var (
 	SummarizeInput = types.SummarizeInput
 	// NewClaudeCodeProvider creates a new Claude Code provider instance.
 	NewClaudeCodeProvider = provider.NewClaudeCodeProvider
-	// NewOpenCodeProvider creates a new OpenCode provider instance.
-	NewOpenCodeProvider = provider.NewOpenCodeProvider
+	// NewOpenCodeServerProvider creates a new OpenCode Server provider instance.
+	NewOpenCodeServerProvider = provider.NewOpenCodeServerProvider
 )

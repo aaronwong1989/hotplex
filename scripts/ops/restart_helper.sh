@@ -3,7 +3,7 @@ BIN_PATH=$1
 LOG_FILE=$2
 
 if [ -z "$BIN_PATH" ] || [ -z "$LOG_FILE" ]; then
-    echo "Usage: ./scripts/restart_helper.sh <binary_path> <log_file>"
+    echo "Usage: $0 <binary_path> <log_file>"
     exit 1
 fi
 
@@ -12,7 +12,7 @@ if [ -n "$OLD_PID" ]; then
     echo "🛑 Stopping old daemon (PID: $OLD_PID)..."
     pkill -f "$(basename "$BIN_PATH")" || true
     echo "Waiting for process to exit and release ports..."
-    
+
     count=0
     while [ $count -lt 5 ]; do
         if ! pgrep -f "$(basename "$BIN_PATH")" > /dev/null; then
@@ -22,7 +22,7 @@ if [ -n "$OLD_PID" ]; then
         sleep 1
         count=$((count+1))
     done
-    
+
     if pgrep -f "$(basename "$BIN_PATH")" > /dev/null; then
         echo "⚠️  Force killing old daemon..."
         pkill -9 -f "$(basename "$BIN_PATH")" || true
@@ -32,11 +32,70 @@ else
 fi
 
 mkdir -p "$(dirname "$LOG_FILE")"
-# Cross-platform way to clear file contents instead of non-POSIX 'truncate'
 > "$LOG_FILE"
 
 echo "🔥 Starting NEW HotPlex Daemon..."
-nohup "$BIN_PATH" start > "$LOG_FILE" 2>&1 & disown
+
+# Load .env file if exists (priority: ./.env, ~/.hotplex/.env)
+ENV_FILE=""
+if [ -f ".env" ]; then
+    ENV_FILE=".env"
+elif [ -f "$HOME/.hotplex/.env" ]; then
+    ENV_FILE="$HOME/.hotplex/.env"
+fi
+
+if [ -n "$ENV_FILE" ]; then
+    echo "📋 Loading environment from: $ENV_FILE"
+
+    # Create temporary file with cleaned environment variables
+    TEMP_ENV=$(mktemp /tmp/hotplex_env.XXXXXX)
+
+    # Process .env file and create clean version without comments
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip comments (lines starting with #) and empty lines
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$line" ]] && continue
+
+        # Only keep lines with = sign (actual variable assignments)
+        if [[ "$line" == *"="* ]]; then
+            echo "$line" >> "$TEMP_ENV"
+        fi
+    done < "$ENV_FILE"
+
+    # Debug: Check if password was extracted
+    if grep -q "HOTPLEX_OPEN_CODE_PASSWORD" "$TEMP_ENV"; then
+        echo "🔑 Password found in env file"
+    else
+        echo "⚠️  Warning: HOTPLEX_OPEN_CODE_PASSWORD not found in $ENV_FILE"
+    fi
+
+    # Start daemon with environment variables from temp file
+    # Export all variables to current shell first
+    set -a
+    source "$TEMP_ENV"
+    set +a
+
+    # Debug: Verify password is available
+    echo "🔍 Debug: Password before daemon start: ${HOTPLEX_OPEN_CODE_PASSWORD:0:10}..." >> "$LOG_FILE"
+
+    # Start daemon - it will inherit environment from current shell
+    # Set HOTPLEX_CHATAPPS_CONFIG_DIR to point to synced config directory
+    export HOTPLEX_CHATAPPS_CONFIG_DIR="$HOME/.hotplex/configs"
+
+    # Debug: Verify password is available
+    echo "🔍 Debug: Password before daemon start: ${HOTPLEX_OPEN_CODE_PASSWORD:0:10}..." >> "$LOG_FILE"
+
+    nohup "$BIN_PATH" start >> "$LOG_FILE" 2>&1 &
+    DAEMON_PID=$!
+    disown
+
+    echo "🚀 Daemon started with PID: $DAEMON_PID" >> "$LOG_FILE"
+
+    # Clean up temp file
+    rm -f "$TEMP_ENV"
+else
+    nohup "$BIN_PATH" start >> "$LOG_FILE" 2>&1 & disown
+fi
 
 sleep 2
 

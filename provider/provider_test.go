@@ -8,8 +8,8 @@ func TestProviderInterface_Compliance(t *testing.T) {
 	// Verify ClaudeCodeProvider implements Provider interface
 	var _ Provider = (*ClaudeCodeProvider)(nil)
 
-	// Verify OpenCodeProvider implements Provider interface
-	var _ Provider = (*OpenCodeProvider)(nil)
+	// Verify OpenCodeServerProvider implements Provider interface
+	var _ Provider = (*OpenCodeServerProvider)(nil)
 }
 
 func TestClaudeCodeProvider_Metadata(t *testing.T) {
@@ -208,154 +208,8 @@ func TestClaudeCodeProvider_DetectTurnEnd(t *testing.T) {
 	}
 }
 
-func TestOpenCodeProvider_Metadata(t *testing.T) {
-	enabled := true
-	provider, err := NewOpenCodeProvider(ProviderConfig{
-		Type:       ProviderTypeOpenCode,
-		Enabled:    &enabled,
-		BinaryPath: "/usr/local/bin/opencode",
-	}, nil)
-	if err != nil {
-		t.Fatalf("Failed to create OpenCode provider: %v", err)
-	}
-
-	meta := provider.Metadata()
-	if meta.Type != ProviderTypeOpenCode {
-		t.Errorf("Expected type %s, got %s", ProviderTypeOpenCode, meta.Type)
-	}
-	if !meta.Features.SupportsSSE {
-		t.Error("Expected SupportsSSE to be true")
-	}
-	if !meta.Features.SupportsHTTPAPI {
-		t.Error("Expected SupportsHTTPAPI to be true")
-	}
-}
-
-func TestOpenCodeProvider_BuildCLIArgs(t *testing.T) {
-	enabled := true
-	provider, err := NewOpenCodeProvider(ProviderConfig{
-		Type:       ProviderTypeOpenCode,
-		Enabled:    &enabled,
-		BinaryPath: "/usr/local/bin/opencode",
-		OpenCode: &OpenCodeConfig{
-			Provider: "anthropic",
-			Model:    "claude-3-5-sonnet",
-		},
-	}, nil)
-	if err != nil {
-		t.Fatalf("Failed to create provider: %v", err)
-	}
-
-	opts := &ProviderSessionOptions{
-		WorkDir: "/tmp/test",
-	}
-
-	args := provider.BuildCLIArgs("test-session", opts)
-
-	assertContains(t, args, "run")
-	assertContains(t, args, "--format")
-	assertContains(t, args, "json")
-	assertContains(t, args, "--session")
-	assertContains(t, args, "ses_test-session")
-	assertContains(t, args, "--provider")
-	assertContains(t, args, "anthropic")
-}
-
-func TestOpenCodeProvider_DetectTurnEnd(t *testing.T) {
-	enabled := true
-	provider, _ := NewOpenCodeProvider(ProviderConfig{Type: ProviderTypeOpenCode, Enabled: &enabled, BinaryPath: "/usr/local/bin/opencode"}, nil)
-
-	tests := []struct {
-		event *ProviderEvent
-		want  bool
-	}{
-		{&ProviderEvent{Type: EventTypeAnswer, Content: "some answer"}, false},
-		{&ProviderEvent{Type: EventTypeResult}, true},
-		{&ProviderEvent{Type: EventTypeError}, true},
-	}
-
-	for _, tt := range tests {
-		got := provider.DetectTurnEnd(tt.event)
-		if got != tt.want {
-			t.Errorf("DetectTurnEnd(%s) = %v, want %v", tt.event.Type, got, tt.want)
-		}
-	}
-}
-
-func TestOpenCodeProvider_ParseEvent(t *testing.T) {
-	enabled := true
-	provider, err := NewOpenCodeProvider(ProviderConfig{
-		Type:       ProviderTypeOpenCode,
-		Enabled:    &enabled,
-		BinaryPath: "/usr/local/bin/opencode",
-	}, nil)
-	if err != nil {
-		t.Fatalf("Failed to create provider: %v", err)
-	}
-
-	tests := []struct {
-		name     string
-		line     string
-		wantType ProviderEventType
-	}{
-		{
-			name:     "text part",
-			line:     `{"parts":[{"type":"text","text":"Hello"}]}`,
-			wantType: EventTypeAnswer,
-		},
-		{
-			name:     "reasoning part",
-			line:     `{"parts":[{"type":"reasoning","text":"Thinking..."}]}`,
-			wantType: EventTypeThinking,
-		},
-		{
-			name:     "tool use part",
-			line:     `{"parts":[{"type":"tool","name":"bash","id":"tool-1"}]}`,
-			wantType: EventTypeToolUse,
-		},
-		{
-			name:     "tool result part",
-			line:     `{"parts":[{"type":"tool","name":"bash","id":"tool-1","output":"done"}]}`,
-			wantType: EventTypeToolResult,
-		},
-		{
-			name:     "step-start part",
-			line:     `{"parts":[{"type":"step-start","step_number":1,"total_steps":3}]}`,
-			wantType: EventTypeStepStart,
-		},
-		{
-			name:     "step-finish part",
-			line:     `{"parts":[{"type":"step-finish","step_number":3,"total_steps":3}]}`,
-			wantType: EventTypeStepFinish,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			events, err := provider.ParseEvent(tt.line)
-			if err != nil {
-				t.Fatalf("ParseEvent failed: %v", err)
-			}
-			if len(events) == 0 {
-				t.Fatal("Expected at least one event")
-			}
-			found := false
-			for _, event := range events {
-				if event.Type == tt.wantType {
-					found = true
-					break
-				}
-			}
-			if !found {
-				var types []ProviderEventType
-				for _, e := range events {
-					types = append(types, e.Type)
-				}
-				t.Errorf("Expected type %s in %v", tt.wantType, types)
-			}
-		})
-	}
-}
+// TODO: OpenCode Server Mode integration is now tested in opencode_server_provider_test.go.
+// CLI-based OpenCode provider has been removed.
 
 func TestProviderFactory(t *testing.T) {
 	factory := NewProviderFactory(nil)
@@ -379,17 +233,16 @@ func TestProviderFactory(t *testing.T) {
 		t.Errorf("Expected name %s, got %s", ProviderTypeClaudeCode, ccProvider.Name())
 	}
 
-	// Test create OpenCode provider
+	// Test create OpenCode Server provider
 	ocProvider, err := factory.Create(ProviderConfig{
-		Type:       ProviderTypeOpenCode,
-		Enabled:    &enabled,
-		BinaryPath: "/usr/local/bin/opencode",
+		Type:    ProviderTypeOpenCodeServer,
+		Enabled: &enabled,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create OpenCode provider: %v", err)
+		t.Fatalf("Failed to create OpenCode Server provider: %v", err)
 	}
-	if ocProvider.Name() != string(ProviderTypeOpenCode) {
-		t.Errorf("Expected name %s, got %s", ProviderTypeOpenCode, ocProvider.Name())
+	if ocProvider.Name() != string(ProviderTypeOpenCodeServer) {
+		t.Errorf("Expected name %s, got %s", ProviderTypeOpenCodeServer, ocProvider.Name())
 	}
 
 	disabled := false

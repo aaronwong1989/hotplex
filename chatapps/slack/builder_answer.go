@@ -3,35 +3,42 @@
 package slack
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/slack-go/slack"
 )
 
+// Display configuration constants
+const (
+	// MaxAnswerDisplay is the threshold for collapsed answer display
+	// Content longer than this will be collapsed to avoid cluttering the UI
+	MaxAnswerDisplay = 1000
+
+	// MaxThinkingDisplay is the threshold for thinking/reasoning message truncation
+	// Thinking content is typically shorter than answers
+	MaxThinkingDisplay = 500
+
+	// DefaultBoundarySearchLimit is the max characters to search for sentence boundary
+	// when finding a good cut point for collapsing answer content
+	DefaultBoundarySearchLimit = 100
+
+	// ThinkingBoundarySearchLimit is the search limit for thinking messages (shorter)
+	ThinkingBoundarySearchLimit = 50
+)
+
 // AnswerMessageBuilder builds answer-related Slack messages
 type AnswerMessageBuilder struct {
-	config            *Config
-	formatter         *MrkdwnFormatter
-	markdownConverter *MarkdownConverter
+	config    *Config
+	formatter *MrkdwnFormatter
 }
 
 // NewAnswerMessageBuilder creates a new AnswerMessageBuilder
 func NewAnswerMessageBuilder(config *Config, formatter *MrkdwnFormatter) *AnswerMessageBuilder {
-	// Initialize MarkdownConverter with feature flags
-	converterConfig := ConverterConfig{
-		EnableTables:      isMarkdownTableEnabled(config),
-		EnableCodeBlocks:  isCodeBlockEnabled(config),
-		EnableQuotes:      isQuoteEnabled(config),
-		EnableLists:       false, // Lists not yet implemented
-		MaxTableRows:      getMaxTableRows(config),
-		MaxCodeBlockLines: getMaxCodeBlockLines(config),
-	}
-
 	return &AnswerMessageBuilder{
-		config:            config,
-		formatter:         formatter,
-		markdownConverter: NewMarkdownConverter(converterConfig),
+		config:    config,
+		formatter: formatter,
 	}
 }
 
@@ -42,13 +49,6 @@ func (b *AnswerMessageBuilder) BuildAnswerMessage(msg *base.ChatMessage) []slack
 		return nil
 	}
 
-	// Check if enhanced Markdown features are enabled
-	if b.hasEnhancedMarkdown() {
-		// Use MarkdownConverter for table/code block/quote support
-		return b.markdownConverter.ConvertToBlocks(content)
-	}
-
-	// Fallback to traditional MrkdwnFormatter flow
 	// 1. Process Markdown if enabled (default: true)
 	formattedContent := content
 	markdownEnabled := BoolValue(b.config.Features.Markdown.Enabled, true)
@@ -56,7 +56,13 @@ func (b *AnswerMessageBuilder) BuildAnswerMessage(msg *base.ChatMessage) []slack
 		formattedContent = b.formatter.Format(content)
 	}
 
-	// 2. Check if chunking is enabled (default: true)
+	// 2. Check if content is too long for comfortable reading
+	// Use collapsible display for long content to improve readability
+	if len(formattedContent) > MaxAnswerDisplay {
+		return b.buildCollapsedAnswerBlocks(formattedContent, MaxAnswerDisplay)
+	}
+
+	// 3. Check if chunking is enabled (default: true) for very long content
 	chunkingEnabled := BoolValue(b.config.Features.Chunking.Enabled, true)
 	maxChars := b.config.Features.Chunking.MaxChars
 	if maxChars <= 0 {
@@ -73,7 +79,60 @@ func (b *AnswerMessageBuilder) BuildAnswerMessage(msg *base.ChatMessage) []slack
 	}
 }
 
-// buildChunkedAnswerBlocks splits long content into chunks
+// buildCollapsedAnswerBlocks creates collapsed blocks for long content
+// Shows first maxChars characters with a "show more" indicator
+func (b *AnswerMessageBuilder) buildCollapsedAnswerBlocks(content string, maxChars int) []slack.Block {
+	// Find a good break point (end of sentence or paragraph)
+	cutPoint := maxChars
+	remaining := content[maxChars:]
+
+	// Try to find end of sentence (., !, ?) followed by space or newline
+	if idx := findSentenceBoundary(remaining, DefaultBoundarySearchLimit); idx > 0 {
+		cutPoint = maxChars + idx + 1
+	}
+
+	// Ensure we don't exceed content length
+	if cutPoint > len(content) {
+		cutPoint = len(content)
+	}
+
+	displayContent := content[:cutPoint]
+	totalLen := len(content)
+
+	// Add "show more" indicator
+	indicator := fmt.Sprintf("\n\n---\n📄 _显示部分内容 (%d/%d 字符，已自动截断)_", cutPoint, totalLen)
+	displayContent += indicator
+
+	mrkdwn := slack.NewTextBlockObject("mrkdwn", displayContent, false, false)
+	return []slack.Block{
+		slack.NewSectionBlock(mrkdwn, nil, nil),
+	}
+}
+
+// findSentenceBoundary finds the end of a sentence in text
+// Returns index of sentence boundary (relative to start of text)
+func findSentenceBoundary(text string, maxSearch int) int {
+	end := len(text)
+	if maxSearch > 0 && maxSearch < end {
+		end = maxSearch
+	}
+
+	for i := 0; i < end; i++ {
+		c := text[i]
+		if c == '.' || c == '!' || c == '?' {
+			// Check if followed by space or newline
+			if i+1 < len(text) {
+				next := text[i+1]
+				if next == ' ' || next == '\n' || next == '\r' {
+					return i
+				}
+			}
+		}
+	}
+	return -1
+}
+
+// buildChunkedAnswerBlocks splits very long content into chunks
 func (b *AnswerMessageBuilder) buildChunkedAnswerBlocks(content string, maxChars int) []slack.Block {
 	var blocks []slack.Block
 
@@ -145,63 +204,43 @@ func (b *AnswerMessageBuilder) BuildErrorMessage(msg *base.ChatMessage) []slack.
 	}
 }
 
-// hasEnhancedMarkdown checks if any enhanced Markdown features are enabled
-func (b *AnswerMessageBuilder) hasEnhancedMarkdown() bool {
-	return isMarkdownTableEnabled(b.config) ||
-		isCodeBlockEnabled(b.config) ||
-		isQuoteEnabled(b.config)
-}
-
-// isMarkdownFeatureEnabled is a generic helper to check if a Markdown feature is enabled
-// Returns true by default (opt-out strategy)
-func isMarkdownFeatureEnabled(config *Config, getEnabled func() *bool) bool {
-	if config == nil {
-		return true // Default enabled
+// BuildThinkingMessage builds a collapsed message for thinking/reasoning content
+// Thinking content is shown collapsed by default to avoid cluttering the conversation
+func (b *AnswerMessageBuilder) BuildThinkingMessage(msg *base.ChatMessage) []slack.Block {
+	content := msg.Content
+	if content == "" {
+		return nil
 	}
-	enabled := getEnabled()
-	return BoolValue(enabled, true)
-}
 
-// isMarkdownTableEnabled checks if table conversion is enabled
-// Default: true (opt-out strategy - return true unless explicitly disabled)
-func isMarkdownTableEnabled(config *Config) bool {
-	return isMarkdownFeatureEnabled(config, func() *bool {
-		if config.Features.Markdown.TableConfig == nil {
-			return nil
-		}
-		return config.Features.Markdown.TableConfig.Enabled
-	})
-}
-
-// isCodeBlockEnabled checks if code block enhancement is enabled
-// Default: true (opt-out strategy)
-func isCodeBlockEnabled(config *Config) bool {
-	return isMarkdownFeatureEnabled(config, func() *bool {
-		if config.Features.Markdown.CodeBlockConfig == nil {
-			return nil
-		}
-		return config.Features.Markdown.CodeBlockConfig.Enabled
-	})
-}
-
-// isQuoteEnabled checks if quote enhancement is enabled
-// Default: true (opt-out strategy)
-func isQuoteEnabled(config *Config) bool {
-	return isMarkdownFeatureEnabled(config, func() *bool {
-		if config.Features.Markdown.QuoteConfig == nil {
-			return nil
-		}
-		return config.Features.Markdown.QuoteConfig.Enabled
-	})
-}
-
-// getMaxCodeBlockLines returns the max code block lines limit (default: 100)
-func getMaxCodeBlockLines(config *Config) int {
-	if config == nil || config.Features.Markdown.CodeBlockConfig == nil {
-		return 100
+	// Format thinking content with markdown if enabled
+	formattedContent := content
+	markdownEnabled := BoolValue(b.config.Features.Markdown.Enabled, true)
+	if markdownEnabled {
+		formattedContent = b.formatter.Format(content)
 	}
-	if config.Features.Markdown.CodeBlockConfig.MaxLines <= 0 {
-		return 100
+
+	// Truncate if too long (>MaxThinkingDisplay chars for thinking)
+	if len(formattedContent) > MaxThinkingDisplay {
+		cutPoint := MaxThinkingDisplay
+		if idx := findSentenceBoundary(formattedContent[cutPoint:], ThinkingBoundarySearchLimit); idx > 0 {
+			cutPoint += idx + 1
+		}
+		if cutPoint > len(formattedContent) {
+			cutPoint = len(formattedContent)
+		}
+		formattedContent = formattedContent[:cutPoint] + "..."
 	}
-	return config.Features.Markdown.CodeBlockConfig.MaxLines
+
+	// Build collapsed thinking block with distinctive styling
+	headerText := slack.NewTextBlockObject("plain_text", "💭 推理过程", false, false)
+	header := slack.NewHeaderBlock(headerText)
+
+	contentText := slack.NewTextBlockObject("mrkdwn", formattedContent, false, false)
+	section := slack.NewSectionBlock(contentText, nil, nil)
+
+	// Add context showing it's collapsed reasoning
+	contextText := slack.NewTextBlockObject("mrkdwn", "_🧠 AI 的推理过程（已折叠）_", false, false)
+	context := slack.NewContextBlock("", contextText)
+
+	return []slack.Block{header, section, context}
 }

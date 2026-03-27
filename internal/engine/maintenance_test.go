@@ -19,7 +19,7 @@ func TestMaintenanceLoop_ExecutesCleanup(t *testing.T) {
 		t.Fatalf("create provider: %v", err)
 	}
 
-	sm := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+	sm := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{
 		Namespace:      "test",
 		PermissionMode: "bypassPermissions",
 	}, os.Getenv("HOTPLEX_PROVIDER_BINARY"), prv)
@@ -59,7 +59,7 @@ func TestMaintenanceLoop_EnvDisabled(t *testing.T) {
 		t.Fatalf("create provider: %v", err)
 	}
 
-	sm := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+	sm := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{
 		Namespace:      "test",
 		PermissionMode: "bypassPermissions",
 	}, os.Getenv("HOTPLEX_PROVIDER_BINARY"), prv)
@@ -81,7 +81,7 @@ func TestMaintenanceLoop_StopsOnShutdown(t *testing.T) {
 		t.Fatalf("create provider: %v", err)
 	}
 
-	sm := NewSessionPool(logger, 30*time.Minute, EngineOptions{
+	sm := newCLISessionStarter(logger, 30*time.Minute, EngineOptions{
 		Namespace:      "test",
 		PermissionMode: "bypassPermissions",
 	}, os.Getenv("HOTPLEX_PROVIDER_BINARY"), prv)

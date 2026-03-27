@@ -3,6 +3,7 @@ package apphome
 import (
 	"fmt"
 
+	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/slack-go/slack"
 )
 
@@ -48,7 +49,7 @@ func (f *FormBuilder) BuildModal(cap Capability) *slack.ModalViewRequest {
 
 	return &slack.ModalViewRequest{
 		Type:            slack.VTModal,
-		Title:           slack.NewTextBlockObject(slack.PlainTextType, truncate(cap.Name, 24), false, false),
+		Title:           slack.NewTextBlockObject(slack.PlainTextType, base.TruncateWithEllipsis(cap.Name, 24), false, false),
 		Submit:          slack.NewTextBlockObject(slack.PlainTextType, f.messages.GetFormSubmitText(), false, false),
 		Close:           slack.NewTextBlockObject(slack.PlainTextType, f.messages.GetFormCancelText(), false, false),
 		Blocks:          slack.Blocks{BlockSet: blocks},
@@ -225,12 +226,4 @@ func (f *FormBuilder) buildLabel(param Parameter) string {
 		return param.Label + " " + f.messages.GetRequiredFieldSuffix()
 	}
 	return param.Label
-}
-
-// truncate truncates a string to maxLen characters.
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
 }

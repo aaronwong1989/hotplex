@@ -289,6 +289,18 @@ func createEngineForPlatform(pc *PlatformConfig, logger *slog.Logger) (*engine.E
 		pCfg.Enabled = &enabled
 	}
 
+	// 🎯 For OpenCode Server provider: inject work directory from Engine config
+	// This is needed because OpenCode Server uses x-opencode-directory HTTP header
+	// to specify the project directory for multi-project support.
+	if pCfg.Type == provider.ProviderTypeOpenCodeServer && pc.Engine.WorkDir != "" {
+		if pCfg.OpenCode == nil {
+			pCfg.OpenCode = &provider.OpenCodeConfig{}
+		}
+		pCfg.OpenCode.WorkDir = pc.Engine.WorkDir
+		logger.Debug("Injected work directory to OpenCode Server config",
+			"work_dir", pc.Engine.WorkDir)
+	}
+
 	prv, err := provider.CreateProvider(pCfg)
 	if err != nil {
 		return nil, fmt.Errorf("create provider: %w", err)

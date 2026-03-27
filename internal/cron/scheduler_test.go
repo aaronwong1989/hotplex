@@ -552,6 +552,9 @@ func TestCronScheduler_ExecuteJob_NotFound(t *testing.T) {
 }
 
 func TestCronScheduler_ExecuteJob_WithRetries(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping retry test in short mode")
+	}
 	dir := t.TempDir()
 	cs, _ := NewCronStore(dir)
 	rs, _ := NewRunsStore(dir)
@@ -779,6 +782,9 @@ func TestCronScheduler_SetRunsStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCronScheduler_FireCallbacks(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow webhook test in short mode")
+	}
 	t.Run("on_complete fires webhook", func(t *testing.T) {
 		var receivedStatus string
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1082,6 +1088,9 @@ func TestCronScheduler_ResumeJob_InvalidCronExpr(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCronScheduler_ExecuteJob_AllRetriesExhausted(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow retry test in short mode")
+	}
 	dir := t.TempDir()
 	cs, _ := NewCronStore(dir)
 	rs, _ := NewRunsStore(dir)

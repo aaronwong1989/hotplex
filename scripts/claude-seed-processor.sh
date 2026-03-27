@@ -39,6 +39,15 @@ log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; echo "[$(date '+%Y-%m-%d %H:%M
 log_error() { echo -e "${RED}[ERROR]${NC}  $1" >&2; echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE"; }
 log_chg()  { echo -e "${GREEN}[+]${NC} $1"; }
 
+# Batch log collector (accumulates lines, flushes once)
+_batched_chg=()
+flush_chg() {
+    if [[ ${#_batched_chg[@]} -gt 0 ]]; then
+        for l in "${_batched_chg[@]}"; do echo -e "${GREEN}[+]${NC} $l"; done
+        _batched_chg=()
+    fi
+}
+
 replace_paths() {
     sed $SED_I_FLAG \
         -e "s|/Users/${HOST_USER}|/home/${CONTAINER_USER}|g" \
@@ -100,10 +109,17 @@ process_dir() {
         mupd "D:$pfx" "$dm"
     fi
 
-    # Collect files
+    # Collect files: exclude cache, node_modules, .git dirs and marketplace subdirs entirely
+    # find -not -path is more reliable than grep pipelines for path filtering
     local flist; flist=$(mktemp "${MANIFEST_FILE}.fl.XXXXXX") || flist="/tmp/claude-fl.$$"
-    find "$src" -type f -print0 2>/dev/null | tr '\0' '\n' | \
-        grep -v "^cache/" | sed "s|${src}/||" > "$flist"
+    find "$src" -type f \
+        -not -path '*/cache/*' \
+        -not -path '*/node_modules/*' \
+        -not -path '*/.git/*' \
+        -not -path '*/marketplaces/*' \
+        -not -path '*/local/*' \
+        -not -path '*/repos/*' \
+        -print0 2>/dev/null | tr '\0' '\n' | sed "s|${src}/||" > "$flist"
 
     # Single awk: loads manifest, checks all files, outputs changed/skipped
     # Reads: MANIFEST_FILE (manifest), then flist (file paths)
@@ -127,7 +143,7 @@ process_dir() {
             mkdir -p "$(dirname "$dst/$rel")"
             if cp "$src/$rel" "$dst/$rel" 2>/dev/null; then
                 replace_paths "$dst/$rel"
-                log_chg "  $pfx/$rel"
+                _batched_chg+=("  $pfx/$rel")
                 ((changed++))
             fi
         else
@@ -137,6 +153,7 @@ process_dir() {
 
     rm -f "$flist"
     S_CHANGED=$((S_CHANGED + changed)); S_SKIPPED=$((S_SKIPPED + skipped))
+    flush_chg
     if [[ $changed -gt 0 ]]; then
         log_success "  $pfx: $changed changed, $skipped unchanged"
     else
@@ -180,7 +197,7 @@ process_skills() {
             mkdir -p "$(dirname "$OUTPUT_DIR/skills/$rel")"
             if cp "$SOURCE_DIR/skills/$rel" "$OUTPUT_DIR/skills/$rel" 2>/dev/null; then
                 replace_paths "$OUTPUT_DIR/skills/$rel"
-                log_chg "  skills/$rel"
+                _batched_chg+=("  skills/$rel")
                 ((changed++))
             fi
         else
@@ -190,6 +207,7 @@ process_skills() {
 
     rm -f "$flist"
     S_CHANGED=$((S_CHANGED + changed)); S_SKIPPED=$((S_SKIPPED + skipped))
+    flush_chg
     if [[ $changed -gt 0 ]]; then
         log_success "  skills: $changed changed, $skipped unchanged"
     else
@@ -241,8 +259,7 @@ process_plugins() {
     mkdir -p "$OUTPUT_DIR/plugins"
 
     process_dir "$SOURCE_DIR/plugins" "$OUTPUT_DIR/plugins" "plugins" "$FORCE_MTIME_SKIP"
-    # Always track D:plugins after processing plugins/ root
-    mupd "D:plugins" "$(dir_mtime "$SOURCE_DIR/plugins")"
+    # Note: D:plugins already written by process_dir's mtime check; do NOT overwrite it
 
     for subdir in marketplaces local repos; do
         local sp="$SOURCE_DIR/plugins/$subdir"
@@ -271,12 +288,17 @@ process_plugins() {
                     mupd "D:plugins/$subdir/$mname" "$dm2"
                     rm -rf "$OUTPUT_DIR/plugins/$subdir/$mname" 2>/dev/null || true
                     mkdir -p "$OUTPUT_DIR/plugins/$subdir/$mname"
-                    if cp -r "$mdir"/* "$OUTPUT_DIR/plugins/$subdir/$mname/" 2>/dev/null; then
-                        log_chg "  plugins/$subdir/$mname"; ((changed++))
+                    # rsync: preserve mtimes, exclude node_modules (massive, unused in container)
+                    if rsync -a --exclude='node_modules' --exclude='.git' \
+                        "$mdir/" "$OUTPUT_DIR/plugins/$subdir/$mname/" 2>/dev/null; then
+                        # Fix execute permissions for hooks (git may lose +x bit on macOS)
+                        find "$OUTPUT_DIR/plugins/$subdir/$mname/hooks" -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+                        _batched_chg+=("  plugins/$subdir/$mname")
+                        ((changed++))
                     fi
                 fi
             done
-            S_CHANGED=$((S_CHANGED + changed))
+            S_CHANGED=$((S_CHANGED + changed)); flush_chg
         else
             process_dir "$sp" "$OUTPUT_DIR/plugins/$subdir" "plugins/$subdir"
         fi
@@ -335,9 +357,11 @@ verify_seed() {
     [[ ! -d "$OUTPUT_DIR" ]] && { log_error "Seed dir missing"; return 1; }
     local leaks=0
     for pat in "$HOST_USER" "/Users/"; do
-        if grep -rI --exclude-dir="plugins" --exclude="*.log" \
-             --exclude="*.md" "$pat" "$OUTPUT_DIR" 2>/dev/null | \
-             grep -v "marketplaces" | grep -q . 2>/dev/null; then
+        # Exclude only top-level marketplace dirs from path leak check (they are mount targets)
+        # Do NOT blanket-filter "marketplaces" keyword — that hides leaks inside marketplace dirs
+        if grep -rI --exclude="*.log" --exclude="*.md" \
+             "$pat" "$OUTPUT_DIR" 2>/dev/null | \
+             grep -v "^${OUTPUT_DIR}/plugins/marketplaces/" | grep -q . 2>/dev/null; then
             log_error "Leaked path: $pat"; leaks=1; break
         fi
     done

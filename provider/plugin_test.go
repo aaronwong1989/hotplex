@@ -161,8 +161,8 @@ func TestFactoryWithPlugins(t *testing.T) {
 	if !factory.IsRegistered(ProviderTypeClaudeCode) {
 		t.Error("Expected claude-code in factory")
 	}
-	if !factory.IsRegistered(ProviderTypeOpenCode) {
-		t.Error("Expected opencode in factory")
+	if !factory.IsRegistered(ProviderTypeOpenCodeServer) {
+		t.Error("Expected opencode-server in factory")
 	}
 	if !factory.IsRegistered(ProviderTypePi) {
 		t.Error("Expected pi in factory")

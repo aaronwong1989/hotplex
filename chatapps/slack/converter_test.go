@@ -102,8 +102,8 @@ func TestConvertBold(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"**hello**", "*hello*"},
-		{"**hello** world **there**", "*hello* world *there*"},
+		{"**hello**", "\x01BOLD\x01hello\x01BOLD\x01"},
+		{"**hello** world **there**", "\x01BOLD\x01hello\x01BOLD\x01 world \x01BOLD\x01there\x01BOLD\x01"},
 		{"no bold here", "no bold here"},
 		{"__hello__", "__hello__"}, // only ** is handled by the outer loop
 		{"**", "**"},               // unclosed
@@ -123,8 +123,9 @@ func TestConvertItalic(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"*hello*", "*hello*"}, // convertItalic skips when it looks like bold after convertBold already ran
+		{"*hello*", "_hello_"},
 		{"no italic", "no italic"},
+		{"\x01BOLD\x01hello\x01BOLD\x01", "*hello*"}, // bold markers are replaced with *
 	}
 	for _, tt := range tests {
 		result := convertItalic(tt.input)

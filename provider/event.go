@@ -175,6 +175,9 @@ type ProviderEventMeta struct {
 	ContextWindow   int32  `json:"context_window,omitempty"`    // ContextWindow is the model's total context capacity (tokens).
 	MaxOutputTokens int32  `json:"max_output_tokens,omitempty"` // MaxOutputTokens is the model's maximum output limit.
 
+	// Context usage percentage (priority over manual calculation)
+	ContextUsedPercent *float64 `json:"context_used_percent,omitempty"` // ContextUsedPercent is the direct percentage from provider (e.g., Claude Code provides this).
+
 	// Progress tracking
 	Progress    int32 `json:"progress,omitempty"`
 	TotalSteps  int32 `json:"total_steps,omitempty"`

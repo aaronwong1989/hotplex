@@ -1,0 +1,104 @@
+# OpenCode Server Provider Configuration Example
+#
+# This file demonstrates how to configure HotPlex to use OpenCode Server Provider
+# instead of the CLI-based provider.
+#
+# OpenCode Server Provider connects to a running `opencode serve` instance
+# via HTTP/SSE instead of spawning CLI subprocesses.
+
+provider:
+  # Use the OpenCode Server provider type
+  type: opencode-server
+
+  # OpenCode Server specific configuration
+  opencode:
+    # Server URL (optional, defaults to http://127.0.0.1:4096)
+    # Use this if your OpenCode server runs on a different host or port
+    server_url: ${HOTPLEX_OPEN_CODE_SERVER_URL}
+
+    # Port number (optional, defaults to 4096)
+    # Only used if server_url is not specified
+    port: 4096
+
+    # Password for Basic Auth (optional)
+    # Set this to match your opencode serve --password
+    password: ${HOTPLEX_OPEN_CODE_PASSWORD}
+
+    # Provider and model selection (optional)
+    # Format: "providerID/modelID"
+    # Examples:
+    #   - anthropic/claude-sonnet-4-20250514
+    #   - openai/gpt-4-turbo
+    #   - gemini/gemini-2.0-flash
+    model: anthropic/claude-sonnet-4-20250514
+
+    # Agent selection (optional)
+    # Use this to specify a custom agent configuration
+    agent: code-assistant
+
+# Example configurations for different scenarios:
+
+---
+# Scenario 1: Local Development (default settings)
+# No configuration needed - just run:
+#   make opencode-start
+
+---
+# Scenario 2: Remote OpenCode Server
+# In your .env file:
+#   HOTPLEX_OPEN_CODE_SERVER_URL=http://opencode.internal:4096
+#   HOTPLEX_OPEN_CODE_PASSWORD=your-secure-password
+
+provider:
+  type: opencode-server
+  opencode:
+    server_url: ${HOTPLEX_OPEN_CODE_SERVER_URL}
+    password: ${HOTPLEX_OPEN_CODE_PASSWORD}
+
+---
+# Scenario 3: Multi-Model Setup
+# Configure different models for different bots
+
+# In configs/chatapps/slack-bot1.yaml:
+provider:
+  type: opencode-server
+  opencode:
+    model: anthropic/claude-sonnet-4-20250514
+
+# In configs/chatapps/slack-bot2.yaml:
+provider:
+  type: opencode-server
+  opencode:
+    model: openai/gpt-4-turbo
+
+---
+# Scenario 4: Docker Sidecar Mode
+# In docker-compose.yml or .env:
+#   HOTPLEX_OPEN_CODE_SERVER_ENABLED=true
+#   HOTPLEX_OPEN_CODE_PORT=4096
+#   HOTPLEX_OPEN_CODE_PASSWORD=your-secure-password
+
+# The docker-entrypoint.sh will automatically start:
+#   opencode serve --port 4096 --password your-secure-password
+
+# No additional configuration needed - HotPlex will connect to 127.0.0.1:4096
+
+---
+# Migration from CLI-based provider:
+
+# Old configuration (CLI mode):
+# provider:
+#   type: opencode
+#   binary_path: /usr/local/bin/opencode
+
+# New configuration (Server mode):
+# provider:
+#   type: opencode-server
+#   opencode:
+#     port: 4096
+
+# Benefits of Server mode:
+# - Faster session startup (no CLI spin-up)
+# - Better resource efficiency (shared server process)
+# - Centralized session management
+# - HTTP/SSE streaming for better observability

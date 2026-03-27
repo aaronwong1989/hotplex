@@ -115,3 +115,12 @@ func ExtractFloat64(metadata map[string]any, key string) float64 {
 	}
 	return 0
 }
+
+// ExtractString extracts string value from metadata map.
+// Returns empty string if key doesn't exist or type doesn't match.
+func ExtractString(metadata map[string]any, key string) string {
+	if v, ok := metadata[key].(string); ok {
+		return v
+	}
+	return ""
+}

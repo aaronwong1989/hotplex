@@ -1,0 +1,47 @@
+# HotPlex Capability Center - Predefined Capabilities
+
+capabilities:
+  - id: code_review
+    name: 代码审查
+    icon: ":mag:"
+    description: 对指定文件进行安全/性能/风格审查
+    category: code
+    enabled: true
+    parameters:
+      - id: target
+        label: 审查目标
+        type: text
+        required: true
+        placeholder: "例如: src/main.go"
+      - id: focus
+        label: 审查重点
+        type: select
+        required: false
+        default: "all"
+        options: [all, security, performance, style, maintainability]
+    prompt_template: |
+      请对以下内容进行代码审查:
+      目标: {{.target}}
+      重点关注: {{.focus}}
+    brain_opts:
+      intent_confirm: false
+      compress_context: true
+      preferred_model: claude-sonnet-4-6
+
+  - id: debug_error
+    name: 错误诊断
+    icon: ":bug:"
+    description: 分析错误信息并给出修复方案
+    category: debug
+    enabled: true
+    parameters:
+      - id: error_message
+        label: 错误信息
+        type: multiline
+        required: true
+    prompt_template: |
+      请分析以下错误并提供修复方案:
+      {{.error_message}}
+    brain_opts:
+      intent_confirm: false
+      compress_context: true

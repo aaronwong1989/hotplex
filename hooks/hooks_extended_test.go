@@ -62,6 +62,9 @@ func TestManager_RegisteredHooks(t *testing.T) {
 }
 
 func TestManager_Emit_ChannelFull(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping blocking-hook test in short mode")
+	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	// Small buffer to trigger full channel
 	mgr := NewManager(logger, 1)

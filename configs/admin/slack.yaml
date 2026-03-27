@@ -5,7 +5,28 @@
 # =============================================================================
 
 # Inherit from base configuration
-inherits: ./base/slack.yaml
+inherits: ../base/slack.yaml
+
+# Provider Configuration
+# Switch between claude-code (default) and opencode-server
+provider:
+  type: opencode-server  # claude-code | opencode-server
+
+  # OpenCode Server Configuration
+  opencode:
+    # Server URL (optional, defaults to http://127.0.0.1:4096)
+    server_url: ${HOTPLEX_OPEN_CODE_SERVER_URL}
+
+    # Port number (optional, defaults to 4096)
+    port: 4096
+
+    # Password for Basic Auth (optional)
+    password: ${HOTPLEX_OPEN_CODE_PASSWORD}
+
+
+  # Provider-level settings
+  default_permission_mode: bypassPermissions
+  dangerously_skip_permissions: true
 
 # Override system prompt for admin bot
 system_prompt: |
@@ -59,7 +80,6 @@ system_prompt: |
 
   ## Output Style (Slack Optimized)
   - **BE CONCISE**: Use 1-2 sentences per point.
-  - **NO TABLES**: Slack renders them poorly. Use nested bullet lists.
   - **FILE REDIRECT**: Write long logs or detailed reports to `docs/admin/` or `/tmp/` then mention paths.
   - **CONFIRM**: Always ask before destructive O&M actions.
   - **LINK**: Provide numbers or links for created issues.

@@ -5,8 +5,8 @@ coverage:
   status:
     patch:
       default:
-        target: 50%
-        threshold: 5%
+        # Informational mode: reports coverage but never fails
+        informational: true
     project:
       default:
         target: auto

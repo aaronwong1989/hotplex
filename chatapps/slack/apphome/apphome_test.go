@@ -618,27 +618,6 @@ func TestFormBuilder_BuildInputBlock_Types(t *testing.T) {
 	})
 }
 
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		maxLen   int
-		expected string
-	}{
-		{"short string unchanged", "hello", 10, "hello"},
-		{"exact length unchanged", "hello", 5, "hello"},
-		{"long string truncated", "hello world", 8, "hello..."},
-		{"empty string", "", 5, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := truncate(tt.input, tt.maxLen)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestHandler_HandleHomeOpened_NoClient(t *testing.T) {
 	registry := NewRegistry()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

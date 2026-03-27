@@ -38,32 +38,70 @@ func (b *StatsMessageBuilder) BuildSessionStatsMessage(msg *base.ChatMessage) []
 		var stats []string
 
 		// Total Duration
-		if duration := extractInt64(msg.Metadata, "total_duration_ms"); duration > 0 {
-			stats = append(stats, "⏱️ "+FormatDuration(duration))
+		if duration := base.ExtractInt64(msg.Metadata, "total_duration_ms"); duration > 0 {
+			stats = append(stats, "⏱️ "+base.FormatDuration(duration))
 		}
 
 		// Context Window Usage Percentage
 		// Shows how much of the 200K context window is used
-		if ctxPercent := extractFloat64(msg.Metadata, "context_used_percent"); ctxPercent > 0 {
+		if ctxPercent := base.ExtractFloat64(msg.Metadata, "context_used_percent"); ctxPercent > 0 {
 			stats = append(stats, fmt.Sprintf("🧠 %.0f%%", ctxPercent))
 		}
 
-		// Tokens (simplified display - just input/output, no cache)
-		tokensIn := extractInt64(msg.Metadata, "input_tokens")
-		tokensOut := extractInt64(msg.Metadata, "output_tokens")
+		// Tokens (with cache information)
+		tokensIn := base.ExtractInt64(msg.Metadata, "input_tokens")
+		tokensOut := base.ExtractInt64(msg.Metadata, "output_tokens")
+		cacheRead := base.ExtractInt64(msg.Metadata, "cache_read_tokens")
+		cacheWrite := base.ExtractInt64(msg.Metadata, "cache_write_tokens")
 		if tokensIn > 0 || tokensOut > 0 {
-			stats = append(stats, fmt.Sprintf("⚡ %s/%s",
-				formatTokenCount(tokensIn), formatTokenCount(tokensOut)))
+			tokenStr := fmt.Sprintf("⚡ %s/%s",
+				base.FormatTokenCount(tokensIn), base.FormatTokenCount(tokensOut))
+			// Add cache info if available
+			if cacheRead > 0 || cacheWrite > 0 {
+				cacheParts := []string{}
+				if cacheRead > 0 {
+					cacheParts = append(cacheParts, fmt.Sprintf("r:%s", base.FormatTokenCount(cacheRead)))
+				}
+				if cacheWrite > 0 {
+					cacheParts = append(cacheParts, fmt.Sprintf("w:%s", base.FormatTokenCount(cacheWrite)))
+				}
+				tokenStr += fmt.Sprintf(" (cache: %s)", strings.Join(cacheParts, ", "))
+			}
+			stats = append(stats, tokenStr)
+		}
+
+		// Cost
+		if cost := base.ExtractFloat64(msg.Metadata, "total_cost_usd"); cost > 0 {
+			stats = append(stats, "💵 "+base.FormatCost(cost))
 		}
 
 		// Files modified
-		if files := extractInt64(msg.Metadata, "files_modified"); files > 0 {
+		if files := base.ExtractInt64(msg.Metadata, "files_modified"); files > 0 {
 			stats = append(stats, fmt.Sprintf("📝 %d files", files))
 		}
 
 		// Tool calls
-		if tools := extractInt64(msg.Metadata, "tool_call_count"); tools > 0 {
+		if tools := base.ExtractInt64(msg.Metadata, "tool_call_count"); tools > 0 {
 			stats = append(stats, fmt.Sprintf("🔧 %d tools", tools))
+		}
+
+		// Model used (from SSE ModelID)
+		if model := base.ExtractString(msg.Metadata, "model_used"); model != "" {
+			stats = append(stats, "🤖 "+model)
+		}
+
+		// Finish reason
+		if reason := base.ExtractString(msg.Metadata, "finish_reason"); reason != "" {
+			reasonLabel := reason
+			switch reason {
+			case "end_turn":
+				reasonLabel = "✅ 正常结束"
+			case "tool_use":
+				reasonLabel = "🔧 工具调用"
+			case "max_tokens":
+				reasonLabel = "⚠️ Token 超限"
+			}
+			stats = append(stats, reasonLabel)
 		}
 
 		if len(stats) > 0 {
@@ -73,33 +111,6 @@ func (b *StatsMessageBuilder) BuildSessionStatsMessage(msg *base.ChatMessage) []
 	}
 
 	return blocks
-}
-
-// extractInt64 extracts int64 value from metadata, supporting both int32 and int64 types
-func extractInt64(metadata map[string]any, key string) int64 {
-	if v, ok := metadata[key].(int64); ok {
-		return v
-	}
-	if v, ok := metadata[key].(int32); ok {
-		return int64(v)
-	}
-	return 0
-}
-
-// extractFloat64 extracts float64 value from metadata
-func extractFloat64(metadata map[string]any, key string) float64 {
-	if v, ok := metadata[key].(float64); ok {
-		return v
-	}
-	return 0
-}
-
-// formatTokenCount formats token count in compact form (1.2K, 1.00M)
-// Uses proper threshold: K for < 1M, M for >= 1M
-// DEPRECATED: Use base.FormatTokenCount instead
-// This is kept for backward compatibility during migration
-func formatTokenCount(count int64) string {
-	return base.FormatTokenCount(count)
 }
 
 // BuildCommandProgressMessage builds a message for command progress updates
@@ -188,7 +199,7 @@ func (b *StatsMessageBuilder) BuildCommandCompleteMessage(msg *base.ChatMessage)
 		extras = append(extras, fmt.Sprintf("%d/%d steps", completedSteps, totalSteps))
 	}
 	if durationMs > 0 {
-		extras = append(extras, "⏱️ "+FormatDuration(durationMs))
+		extras = append(extras, "⏱️ "+base.FormatDuration(durationMs))
 	}
 	if len(extras) > 0 {
 		line += "  |  " + strings.Join(extras, "  |  ")

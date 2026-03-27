@@ -50,6 +50,9 @@ type EventMeta struct {
 	Progress    int32 `json:"progress"`     // Progress percentage (0-100)
 	TotalSteps  int32 `json:"total_steps"`  // Total number of steps (for multi-stage operations)
 	CurrentStep int32 `json:"current_step"` // Current step number
+
+	// Model information
+	Model string `json:"model"` // Model ID used for this event (e.g., "claude-sonnet-4-20250514")
 }
 
 // EventWithMeta extends the basic event with metadata for observability.
@@ -95,6 +98,7 @@ type SessionStatsData struct {
 	FilePaths            []string `json:"file_paths"`
 	TotalCostUSD         float64  `json:"total_cost_usd"`
 	ModelUsed            string   `json:"model_used"`
+	FinishReason         string   `json:"finish_reason"` // Original finish reason (end_turn / tool_use / max_tokens)
 	IsError              bool     `json:"is_error"`
 	ErrorMessage         string   `json:"error_message,omitempty"`
 	ContextUsedPercent   float64  `json:"context_used_percent"` // Context window usage percentage (0-100)

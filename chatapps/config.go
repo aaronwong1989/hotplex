@@ -277,8 +277,39 @@ func mergeProviderConfig(parent, child provider.ProviderConfig) provider.Provide
 	if child.Timeout != 0 {
 		result.Timeout = child.Timeout
 	}
+	// Deep merge OpenCode config (not just replace)
 	if child.OpenCode != nil {
-		result.OpenCode = child.OpenCode
+		if result.OpenCode == nil {
+			result.OpenCode = child.OpenCode
+		} else {
+			// Merge individual fields
+			merged := *result.OpenCode // Start with parent
+			if child.OpenCode.ServerURL != "" {
+				merged.ServerURL = child.OpenCode.ServerURL
+			}
+			if child.OpenCode.Port != 0 {
+				merged.Port = child.OpenCode.Port
+			}
+			if child.OpenCode.Password != "" {
+				merged.Password = child.OpenCode.Password
+			}
+			if child.OpenCode.Agent != "" {
+				merged.Agent = child.OpenCode.Agent
+			}
+			if child.OpenCode.Provider != "" {
+				merged.Provider = child.OpenCode.Provider
+			}
+			if child.OpenCode.Model != "" {
+				merged.Model = child.OpenCode.Model
+			}
+			if child.OpenCode.UseHTTPAPI {
+				merged.UseHTTPAPI = child.OpenCode.UseHTTPAPI
+			}
+			if child.OpenCode.PlanMode {
+				merged.PlanMode = child.OpenCode.PlanMode
+			}
+			result.OpenCode = &merged
+		}
 	}
 	if child.Pi != nil {
 		result.Pi = child.Pi
@@ -511,24 +542,53 @@ func (c *ConfigLoader) loadConfigWithInheritance(filename string, loadedFiles ma
 }
 
 func (c *ConfigLoader) Load(configDir string) error {
-	entries, err := os.ReadDir(configDir)
-	if err != nil {
-		return fmt.Errorf("read config dir: %w", err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
-			continue
+	// Use filepath.Walk to recursively find all YAML files in subdirectories
+	return filepath.Walk(configDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
 
-		filename := filepath.Join(configDir, entry.Name())
+		// Skip directories and non-YAML files
+		if info.IsDir() || filepath.Ext(path) != ".yaml" {
+			return nil
+		}
+
+		filename := path
+
+		// Skip files in template/example directories.
+		// These are inherited by other configs but should not be loaded as standalone
+		// platform configs. Without this, base/slack.yaml would overwrite
+		// admin/slack.yaml when loaded after it alphabetically.
+		rel, err := filepath.Rel(configDir, filename)
+		if err == nil && strings.Contains(rel, string(filepath.Separator)) {
+			// File is in a subdirectory
+			parts := strings.Split(rel, string(filepath.Separator))
+			if len(parts) > 0 {
+				switch parts[0] {
+				case "base", "examples", "templates":
+					// Skip template directories (only used for inheritance)
+					c.logger.Debug("Skipping template/example config — inherited by child configs",
+						"file", filename)
+					return nil
+				case "admin":
+					// admin/ is a valid config directory, not a template
+					// Continue to load these files
+				default:
+					// Unknown subdirectory - skip to avoid loading unwanted configs
+					c.logger.Debug("Skipping config in unknown subdirectory",
+						"file", filename,
+						"subdir", parts[0])
+					return nil
+				}
+			}
+		}
 
 		// Use inheritance-aware config loading
 		loadedFiles := make(map[string]struct{})
 		cfg, err := c.loadConfigWithInheritance(filename, loadedFiles)
 		if err != nil {
 			c.logger.Warn("Failed to load config file", "file", filename, "error", err)
-			continue
+			return nil // Continue walking
 		}
 
 		if cfg.Platform == "" {
@@ -539,16 +599,35 @@ func (c *ConfigLoader) Load(configDir string) error {
 				cfg.Platform = inferredPlatform
 			} else {
 				c.logger.Warn("Config missing platform field", "file", filename)
-				continue
+				return nil // Continue walking
 			}
 		}
 
 		c.mu.Lock()
 		c.configs[cfg.Platform] = cfg
 		c.mu.Unlock()
-		c.logger.Info("Loaded platform configuration", "platform", cfg.Platform, "file", filename)
-	}
-	return nil
+		// Debug: Log OpenCode password status
+		if cfg.Provider.Type == "opencode-server" && cfg.Provider.OpenCode != nil {
+			pwdLen := len(cfg.Provider.OpenCode.Password)
+			pwdPreview := "<empty>"
+			if pwdLen > 10 {
+				pwdPreview = cfg.Provider.OpenCode.Password[:10] + "..."
+			} else if pwdLen > 0 {
+				pwdPreview = fmt.Sprintf("%d chars", pwdLen)
+			}
+			c.logger.Info("Loaded OpenCode provider config",
+				"platform", cfg.Platform,
+				"file", filename,
+				"password_len", pwdLen,
+				"password_preview", pwdPreview)
+		} else {
+			c.logger.Info("Loaded platform configuration",
+				"platform", cfg.Platform,
+				"file", filename)
+		}
+
+		return nil
+	})
 }
 
 func (c *ConfigLoader) GetConfig(platform string) *PlatformConfig {

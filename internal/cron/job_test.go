@@ -437,6 +437,9 @@ func TestCronJob_Clone_EmptyNotifyOn(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestWebhookCallback_Send_ClientError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow webhook test in short mode")
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 	}))
@@ -455,6 +458,9 @@ func TestWebhookCallback_Send_ClientError(t *testing.T) {
 }
 
 func TestWebhookCallback_Send_AllRetriesExhausted(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow webhook test in short mode")
+	}
 	attempts := 0
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -94,7 +94,7 @@ func NewMessageBuilder(config *Config) *MessageBuilder {
 func (b *MessageBuilder) Build(msg *base.ChatMessage) []slack.Block {
 	switch msg.Type {
 	case base.MessageTypeThinking:
-		return nil // Handled by status
+		return b.answer.BuildThinkingMessage(msg)
 	case base.MessageTypeToolUse:
 		return nil // Handled by Assistant Status API
 	case base.MessageTypeToolResult:

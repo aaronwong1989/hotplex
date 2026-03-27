@@ -3,18 +3,10 @@ package engine
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"slices"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/hrygo/hotplex/internal/panicx"
 	"github.com/hrygo/hotplex/internal/persistence"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/provider"
@@ -29,9 +21,9 @@ type SessionPool struct {
 	sessions     map[string]*Session
 	mu           sync.RWMutex
 	logger       *slog.Logger
-	timeout      time.Duration // Time after which an idle session is eligible for termination
-	opts         EngineOptions // Global constraints shared by all sessions in the pool
-	cliPath      string        // Resolved path to the CLI binary
+	timeout      time.Duration  // Time after which an idle session is eligible for termination
+	opts         EngineOptions  // Global constraints shared by all sessions in the pool
+	starter      SessionStarter // Creates and starts sessions (CLI or HTTP)
 	provider     provider.Provider
 	done         chan struct{} // Internal signal for shutting down background workers
 	shutdownOnce sync.Once     // Ensures Shutdown is only executed once
@@ -60,7 +52,7 @@ type StreamDataSaver interface {
 // out for security reasons to prevent injection attacks via environment variables.
 
 // NewSessionPool creates a new session manager with default file-based marker storage.
-func NewSessionPool(logger *slog.Logger, timeout time.Duration, opts EngineOptions, cliPath string, prv provider.Provider) *SessionPool {
+func NewSessionPool(logger *slog.Logger, timeout time.Duration, opts EngineOptions, starter SessionStarter, prv provider.Provider) *SessionPool {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -70,7 +62,7 @@ func NewSessionPool(logger *slog.Logger, timeout time.Duration, opts EngineOptio
 		logger:      logger,
 		timeout:     timeout,
 		opts:        opts,
-		cliPath:     cliPath,
+		starter:     starter,
 		provider:    prv,
 		done:        make(chan struct{}),
 		markerStore: persistence.NewDefaultFileMarkerStore(),
@@ -154,7 +146,7 @@ func (sm *SessionPool) getOrCreateSession(ctx context.Context, sessionID string,
 	}()
 
 	// startSession is heavy, but now doesn't block other sessionIDs
-	sess, err := sm.startSession(ctx, sessionID, cfg, prompt)
+	sess, err := sm.starter.StartSession(ctx, sessionID, cfg, prompt, nil)
 	if err != nil {
 		return nil, false, err
 	}
@@ -231,20 +223,18 @@ func (sm *SessionPool) cleanupSessionLocked(sessionID string) error {
 
 	delete(sm.sessions, sessionID)
 
-	sm.logger.Info("Terminating session and sweeping OS process group",
+	sm.logger.Info("Terminating session",
 		"namespace", sm.opts.Namespace,
 		"session_id", sessionID,
 		"provider_session_id", sess.ProviderSessionID)
 
-	// Save uncommitted stream data before termination (if streamStore is configured)
+	// Save uncommitted stream data before termination (if streamStore is configured).
 	if sm.streamStore != nil {
 		if buffer := sm.streamStore.GetBuffer(sessionID); buffer != nil {
 			sm.logger.Info("Saving incomplete stream buffer before session termination",
 				"session_id", sessionID,
 				"provider_session_id", sess.ProviderSessionID)
 
-			// Synchronous save to ensure data is persisted before session is destroyed
-			// Use background context since the request context may be cancelled
 			saveCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
@@ -253,7 +243,6 @@ func (sm *SessionPool) cleanupSessionLocked(sessionID string) error {
 					"session_id", sessionID,
 					"provider_session_id", sess.ProviderSessionID,
 					"error", err)
-				// Continue with termination even if save fails
 			} else {
 				sm.logger.Info("Successfully saved incomplete stream buffer",
 					"session_id", sessionID,
@@ -262,318 +251,35 @@ func (sm *SessionPool) cleanupSessionLocked(sessionID string) error {
 		}
 	}
 
-	// Hold session lock to prevent race with WriteInput
+	// Hold session lock to prevent race with WriteInput.
 	sess.mu.Lock()
 	sess.close()
 	sess.mu.Unlock()
 
-	// Cancel context to kill process if using CommandContext
-	if sess.cancel != nil {
-		sess.cancel()
+	// For CLI sessions: kill process group and reap zombie.
+	if sess.io != nil && sess.io.IsCLI() {
+		// Cancel context to kill process if using CommandContext.
+		if sess.cancel != nil {
+			sess.cancel()
+		}
+
+		// Force kill if needed (pass jobHandle for Windows Job Object termination).
+		sys.KillProcessGroup(sess.cmd, sess.jobHandle)
+
+		// Reap the zombie process so the OS process-table entry is cleared.
+		_ = sess.Wait()
 	}
-
-	// Force kill if needed (pass jobHandle for Windows Job Object termination)
-	sys.KillProcessGroup(sess.cmd, sess.jobHandle)
-
-	// Reap the zombie process so the OS process-table entry is cleared.
-	// sess.Wait() uses sync.Once to ensure only one reaper executes,
-	// eliminating double-wait races between sync and async paths.
-	_ = sess.Wait()
 
 	return nil
 }
 
-// startSession initializes the OS process (Cold Start).
-func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg SessionConfig, prompt string) (*Session, error) {
-	if ctx.Err() != nil {
-		return nil, fmt.Errorf("request context cancelled: %w", ctx.Err())
-	}
-
-	sessCtx, cancel := context.WithCancel(context.Background())
-	var success bool
-	defer func() {
-		if !success {
-			cancel()
-		}
-	}()
-
-	startupCtx, startupCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer startupCancel()
-
-	startedCh := make(chan error, 1)
-	defer close(startedCh)
-
-	go monitorStartup(startupCtx, startedCh, cancel)
-
-	// Use direct string concatenation for better performance
-	// Always use deterministic SHA1 for consistent session ID mapping
-	// This ensures end-to-end session traceability - no random UUIDs.
-	// Per-session Namespace override takes precedence over pool default.
-	ns := cfg.Namespace
-	if ns == "" {
-		ns = sm.opts.Namespace
-	}
-	uniqueStr := ns + ":session:" + sessionID
-	providerSessionID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(uniqueStr)).String()
-
-	sessLog := sm.logger.With(
-		"namespace", ns,
-		"session_id", sessionID,
-		"provider_session_id", providerSessionID,
-	)
-
-	// Check if this is a resume BEFORE building CLI args
-	// This is critical because buildCLIArgs may create the marker
-	isResuming := sm.markerStore.Exists(providerSessionID)
-
-	args := sm.buildCLIArgs(providerSessionID, sessLog, prompt, cfg)
-	cmd := exec.CommandContext(sessCtx, sm.cliPath, args...)
-
-	// Clear CLAUDECODE env var to allow nested CLI sessions
-	// CLI refuses to start if it detects it's running inside another Claude Code session
-	cmd.Env = slices.DeleteFunc(slices.Clone(os.Environ()), func(env string) bool {
-		return strings.HasPrefix(env, "CLAUDECODE=")
-	})
-
-	// Resolve relative paths (like ".") to absolute paths
-	// First clean the path to resolve . and .. elements, then convert to absolute
-	if cfg.WorkDir == "." || !filepath.IsAbs(cfg.WorkDir) {
-		cleaned := filepath.Clean(cfg.WorkDir)
-		if absPath, err := filepath.Abs(cleaned); err == nil {
-			cmd.Dir = absPath
-		} else {
-			cmd.Dir = cleaned // Fallback to cleaned path if error
-		}
-	} else {
-		// For absolute paths, also clean to resolve . and .. elements
-		cmd.Dir = filepath.Clean(cfg.WorkDir)
-	}
-
-	// Setup process attributes and get job handle (Windows) or zero (Unix)
-	jobHandle, err := sys.SetupCmdSysProcAttr(cmd)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("setup sys proc attr: %w", err)
-	}
-
-	stdin, stdout, stderr, err := setupCmdPipes(cmd)
-	if err != nil {
-		cancel()
-		sys.CloseJobHandle(jobHandle) // Cleanup job handle on error
-		return nil, err
-	}
-
-	if err := cmd.Start(); err != nil {
-		startedCh <- err
-		// Close pipes to prevent resource leak on start failure
-		if stdin != nil {
-			_ = stdin.Close()
-		}
-		if stdout != nil {
-			_ = stdout.Close()
-		}
-		if stderr != nil {
-			_ = stderr.Close()
-		}
-		sys.CloseJobHandle(jobHandle) // Cleanup job handle on error
-		return nil, fmt.Errorf("cmd start: %w", err)
-	}
-
-	// Assign process to Job Object on Windows
-	if jobHandle != 0 {
-		if err := sys.AssignProcessToJob(jobHandle, cmd.Process); err != nil {
-			sessLog.Warn("failed to assign process to Job Object", "error", err)
-			// Continue anyway - process is still running, will be killed via taskkill fallback
-		}
-	}
-
-	// Create marker AFTER CLI process successfully starts
-	// This prevents creating markers for failed session starts
-	if !isResuming {
-		if err := sm.markerStore.Create(providerSessionID); err != nil {
-			sessLog.Error("Session will not be persistent - marker creation failed",
-				"error", err,
-				"provider_session_id", providerSessionID,
-				"impact", "Session cannot be resumed after daemon restart")
-		} else {
-			sessLog.Info("Created session marker after successful CLI start", "provider_session_id", providerSessionID)
-		}
-	}
-
-	startedCh <- nil
-
-	sessLog.Info("OS Process started (Cold Start)",
-		"pid", cmd.Process.Pid,
-		"pgid", cmd.Process.Pid)
-
-	sess := &Session{
-		ID:                sessionID,
-		ProviderSessionID: providerSessionID,
-		Config:            cfg,
-		cmd:               cmd,
-		stdin:             stdin,
-		stdout:            stdout,
-		stderr:            stderr,
-		cancel:            cancel,
-		jobHandle:         jobHandle,
-		CreatedAt:         time.Now(),
-		LastActive:        time.Now(),
-		Status:            SessionStatusStarting,
-		TaskInstructions:  cfg.TaskInstructions,
-		statusChange:      make(chan SessionStatus, 10),
-		logger:            sessLog,
-		IsResuming:        isResuming,
-	}
-
-	// Open session log file for stderr persistence
-	if err := sess.OpenLogFile(); err != nil {
-		sessLog.Warn("Failed to open session log file", "error", err)
-	}
-
-	go sess.ReadStdout()
-	go sess.ReadStderr()
-
-	panicx.SafeGo(sessLog, func() {
-		err := sess.Wait()
-		if sess.GetStatus() != SessionStatusDead {
-			sessLog.Warn("Session OS process exited unexpectedly", "exit_error", err, "is_resuming", isResuming)
-			// If this was a resume attempt that failed, delete the stale marker and CLI session file
-			// This allows the next request to create a fresh session with the SAME deterministic ID
-			if isResuming {
-				// Delete marker first
-				if delErr := sm.markerStore.Delete(providerSessionID); delErr != nil {
-					sessLog.Warn("Failed to delete stale session marker", "error", delErr)
-				} else {
-					sessLog.Info("Deleted stale session marker after failed resume", "provider_session_id", providerSessionID)
-				}
-				// Also clean up the CLI session file
-				// Next request will use the same deterministic SHA1 ID but create a fresh session
-				if cleanupErr := sm.provider.CleanupSession(providerSessionID, sess.Config.WorkDir); cleanupErr != nil {
-					sessLog.Warn("Failed to cleanup CLI session file after failed resume", "error", cleanupErr)
-				} else {
-					sessLog.Info("Cleaned up CLI session file after failed resume", "provider_session_id", providerSessionID)
-				}
-				// NOTE: We do NOT use random UUID here. Next request will use the same
-				// deterministic SHA1 ID to create a fresh session, maintaining end-to-end consistency.
-			}
-			// Update status to Dead and notify callback
-			sess.SetStatus(SessionStatusDead)
-			if cb := sess.GetCallback(); cb != nil {
-				_ = cb("runner_exit", nil)
-			}
-		}
-	})
-
-	sess.waitForReady(sessCtx, DefaultReadyTimeout)
-	success = true
-	return sess, nil
-}
-
+// buildCLIArgs is a convenience method that delegates to the CLI starter's buildCLIArgs.
+// It exists for backward compatibility with existing tests.
 func (sm *SessionPool) buildCLIArgs(providerSessionID string, sessLog *slog.Logger, prompt string, cfg SessionConfig) []string {
-	// Determine system prompt: session-level override takes precedence over engine-level
-	baseSystemPrompt := cfg.BaseSystemPrompt
-	if baseSystemPrompt == "" {
-		baseSystemPrompt = sm.opts.BaseSystemPrompt
+	if cliStarter, ok := sm.starter.(*CLISessionStarter); ok {
+		return cliStarter.buildCLIArgs(providerSessionID, sessLog, prompt, cfg)
 	}
-
-	// Build ProviderSessionOptions
-	opts := &provider.ProviderSessionOptions{
-		WorkDir:                    cfg.WorkDir,
-		PermissionMode:             sm.opts.PermissionMode,
-		DangerouslySkipPermissions: sm.opts.DangerouslySkipPermissions,
-		AllowedTools:               sm.opts.AllowedTools,
-		DisallowedTools:            sm.opts.DisallowedTools,
-		BaseSystemPrompt:           baseSystemPrompt,
-		TaskInstructions:           cfg.TaskInstructions,
-		InitialPrompt:              prompt,
-		SessionID:                  providerSessionID,
-	}
-
-	// Check if we need to resume using marker store
-	if sm.markerStore.Exists(providerSessionID) {
-		// Verify that the CLI session data actually exists before attempting resume
-		// This prevents "No conversation found with session ID" errors when:
-		// - Marker exists but CLI session data was deleted/expired
-		// - Container restart lost session data but marker file persists
-		if sm.provider.VerifySession(providerSessionID, cfg.WorkDir) {
-			// Both marker and CLI file exist - safe to resume
-			opts.ResumeSession = true
-			opts.ProviderSessionID = providerSessionID
-			sessLog.Info("Resuming existing persistent CLI session")
-		} else {
-			// Marker exists but CLI session data is missing - clean up and create fresh session
-			sessLog.Warn("Marker exists but CLI session data not found, creating fresh session",
-				"provider_session_id", providerSessionID)
-
-			// Delete stale marker
-			if err := sm.markerStore.Delete(providerSessionID); err != nil {
-				sessLog.Warn("Failed to delete stale marker", "error", err)
-			}
-
-			// Cleanup any stale CLI session files
-			if err := sm.provider.CleanupSession(providerSessionID, cfg.WorkDir); err != nil {
-				sessLog.Warn("Failed to cleanup stale CLI session file", "error", err)
-			}
-
-			opts.ProviderSessionID = providerSessionID
-			sessLog.Info("Creating new CLI session (marker was stale)")
-		}
-	} else {
-		opts.ProviderSessionID = providerSessionID
-
-		// Critical: Delete stale CLI session file before starting new session
-		// This prevents "Session ID is already in use" errors when:
-		// - /reset deleted the marker but not the CLI session file
-		// - Daemon restart with stale CLI session files on disk
-		if err := sm.provider.CleanupSession(providerSessionID, cfg.WorkDir); err != nil {
-			sessLog.Warn("Failed to cleanup stale CLI session file", "error", err)
-		}
-
-		sessLog.Info("Creating new persistent CLI session")
-		// NOTE: Marker will be created AFTER CLI successfully starts in startSession()
-	}
-
-	return sm.provider.BuildCLIArgs(providerSessionID, opts)
-}
-
-func setupCmdPipes(cmd *exec.Cmd) (io.WriteCloser, io.ReadCloser, io.ReadCloser, error) {
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("stdin pipe: %w", err)
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		_ = stdin.Close()
-		return nil, nil, nil, fmt.Errorf("stdout pipe: %w", err)
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		_ = stdout.Close()
-		_ = stdin.Close()
-		return nil, nil, nil, fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	return stdin, stdout, stderr, nil
-}
-
-func monitorStartup(startupCtx context.Context, startedCh <-chan error, cancel context.CancelFunc) {
-	select {
-	case err := <-startedCh:
-		if err != nil {
-			cancel()
-		}
-	case <-startupCtx.Done():
-		select {
-		case err := <-startedCh:
-			if err != nil {
-				cancel()
-			}
-		default:
-			cancel()
-		}
-	}
+	return nil
 }
 
 // cleanupLoop runs periodic cleanup of idle sessions and stale marker files.

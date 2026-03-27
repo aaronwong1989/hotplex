@@ -75,3 +75,5 @@ services:
     labels:
       - "hotplex.bot.id=U0AL7H8UU75"
       - "hotplex.bot.role=secondary"
+
+

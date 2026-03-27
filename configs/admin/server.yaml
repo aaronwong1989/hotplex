@@ -4,7 +4,7 @@
 # Inherits from base configuration, only override admin-specific settings.
 # =============================================================================
 
-inherits: ./base/server.yaml
+inherits: ../base/server.yaml
 
 # Override: Admin bot uses debug logging for detailed diagnostics
 server:

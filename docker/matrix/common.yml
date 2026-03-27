@@ -56,6 +56,13 @@ x-hotplex-common: &hotplex-common
     # ─────────────────────────────────────────────────────────────────
     HOTPLEX_OPENCODE_COMPAT_ENABLED: ${HOTPLEX_OPENCODE_COMPAT_ENABLED:-true}
     # ─────────────────────────────────────────────────────────────────
+    # OpenCode Server Configuration (Sidecar Mode)
+    # ─────────────────────────────────────────────────────────────────
+    HOTPLEX_OPEN_CODE_SERVER_URL: ${HOTPLEX_OPEN_CODE_SERVER_URL:-http://127.0.0.1:4096}
+    OPENCODE_SERVER_PASSWORD: ${OPENCODE_SERVER_PASSWORD:-}
+    OPENCODE_SERVER_PORT: ${OPENCODE_SERVER_PORT:-4096}
+    OPENCODE_SERVER_ENABLED: ${OPENCODE_SERVER_ENABLED:-true}
+    # ─────────────────────────────────────────────────────────────────
     # Message Store (Default: enabled with streaming)
     # ─────────────────────────────────────────────────────────────────
     HOTPLEX_MESSAGE_STORE_ENABLED: ${HOTPLEX_MESSAGE_STORE_ENABLED:-true}
@@ -74,8 +81,7 @@ x-hotplex-common: &hotplex-common
   cap_drop: [ NET_RAW, NET_ADMIN ]
   security_opt: [ no-new-privileges:true ]
   healthcheck: &common-healthcheck
-    # Use curl for health check (more reliable than wget --spider)
-    test: [ "CMD", "curl", "-sf", "http://localhost:8080/health" ]
+    test: ["CMD-SHELL", "curl -sf http://localhost:8080/health | grep -q '\"status\":\"healthy\"'"]
     interval: 30s
     timeout: 10s
     retries: 3

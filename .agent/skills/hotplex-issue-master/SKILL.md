@@ -1,23 +1,27 @@
 ---
 name: hotplex-issue-master
-description: HotPlex Issue 管理大师 - 全方位 GitHub issue 智能管理工具。提供自动标注、生命周期管理、重复检测、优先级调整、批量操作、分析报告等全方位功能。**主动使用场景**：任何涉及多个 GitHub issues 的操作（分析、标注、打标签、统计、清理、批量处理、生成报告、检测重复、管理生命周期），无论用户是否明确提到 "issue master" 或 "管理 issues"。即使只是"分析一下 issues"、"给这些 issues 打标签"、"统计 issue 数量"、"清理过期 issues"、"批量打标签"等泛化表述，也应立即使用此技能。
+description: HotPlex Issue 管理大师 - 全方位 GitHub issue 智能管理工具。提供自动标注、生命周期管理、重复检测、优先级调整、批量操作、分析报告、**Obsidian 同步**等全方位功能。**主动使用场景**：任何涉及多个 GitHub issues 的操作（分析、标注、打标签、统计、清理、批量处理、生成报告、检测重复、管理生命周期、**同步到 Obsidian**），无论用户是否明确提到 "issue master" 或 "管理 issues"。即使只是"分析一下 issues"、"给这些 issues 打标签"、"统计 issue 数量"、"清理过期 issues"、"批量打标签"、"**同步 issues 到 Obsidian**"、"**将 issues 导入笔记软件**"等泛化表述，也应立即使用此技能。
 ---
 
 # HotPlex Issue 管理大师 🎯
 
-**全方位 GitHub issue 智能管理工具**，基于大型开源项目（Kubernetes, React, VS Code）的最佳实践，为 HotPlex 提供企业级 issue 管理能力。
+**全方位 GitHub issue 智能管理工具**，基于大型开源项目（Kubernetes, React, VS Code）的最佳实践。
+
+---
 
 ## 核心能力
 
 ### 1. 自动标注 (Auto-Labeling)
-自动分析并应用 7 维度标签：
-- **优先级**：`priority/critical`, `priority/high`, `priority/medium`, `priority/low`
-- **类型**：`type/bug`, `type/feature`, `type/enhancement`, `type/docs`, `type/test`, `type/refactor`, `type/security`
-- **规模**：`size/small`, `size/medium`, `size/large`
-- **状态**：`status/needs-triage`, `status/ready-for-work`, `status/blocked`, `status/in-progress`, `status/stale`
-- **平台**：`platform/slack`, `platform/telegram`, `platform/feishu`, `platform/discord`
-- **模块**：`area/engine`, `area/adapter`, `area/provider`, `area/security`, `area/admin`, `area/brain`
-- **特殊**：`good first issue`, `help wanted`, `epic`, `wontfix`, `duplicate`
+自动分析并应用 **7 维度 34 标签**：
+- **优先级** (4): critical, high, medium, low
+- **类型** (7): bug, feature, enhancement, docs, test, refactor, security
+- **规模** (3): small, medium, large
+- **状态** (5): needs-triage, ready-for-work, blocked, in-progress, stale
+- **平台** (4): slack, telegram, feishu, discord
+- **模块** (6): engine, adapter, provider, security, admin, brain
+- **特殊** (5): good first issue, help wanted, epic, wontfix, duplicate
+
+**详细标签体系**：参考 [`references/label-system.md`](references/label-system.md)
 
 ### 2. 生命周期管理 (Lifecycle Management)
 - 自动检测可关闭 issues（重复、已修复、过时、无效）
@@ -44,11 +48,11 @@ description: HotPlex Issue 管理大师 - 全方位 GitHub issue 智能管理工
 
 ### 6. 分析报告 (Analytics)
 - Issue 趋势分析（创建、关闭、积压）
-- 瓶颈识别（长期未处理、反复reopen）
+- 瓶颈识别（长期未处理、反复 reopen）
 - 效率指标（平均解决时间、首次响应时间）
 - 标签分布统计
 
-### 7. 🆕 智能增量管理 (Smart Incremental Management)
+### 7. 智能增量管理 (Smart Incremental Management)
 - **增量处理**：只处理新增/更新的 issues（避免重复工作）
 - **智能过滤**：自动跳过已稳定且低优先级的 issues
 - **状态持久化**：维护 `.issue-state.json` 记录处理历史
@@ -58,286 +62,35 @@ description: HotPlex Issue 管理大师 - 全方位 GitHub issue 智能管理工
   - ✅ 高优先级 (critical/high) → 优先处理
   - ✅ 状态为 needs-triage → 补充标注
   - ❌ 已稳定低优先级 → 跳过处理
-- **手动触发**：支持 `--force-full-scan` 强制全量扫描
 
-## 标签体系
-
-### 优先级 (Priority)
-
-| 标签 | 判断标准 | 示例信号 |
-|------|---------|---------|
-| `priority/critical` | 阻塞核心功能、安全漏洞、数据丢失 | P0, 阻塞, 生产故障, 安全漏洞 |
-| `priority/high` | 严重影响用户体验、频繁出现 | P1, 用户体验严重受影响 |
-| `priority/medium` | 中等影响、有 workaround | P2, 需要修复但不紧急 |
-| `priority/low` | 小问题、nice-to-have | P3, 改进建议 |
-
-**判断逻辑**：
-1. 检查 body 中的 P0/P1/P2/P3 标记
-2. 关键词：严重程度、影响范围、阻塞
-3. 安全相关 → critical
-4. 用户报告的生产问题 → high/medium
-
-### 类型 (Type)
-
-| 标签 | 判断标准 |
-|------|---------|
-| `type/bug` | 标题包含 bug/error/fail/错误/问题，或描述了异常行为 |
-| `type/feature` | 标题包含 [feat]/feature/新功能，或请求新能力 |
-| `type/enhancement` | 标题包含 enhancement/优化/改进，或改进现有功能 |
-| `type/docs` | 文档相关、README、API 文档 |
-| `type/test` | 测试相关、测试覆盖、测试用例 |
-| `type/refactor` | 标题包含 refactor/ 重构， 或代码重构 |
-| `type/security` | 安全相关、CVE、安全漏洞、权限问题 |
-
-**判断逻辑**：
-1. 检查标题前缀：`[feat]`, `[admin]`, `[docs]`, `[test]`, `[refactor]`
-2. 关键词匹配：bug, feature, enhancement, docs, test, refactor, security
-3. 根据描述内容判断
-
-### 规模 (Size)
-
-| 标签 | 预估工作量 | 判断标准 |
-|------|----------|---------|
-| `size/small` | < 1天 | 单文件修改、简单配置、文档更新 |
-| `size/medium` | 1-3天 | 多文件修改、新功能、重构 |
-| `size/large` | > 3天 | 架构变更、多模块影响、复杂功能 |
-
-**判断逻辑**：
-1. 涉及模块数（单模块 vs 多模块）
-2. 是否需要架构变更
-3. 是否涉及多个子系统（engine, adapter, security 等）
-4. 关键词：重构、架构、多平台
-
-### 状态 (Status)
-
-| 标签 | 判断标准 |
-|------|---------|
-| `status/needs-triage` | 新 issue，需要进一步评估 |
-| `status/ready-for-work` | 信息完整，可以开始工作 |
-| `status/blocked` | 依赖其他 issues/外部因素 |
-| `status/in-progress` | 正在处理中 |
-| `status/stale` | 60+ 天无更新，可能过时 |
-
-### 平台 (Platform)
-
-| 标签 | 说明 |
-|------|------|
-| `platform/slack` | Slack 平台相关 |
-| `platform/telegram` | Telegram 平台相关 |
-| `platform/feishu` | 飞书平台相关 |
-| `platform/discord` | Discord 平台相关 |
-
-### 模块 (Area)
-
-| 标签 | 说明 |
-|------|------|
-| `area/engine` | 核心引擎 (internal/engine) |
-| `area/adapter` | 平台适配器 (chatapps/) |
-| `area/provider` | AI Provider 集成 (provider/) |
-| `area/security` | 安全模块 (internal/security) |
-| `area/admin` | Admin API (internal/admin) |
-| `area/brain` | Native Brain 路由 (brain/) |
-
-### 可关闭性 (Closeability)
-
-**自动识别可关闭的 issues**：
-- **重复 (duplicate)**：描述中提到"重复"、"已有 issue"
-- **已修复 (fixed)**：描述中提到"已修复"、"fixed in PR #"
-- **过时 (stale)**：60+ 天无更新且优先级低
-- **无效 (invalid)**：信息不足、无法复现、用户错误
-
-**操作**：生成建议列表，不自动关闭，需人工确认
-
-## 工作流程
-
-### 🆕 智能增量管理模式（默认）
-
-**核心优势**：只处理真正需要管理的 issues，大幅提升效率。
-
-#### Step 0: 加载状态文件
-
-读取 `.issue-state.json` 获取上次处理记录：
-
-```python
-state = load_state('.issue-state.json')
-last_incremental_scan = state['last_incremental_scan']
-processed_issues = state['processed_issues']
-```
-
-#### Step 1: 智能过滤 (Smart Filtering)
-
-获取 open issues 并应用智能过滤规则：
-
-```python
-# 获取所有 open issues
-all_issues = list_issues(owner="hrygo", repo="hotplex", state="OPEN", perPage=100)
-
-# 智能过滤：只保留需要处理的 issues
-issues_to_process = [
-    issue for issue in all_issues
-    if should_process_issue(issue, processed_issues, last_incremental_scan)
-]
-
-def should_process_issue(issue, processed_issues, last_scan):
-    """判断 issue 是否需要处理"""
-    issue_number = issue['number']
-    updated_at = parse_datetime(issue['updated_at'])
-    created_at = parse_datetime(issue['created_at'])
-    now = datetime.now(timezone.utc)
-
-    # 规则1: 新创建的 issues (< 7天)
-    if (now - created_at).days < 7:
-        return True
-
-    # 规则2: 最近有更新 (< 14天)
-    if (now - updated_at).days < 14:
-        return True
-
-    # 规则3: 高优先级 (critical/high)
-    priority = analyze_priority(issue)
-    if priority in ['priority/critical', 'priority/high']:
-        return True
-
-    # 规则4: 状态为 needs-triage
-    if has_label(issue, 'status/needs-triage'):
-        return True
-
-    # 规则5: 从未处理过
-    if issue_number not in processed_issues:
-        return True
-
-    # 规则6: 有新更新（since last scan）
-    if last_scan and updated_at > last_scan:
-        return True
-
-    # 其他情况：跳过
-    return False
-```
-
-**过滤效果示例**：
-- 总 open issues: 31
-- 需要处理: 12 (新创建 3 + 有更新 4 + 高优先级 3 + needs-triage 2)
-- 跳过处理: 19 (已稳定低优先级)
-
-### Step 2: 获取 Issues（传统全量模式）
-
-使用 GitHub MCP 获取所有 open issues：
-
-```python
-issues = list_issues(
-    owner="hrygo",
-    repo="hotplex",
-    state="OPEN",
-    perPage=100
-)
-```
-
-### Step 2: 分析每个 Issue
-
-对每个 issue 进行以下分析：
-
-1. **优先级分析**：
-   - 检查 body 中的 P0/P1/P2 标记
-   - 关键词：严重程度、影响范围、阻塞
-   - 判断：critical/high/medium/low
-
-2. **类型分析**：
-   - 检查标题前缀 `[feat]`, `[admin]` 等
-   - 关键词：bug, feature, enhancement, docs, test
-   - 判断：bug/feature/enhancement/docs/test
-
-3. **规模分析**：
-   - 涉及模块数
-   - 是否需要架构变更
-   - 判断：small/medium/large
-
-4. **状态分析**：
-   - 创建时间、更新时间
-   - 信息完整性
-   - 是否有阻塞依赖
-   - 判断：needs-triage/ready-for-work/blocked/stale
-
-5. **可关闭性分析**：
-   - 重复、已修复、过时、无效
-   - 生成建议列表
-
-### Step 3: 应用标签
-
-使用 GitHub MCP 的 `add_labels_to_issue` API 应用标签：
-
-```python
-add_labels_to_issue(
-    owner="hrygo",
-    repo="hotplex",
-    issue_number=issue_number,
-    labels=["priority/high", "type/bug", "size/medium", "status/ready-for-work"]
-)
-```
-
-### Step 4: 生成报告
-
-输出简短的 Markdown 格式报告：
-
-```markdown
-# HotPlex Issue 分析报告
-
-**分析时间**: 2026-03-22
-**扫描模式**: 增量扫描 (Incremental)
-**总 Issue 数**: 31
-**需要处理**: 12 (新创建 3 + 有更新 4 + 高优先级 3 + needs-triage 2)
-**跳过处理**: 19 (已稳定低优先级)
-
-## 标签分布
-
-- **优先级**: P0 (1), P1 (2), P2 (0), 无标记 (28) → 已标注
-- **类型**: feature (10), bug (1), enhancement (2), test (2), other (16)
-- **规模**: small (5), medium (15), large (11)
-- **状态**: ready-for-work (20), needs-triage (8), blocked (2), stale (1)
-
-## 可关闭 Issues
-
-### 建议关闭 (需人工确认)
-
-1. **#335** - Admin API endpoints unreachable (duplicate of #334)
-2. **#280** - Old feature request (60+ days stale, no community interest)
-
-## 高优先级 Issues
-
-1. **#335** - Admin API endpoints unreachable from host machine [P0]
-2. **#337** - Graceful degradation when Slack App Home not enabled [P1]
-3. **#336** - Slack streaming writer state error [P1]
-
-## 详细标注结果
-
-（列出所有 issues 的标注结果）
-```
-
-### Step 5: 🆕 保存状态文件
-
-更新 `.issue-state.json` 记录处理历史：
-
-```python
-def save_state(state_file, processed_issues):
-    """保存处理状态"""
-    state = {
-        'last_incremental_scan': datetime.now(timezone.utc).isoformat(),
-        'processed_issues': processed_issues,  # {issue_number: {labels, updated_at}}
-        'metadata': {
-            'version': '1.1.0',
-            'updated_at': datetime.now(timezone.utc).isoformat()
-        }
-    }
-
-    with open(state_file, 'w') as f:
-        json.dump(state, f, indent=2)
-```
+**详细工作流程**：参考 [`references/workflows.md`](references/workflows.md)
+
+### 8. Obsidian 同步 (Obsidian Sync)
+- **技术栈**：基于 Obsidian CLI（无需手动文件操作）
+- **文件夹组织**：`1-Projects/<project-name>/Issues/`（符合 PARA 方法）
+- **单向同步**：GitHub Issues → Obsidian Vault（只读视图）
+- **增量同步**：只同步新增/更新的 issues（高效）
+- **智能映射**：GitHub labels → Obsidian tags（7 维度 34 标签）
+- **Tags 格式**：YAML list 格式（使用 `type=list` 参数）
+- **完整元数据**：frontmatter 自动管理（无需手动生成 YAML）
+- **状态可视化**：使用 Obsidian 笔记存储同步状态（强烈推荐）
+- **Dataview 集成**：支持动态查询和看板视图
+
+**关键最佳实践**：
+- Tags 必须使用 YAML list（`type=list`），不是逗号分隔字符串
+- 文件夹遵循 PARA 方法：`1-Projects/<project-name>/Issues/`
+- 状态存储在 `Obsidian Sync State.md` 笔记中
+
+**详细实现指南**：参考 [`references/obsidian-sync-design.md`](references/obsidian-sync-design.md)
+
+---
 
 ## 快速开始
 
 ### 基础命令（增量模式 - 推荐）
 
 ```bash
-# 1. 🆕 智能分析并打标签（自动跳过已稳定的低优先级 issues）
+# 1. 智能分析并打标签（自动跳过已稳定的低优先级 issues）
 "分析 issues 并打标签"
 
 # 2. 检测并处理重复 issues
@@ -353,6 +106,32 @@ def save_state(state_file, processed_issues):
 "批量给所有 [feat] 开头的 issues 打标签 type/feature"
 ```
 
+### Obsidian 同步命令
+
+```bash
+# 前置要求：确保 Obsidian 正在运行
+# macOS: open -a Obsidian
+# Windows: 启动 Obsidian 应用
+
+# 0. 首次使用：初始化同步状态
+"初始化 Obsidian 同步"
+
+# 1. 首次同步（全量）
+"全量同步所有 issues 到 Obsidian"
+
+# 2. 增量同步（推荐日常使用）
+"同步 issues 到 Obsidian"
+
+# 3. 查看同步状态（打开 "Obsidian Sync State" 笔记）
+"查看 Obsidian 同步状态"
+
+# 4. 搜索已同步的 issues
+"搜索 Obsidian 中的 issues"
+
+# 5. 创建 Dataview 查询
+"创建一个 Dataview 查询，显示所有 priority/critical 的 open issues"
+```
+
 ### 强制全量扫描
 
 ```bash
@@ -360,301 +139,93 @@ def save_state(state_file, processed_issues):
 "强制全量扫描所有 issues 并打标签"
 ```
 
-### 高级用法
+---
 
-```bash
-# 针对性分析
-"只分析优先级为 P0 和 P1 的 issues"
-
-# 生命周期管理
-"自动关闭所有 stale 且低优先级的 issues（需要确认）"
-
-# 趋势分析
-"分析过去 30 天的 issue 创建和关闭趋势"
-
-# 效率指标
-"计算平均 issue 解决时间"
-```
-
-## 详细功能
-
-### 1. 自动标注引擎
-
-**判断标准**（详见 `references/label-best-practices.md`）：
-
-**优先级矩阵**:
-```
-P0 (Critical) = 阻塞核心功能 + 安全漏洞 + 数据丢失
-P1 (High)     = 严重影响用户体验 + 频繁出现
-P2 (Medium)   = 中等影响 + 有 workaround
-P3 (Low)      = 小问题 + nice-to-have
-```
-
-**类型识别**:
-- 标题前缀：`[feat]`, `[admin]`, `[docs]`, `[test]`
-- 关键词：bug/error/fail, feature/新增, enhancement/优化, docs/文档, test/测试
-- 描述内容分析
-
-**规模估算**:
-- **Small** (< 1天)：单文件修改、配置更新、文档
-- **Medium** (1-3天)：新功能、多文件修改、重构
-- **Large** (> 3天)：架构变更、多模块影响、复杂功能
-
-**状态流转**:
-```
-[新建] → needs-triage
-         ↓ (信息完整)
-   ready-for-work ←→ blocked
-         ↓ (开始工作)
-   in-progress
-         ↓ (完成)
-   closed → (45天后) locked
-```
-
-### 2. 重复检测算法
-
-**相似度计算**:
-```python
-similarity = (
-    title_similarity * 0.6 +  # 标题权重 60%
-    body_similarity * 0.3 +   # 描述权重 30%
-    label_similarity * 0.1    # 标签权重 10%
-)
-
-if similarity > 0.8:  # 80% 以上视为重复
-    mark_as_duplicate(new_issue, original_issue)
-```
-
-**操作流程**:
-1. 标记 `duplicate`
-2. 评论: "Duplicate of #XXX"
-3. 生成建议列表（需人工确认）
-
-### 3. Stale Issue 清理
-
-**VS Code 标准**:
-- **60 天**无更新 → 标记 `status/stale`
-- **14 天**后无响应 → 自动关闭
-- **豁免标签**: `priority/critical`, `priority/high`, `status/in-progress`, `status/blocked`, `type/security`
-
-**执行流程**:
-```python
-for issue in open_issues:
-    if issue.updated_at < 60_days_ago:
-        if not has_exempt_labels(issue):
-            add_label(issue, 'status/stale')
-            comment(issue, "This issue will be closed in 14 days if no activity occurs.")
-
-            if issue.updated_at < 74_days_ago:  # 60 + 14
-                close_issue(issue)
-                comment(issue, "Closed due to inactivity.")
-```
-
-### 4. 优先级动态调整
-
-**评分公式**:
-```
-priority_score =
-    severity * 0.4 +          # 严重程度
-    impact * 0.3 +            # 影响范围
-    urgency * 0.2 +           # 紧急程度
-    community_votes * 0.1 -   # 社区投票
-    days_inactive * 0.05      # 时间衰减
-```
-
-**调整规则**:
-- 👍 > 20 → 自动晋升为 `priority/high` (feature requests)
-- 60+ 天无更新 + P3 → 降级为 `priority/low`
-- 安全漏洞 (CVSS ≥ 9.0) → 强制 `priority/critical`
-
-### 5. 批量操作示例
-
-**批量打标签**:
-```python
-# 所有包含 "bug" 的 issues 打 type/bug
-issues = search_issues("bug in:title state:open")
-for issue in issues:
-    add_label(issue, 'type/bug')
-
-# 所有 [feat] issues 打 type/feature
-issues = filter(lambda i: i.title.startswith('[feat]'), open_issues)
-bulk_add_labels(issues, 'type/feature')
-```
-
-**批量关闭**:
-```python
-# 关闭所有 stale + low priority issues
-candidates = filter(
-    lambda i: has_label(i, 'status/stale') and
-              has_label(i, 'priority/low'),
-    open_issues
-)
-bulk_close(candidates, reason="Stale and low priority")
-```
-
-### 6. 分析报告模板
-
-```markdown
-# HotPlex Issue 管理报告
-
-**生成时间**: 2026-03-22
-**报告周期**: 过去 30 天
-
-## 📊 概览
-
-- **Open Issues**: 31
-- **Closed Issues**: 15 (过去30天)
-- **New Issues**: 20 (过去30天)
-- **平均解决时间**: 5.2 天
-- **首次响应时间**: 2.1 天
-
-## 🏷️ 标签分布
-
-### 优先级
-- Critical: 1 (3.2%)
-- High: 2 (6.5%)
-- Medium: 15 (48.4%)
-- Low: 13 (41.9%)
-
-### 类型
-- Bug: 8 (25.8%)
-- Feature: 12 (38.7%)
-- Enhancement: 6 (19.4%)
-- Docs: 3 (9.7%)
-- Test: 2 (6.5%)
-
-### 状态
-- Ready for Work: 20 (64.5%)
-- Needs Triage: 8 (25.8%)
-- Blocked: 2 (6.5%)
-- Stale: 1 (3.2%)
-
-## 🔴 高优先级 Issues (Top 5)
-
-1. **#335** - Admin API endpoints unreachable [P0, size/medium]
-2. **#337** - Graceful degradation when Slack App Home not enabled [P1, size/small]
-3. **#336** - Slack streaming writer state error [P1, size/medium]
-4. **#340** - [feat] Multi-level typing indicator [P1, size/large]
-5. **#342** - [admin] Implement Admin Webhook API [P1, size/medium]
-
-## ⚠️ 瓶颈 Issues (长期未处理)
-
-1. **#280** - Old feature request (120+ days, no activity)
-2. **#295** - Complex refactoring (90+ days, blocked on #290)
-
-## 🔄 重复 Issues (待处理)
-
-1. **#335** ← Duplicate of #334 (similarity: 92%)
-2. **#315** ← Duplicate of #310 (similarity: 85%)
-
-## 💡 建议操作
-
-### 自动化建议
-1. 创建 `.github/labeler.yml` - 基于文件路径自动打标签
-2. 设置 `actions/stale` workflow - 自动清理 stale issues
-3. 配置 issue 模板 - 标准化 issue 提交格式
-
-### 立即行动
-1. 关闭 2 个重复 issues（需确认）
-2. 处理 1 个 stale issue（#280）
-3. 为 8 个 needs-triage issues 补充信息
-
-### 长期改进
-1. 添加 CONTRIBUTING.md - issue 提交指南
-2. 设置 GitHub Projects - 可视化看板
-3. 定期 triage meeting - 每周一 10:00
-```
-
-## 工作流程
+## 工作流程概览
 
 ### 标准流程
 
 ```mermaid
 graph TD
-    A[获取 Open Issues] --> B[分析每个 Issue]
-    B --> C{检测重复?}
-    C -->|是| D[标记重复]
-    C -->|否| E[分析标签]
-    E --> F[应用标签]
-    F --> G{可关闭?}
-    G -->|是| H[生成建议列表]
-    G -->|否| I[继续监控]
-    D --> H
-    H --> J[人工确认]
-    J --> K[执行操作]
-    I --> L[生成报告]
-    K --> L
+    A[获取 Open Issues] --> B{增量模式?}
+    B -->|是| C[智能过滤]
+    B -->|否| D[全量处理]
+    C --> E[分析每个 Issue]
+    D --> E
+    E --> F{检测重复?}
+    F -->|是| G[标记重复]
+    F -->|否| H[分析标签]
+    H --> I[应用标签]
+    I --> J{可关闭?}
+    J -->|是| K[生成建议列表]
+    J -->|否| L[继续监控]
+    G --> K
+    K --> M[人工确认]
+    L --> N[生成报告]
+    M --> N
 ```
 
-### 详细步骤
+### Obsidian 同步流程
 
-#### Step 1: 获取 Issues
-
-使用 GitHub MCP API:
-```python
-issues = list_issues(
-    owner="hrygo",
-    repo="hotplex",
-    state="OPEN",
-    perPage=100,
-    since="2026-01-01T00:00:00Z"  # 可选：增量更新
-)
+```mermaid
+graph TD
+    A[Start Sync] --> B[Load .issue-obsidian-sync.json]
+    B --> C[Fetch GitHub Issues]
+    C --> D{New/Updated?}
+    D -->|Yes| E[Generate/Update Note]
+    D -->|No| F[Skip]
+    E --> G[Update State File]
+    F --> G
+    G --> H[Generate Report]
 ```
 
-#### Step 2: 分析每个 Issue
+---
 
-调用 `scripts/labeler.py` 进行分析:
-```python
-from labeler import IssueLabeler
+## 配置文件
 
-labeler = IssueLabeler()
-for issue in issues:
-    labels = labeler.analyze_issue(issue)
-    can_close, reason = labeler.check_closeability(issue)
+### 状态持久化
 
-    # 应用标签
-    add_labels_to_issue(
-        owner="hrygo",
-        repo="hotplex",
-        issue_number=issue['number'],
-        labels=[labels['priority'], labels['type'], labels['size'], labels['status']]
-    )
+**Issue 状态文件**：`.issue-state.json`
+```json
+{
+  "last_incremental_scan": "2026-03-27T12:00:00Z",
+  "processed_issues": {
+    "335": {
+      "labels": ["priority/critical", "type/bug"],
+      "updated_at": "2026-03-27T11:30:00Z"
+    }
+  }
+}
 ```
 
-#### Step 3: 重复检测
+**Obsidian 同步状态** (推荐使用 Obsidian 笔记，JSON 可选)：
 
-```python
-from difflib import SequenceMatcher
+**方案 A（推荐）**：使用 Obsidian 笔记 `Issues/Obsidian Sync State` 存储状态
+- ✅ 可在 Obsidian 中直接查看/编辑
+- ✅ 支持 Dataview 查询
+- ✅ 自动同步到移动端
 
-def find_duplicates(new_issue, all_issues):
-    """查找重复 issues"""
-    duplicates = []
-    for issue in all_issues:
-        if issue['number'] == new_issue['number']:
-            continue
-
-        # 计算相似度
-        title_sim = SequenceMatcher(
-            None,
-            new_issue['title'].lower(),
-            issue['title'].lower()
-        ).ratio()
-
-        if title_sim > 0.8:  # 80% 相似度
-            duplicates.append(issue)
-
-    return duplicates
+**方案 B（兼容）**：使用 `.issue-obsidian-sync.json` 文件
+```json
+{
+  "last_sync_time": "2026-03-27T12:00:00Z",
+  "vault_path": "/path/to/vault",
+  "synced_issues": {
+    "335": {
+      "github_updated_at": "2026-03-27T11:30:00Z",
+      "obsidian_path": "Issues/Issue-335-..."
+    }
+  }
+}
 ```
 
-#### Step 4: 生成报告
-
-输出 Markdown 格式报告（见上方模板）
+---
 
 ## 自动化集成
 
 ### GitHub Actions 配置
 
-创建 `.github/workflows/issue-triage.yml`:
+创建 `.github/workflows/issue-triage.yml`：
 
 ```yaml
 name: Issue Triage
@@ -672,16 +243,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // 基于文件路径自动打标签
             const labeler = require('./.github/labeler.js');
             await labeler.process(context);
-
-      - name: Detect duplicates
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // 检测重复 issues
-            // ...实现代码
 
       - name: Mark stale issues
         uses: actions/stale@v9
@@ -692,26 +255,7 @@ jobs:
           exempt-issue-labels: 'priority/critical,priority/high,status/in-progress'
 ```
 
-### 自动标签配置
-
-创建 `.github/labeler.yml`:
-```yaml
-type/docs:
-- changed-files:
-  - any-glob-to-any-file: ['docs/**/*', '**/*.md']
-
-type/test:
-- changed-files:
-  - any-glob-to-any-file: ['**/*_test.go', 'tests/**/*']
-
-area/engine:
-- changed-files:
-  - any-glob-to-any-file: ['internal/engine/**/*']
-
-area/adapter:
-- changed-files:
-  - any-glob-to-any-file: ['chatapps/**/*', 'provider/**/*']
-```
+---
 
 ## 注意事项
 
@@ -737,9 +281,17 @@ area/adapter:
 - **并发控制**: 避免同时运行多个 triage job
 - **缓存策略**: 缓存已分析的 issues
 
+---
+
 ## 参考资源
 
-- **最佳实践**: `references/label-best-practices.md`
+### 📚 详细文档
+- **标签体系**：[`references/label-system.md`](references/label-system.md)
+- **工作流程**：[`references/workflows.md`](references/workflows.md)
+- **Obsidian 同步**：[`references/obsidian-sync-design.md`](references/obsidian-sync-design.md)
+- **标签最佳实践**：[`references/label-best-practices.md`](references/label-best-practices.md)
+
+### 🔗 外部资源
 - **VS Code Wiki**: https://github.com/microsoft/vscode/wiki/Automated-Issue-Triaging
 - **Kubernetes Labels**: https://github.com/kubernetes/kubernetes/labels
 - **GitHub Actions Stale**: https://github.com/actions/stale
@@ -747,22 +299,59 @@ area/adapter:
 
 ---
 
-**版本**: v2.0.0 (统一标签体系版本)
+## 工具与脚本
+
+### Labeler 脚本
+
+**位置**：`scripts/labeler.py`
+
+**功能**：
+- 分析 issue 内容并生成标签建议
+- 支持批量处理
+- 可自定义规则
+
+**使用**：
+```python
+from scripts.labeler import IssueLabeler
+
+labeler = IssueLabeler()
+labels = labeler.analyze_issue(issue)
+```
+
+---
+
+**版本**: v2.2.0 (Obsidian CLI 版本)
 **维护者**: HotPlex Team
-**最后更新**: 2026-03-22
+**最后更新**: 2026-03-27
+
+### v2.2.0 新特性 (2026-03-27)
+- 🔄 **Obsidian CLI 重构**：从文件系统操作迁移到 Obsidian CLI
+- ✨ **简化状态管理**：使用 Obsidian 笔记存储同步状态（替代独立 JSON 文件）
+- ✨ **自动 Frontmatter 管理**：无需手动生成 YAML，Obsidian CLI 自动处理
+- ⚡ **代码精简**：减少 60% 代码量，更简洁易维护
+- ✨ **原生搜索支持**：使用 `obsidian search` 而非文件遍历
+- ✨ **实时更新**：Obsidian 自动刷新，无需手动 reload
+- 📚 **完整文档**：详细实现文档在 `references/obsidian-sync-design.md`
+
+### v2.1.0 新特性 (2026-03-27)
+- ✨ **Obsidian 同步**：将 GitHub Issues 同步到 Obsidian Vault
+- ✨ **增量同步**：只同步新增/更新的 issues（高效）
+- ✨ **智能标签映射**：GitHub labels → Obsidian tags（7 维度 34 标签）
+- ✨ **Dataview 集成**：支持动态查询和看板视图
+- ✨ **Canvas 集成**：可视化 issue 关系图谱
+- 🔄 **重构**：符合 skill-creator 最佳实践（<500 行）
+- 📚 **文档分层**：详细文档提取到 references/
 
 ### v2.0.0 新特性 (2026-03-22)
 - ✨ 统一标签体系：采用 7 维度 34 标签标准
 - ✨ 新增 `type/refactor` 和 `type/security` 类型标签
 - ✨ 新增 `status/in-progress` 状态标签
-- ✨ 新增 `platform/*` 平台标签 (slack/telegram/feishu/discord)
-- ✨ 新增 `area/*` 模块标签 (engine/adapter/provider/security/admin/brain)
-- ✨ 统一 `duplicate` 特殊标签（替代 `status/duplicate`）
+- ✨ 新增 `platform/*` 平台标签
+- ✨ 新增 `area/*` 模块标签
+- ✨ 统一 `duplicate` 特殊标签
 
 ### v1.1.0 新特性 (2026-03-22)
 - ✨ 智能增量管理：只处理需要管理的 issues
 - ✨ 智能过滤：自动跳过已稳定且低优先级的 issues
 - ✨ 状态持久化：维护 `.issue-state.json` 避免重复处理
-- ✨ 自适应策略：根据 issue 状态和优先级动态调整处理策略
 - ⚡ 效率提升：典型场景下处理量减少 60%+
-

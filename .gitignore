@@ -156,7 +156,6 @@ main
 # ------------------------------------------------------------------------------
 
 # User bot configs - don't sync to upstream
-docker/matrix/configs/bot-*/
 hotplex-doc-sync-workspace
 test*.txt
 docs/training/assets

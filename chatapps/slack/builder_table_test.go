@@ -41,13 +41,13 @@ func TestBuildStatsTable_BasicStats(t *testing.T) {
 		Type:    base.MessageTypeSessionStats,
 		Content: "",
 		Metadata: map[string]any{
-			"total_duration_ms": int64(125000), // 2m5s
-			"input_tokens":     int64(120000),
-			"output_tokens":    int64(35000),
-			"cache_read_tokens": int64(80000),
+			"total_duration_ms":  int64(125000), // 2m5s
+			"input_tokens":       int64(120000),
+			"output_tokens":      int64(35000),
+			"cache_read_tokens":  int64(80000),
 			"cache_write_tokens": int64(20000),
-			"tool_call_count":  int64(5),
-			"files_modified":   int64(3),
+			"tool_call_count":    int64(5),
+			"files_modified":     int64(3),
 		},
 	}
 
@@ -124,8 +124,8 @@ func TestBuildStatsTable_NilMetadata(t *testing.T) {
 
 	msg := &base.ChatMessage{
 		Type:     base.MessageTypeSessionStats,
-		Content:   "",
-		Metadata:  nil,
+		Content:  "",
+		Metadata: nil,
 	}
 
 	table := builder.BuildStatsTable(msg)
@@ -139,8 +139,8 @@ func TestBuildStatsTable_EmptyMetadata(t *testing.T) {
 
 	msg := &base.ChatMessage{
 		Type:     base.MessageTypeSessionStats,
-		Content:   "",
-		Metadata:  map[string]any{},
+		Content:  "",
+		Metadata: map[string]any{},
 	}
 
 	table := builder.BuildStatsTable(msg)
@@ -158,10 +158,10 @@ func TestBuildStatsTable_Int32Types(t *testing.T) {
 		Content: "",
 		Metadata: map[string]any{
 			"total_duration_ms": int64(125000),
-			"input_tokens":       int32(120000),  // int32
-			"output_tokens":      int32(35000),   // int32
-			"tool_call_count":    int32(5),       // int32
-			"files_modified":     int32(3),       // int32
+			"input_tokens":      int32(120000), // int32
+			"output_tokens":     int32(35000),  // int32
+			"tool_call_count":   int32(5),      // int32
+			"files_modified":    int32(3),      // int32
 		},
 	}
 
@@ -216,8 +216,8 @@ func TestBuildSessionStatsTable_FromStatsMessageBuilder(t *testing.T) {
 			"total_duration_ms": int64(125000),
 			"input_tokens":      int64(120000),
 			"output_tokens":     int64(35000),
-			"tool_call_count":  int64(5),
-			"files_modified":   int64(3),
+			"tool_call_count":   int64(5),
+			"files_modified":    int64(3),
 		},
 	}
 
@@ -284,4 +284,3 @@ func TestBuildToolCallsTable_Basic(t *testing.T) {
 	assert.NotNil(t, table)
 	assert.Len(t, table.Rows, 4) // Header + 3 tool rows
 }
-

@@ -18,12 +18,12 @@ type MarkdownConverter struct {
 
 // ConverterConfig configures the Markdown converter behavior
 type ConverterConfig struct {
-	EnableTables        bool // Convert Markdown tables to TableBlock
-	EnableCodeBlocks    bool // Use RichTextPreformatted for code blocks
-	EnableQuotes        bool // Use RichTextQuote for blockquotes
-	EnableLists         bool // Use RichTextList for lists
-	MaxTableRows        int  // Maximum table rows (performance protection)
-	MaxCodeBlockLines   int  // Maximum code block lines
+	EnableTables      bool // Convert Markdown tables to TableBlock
+	EnableCodeBlocks  bool // Use RichTextPreformatted for code blocks
+	EnableQuotes      bool // Use RichTextQuote for blockquotes
+	EnableLists       bool // Use RichTextList for lists
+	MaxTableRows      int  // Maximum table rows (performance protection)
+	MaxCodeBlockLines int  // Maximum code block lines
 }
 
 // NewMarkdownConverter creates a new MarkdownConverter with configuration

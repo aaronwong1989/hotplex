@@ -2,13 +2,19 @@
 set -e
 
 # ==============================================================================
-# HotPlex Docker Entrypoint
-# Handles permission fixes, config env expansion, Git identity, PIP tools, and
-# privilege drop. Inspired by OpenClaw DevKit patterns.
+# HotPlex Docker Entrypoint with OpenCode Sidecar Support
+# Handles permission fixes, config env expansion, Git identity, PIP tools,
+# OpenCode sidecar startup, and privilege drop.
 # ==============================================================================
 
 HOTPLEX_HOME="/home/hotplex"
 CONFIG_DIR="${HOTPLEX_HOME}/.hotplex"
+
+# Sidecar process tracking (global for trap access)
+OPENCODE_SIDECAR_PID=""
+
+# Helper: Check if a PID is running
+is_process_alive() { [[ -n "${1}" ]] && kill -0 "${1}" 2>/dev/null; }
 
 # ------------------------------------------------------------------------------
 # Helper: Run commands as the hotplex user if currently root
@@ -37,6 +43,79 @@ validate_pkg_name() {
 }
 
 # ------------------------------------------------------------------------------
+# Helper: Stop OpenCode sidecar gracefully (SIGTERM -> 10s grace -> SIGKILL)
+# Safe to call multiple times; no-ops if PID is unset or process gone.
+# ------------------------------------------------------------------------------
+stop_opencode_sidecar() {
+    if ! is_process_alive "${OPENCODE_SIDECAR_PID}"; then
+        return 0
+    fi
+    echo "--> Stopping OpenCode sidecar (PID: ${OPENCODE_SIDECAR_PID})..."
+    kill -TERM "${OPENCODE_SIDECAR_PID}" 2>/dev/null || true
+    local i=0
+    while [[ $i -lt 10 ]]; do
+        is_process_alive "${OPENCODE_SIDECAR_PID}" || return 0
+        sleep 1
+        ((i++)) || true
+    done
+    kill -KILL "${OPENCODE_SIDECAR_PID}" 2>/dev/null || true
+    echo "--> OpenCode sidecar force-killed (did not exit within 10s)"
+}
+
+# ------------------------------------------------------------------------------
+# Helper: Start OpenCode Server as sidecar (background process)
+# Sets OPENCODE_SIDECAR_PID on success.
+# Logs to stdout/stderr for docker logs aggregation.
+# ------------------------------------------------------------------------------
+start_opencode_sidecar() {
+    local enabled="${OPENCODE_SERVER_ENABLED:-true}"
+    local port="${OPENCODE_SERVER_PORT:-4096}"
+    local password="${OPENCODE_SERVER_PASSWORD:-}"
+
+    if [[ "${enabled}" != "true" ]]; then
+        echo "--> OpenCode sidecar disabled, skipping..."
+        return 0
+    fi
+
+    if ! command -v opencode >/dev/null 2>&1; then
+        echo "--> WARNING: opencode binary not found, skipping sidecar startup"
+        return 0
+    fi
+
+    echo "==> Starting OpenCode Server sidecar on port ${port}..."
+
+    local args=( "serve" "--port" "${port}" "--hostname" "127.0.0.1" )
+
+    if [[ -n "${password}" ]]; then
+        export OPENCODE_SERVER_PASSWORD="${password}"
+    fi
+
+    # Start opencode in background; stdout/stderr flow to container logs
+    run_as_hotplex opencode "${args[@]}" &
+    OPENCODE_SIDECAR_PID=$!
+    # Wait for server to become ready (max 30s)
+    local i=0
+    while [[ $i -lt 30 ]]; do
+        if ! is_process_alive "${OPENCODE_SIDECAR_PID}"; then
+            echo "--> ERROR: OpenCode sidecar exited prematurely" >&2
+            OPENCODE_SIDECAR_PID=""
+            return 1
+        fi
+        if netstat -tuln 2>/dev/null | grep -q ":${port}" || ss -tuln 2>/dev/null | grep -q ":${port}"; then
+            echo "--> OpenCode sidecar ready (PID: ${OPENCODE_SIDECAR_PID}, port: ${port})"
+            return 0
+        fi
+        sleep 1
+        ((i++)) || true
+    done
+
+    echo "--> WARNING: OpenCode sidecar not ready within 30s" >&2
+    kill "${OPENCODE_SIDECAR_PID}" 2>/dev/null || true
+    OPENCODE_SIDECAR_PID=""
+    return 1
+}
+
+# ------------------------------------------------------------------------------
 # 0. Cleanup stale temporary files from previous runs
 # ------------------------------------------------------------------------------
 find "${CONFIG_DIR}" -name "*.tmp" -type f -delete 2>/dev/null || true
@@ -53,12 +132,6 @@ if [[ "$(id -u)" = "0" ]]; then
     chown -R hotplex:hotplex "${CONFIG_DIR}" 2>/dev/null || true
     chown -R hotplex:hotplex "${HOTPLEX_HOME}/.claude" 2>/dev/null || true
     chown -R hotplex:hotplex "${HOTPLEX_HOME}/projects" 2>/dev/null || true
-
-    # Fix permissions for project subdirectories (e.g., .agent, .claude created by CLI tools)
-    # These directories may be owned by root if created during container runtime
-    if [[ -d "${HOTPLEX_HOME}/projects" ]]; then
-        find "${HOTPLEX_HOME}/projects" -type d \( -name ".agent" -o -name ".claude" \) -exec chown -R hotplex:hotplex {} \; 2>/dev/null || true
-    fi
 
     # Fix backup files created by CLI (may be owned by root if CLI runs during entrypoint)
     # These are .claude.json.backup.* files in home directory
@@ -84,38 +157,6 @@ if [[ "$(id -u)" = "0" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 1.5. Initialize plugins directory
-#      The seed plugins/ is mounted read-only as .seed,
-#      writable layer is at plugins/ (named volume hotplex-matrix-plugins)
-#      Merge seed plugins into writable layer
-# ------------------------------------------------------------------------------
-CLAUDE_DIR="${HOTPLEX_HOME}/.claude"
-PLUGINS_SEED="${CLAUDE_DIR}/plugins.seed"
-PLUGINS_WRITABLE="${CLAUDE_DIR}/plugins"
-
-# Ensure writable plugins directory exists (from named volume)
-run_as_hotplex mkdir -p "${PLUGINS_WRITABLE}"
-
-# Copy seed plugins to writable layer if writable layer is empty
-if [[ -d "${PLUGINS_SEED}" ]] && [[ -z "$(ls -A "${PLUGINS_WRITABLE}" 2>/dev/null)" ]]; then
-    echo "--> Copying seed plugins to writable layer..."
-    cp -r "${PLUGINS_SEED}"/* "${PLUGINS_WRITABLE}/" 2>/dev/null || true
-fi
-STATUSLINE_SEED="${CLAUDE_DIR}/statusline.sh.seed"
-STATUSLINE_TARGET="${CLAUDE_DIR}/statusline.sh"
-
-if [[ -f "${STATUSLINE_SEED}" ]]; then
-    echo "--> Generating statusline.sh from seed..."
-    cp "${STATUSLINE_SEED}" "${STATUSLINE_TARGET}"
-
-    if [[ "$(id -u)" = "0" ]]; then
-        chown hotplex:hotplex "${STATUSLINE_TARGET}" 2>/dev/null || true
-        chmod +x "${STATUSLINE_TARGET}" 2>/dev/null || true
-    fi
-    echo "    - statusline.sh generated successfully"
-fi
-
-# ------------------------------------------------------------------------------
 # 2. Bot Identity & Logging
 # ------------------------------------------------------------------------------
 echo "==> HotPlex Bot Instance: ${HOTPLEX_BOT_ID:-unknown}"
@@ -133,16 +174,13 @@ if [[ -d "${CONFIG_CHATAPPS_DIR}" ]]; then
     VARS=$(compgen -A export | grep -E "^(HOTPLEX_|GIT_|GITHUB_|HOST_)" | sed 's/^/$/' | tr '\n' ' ')
 
     for yaml in "${CONFIG_CHATAPPS_DIR}"/*.yaml; do
-        if [[ -f "${yaml}" ]]; then
-            # Create a temporary file to avoid partial write issues
-            tmp_yaml="${yaml}.tmp"
-            if [[ -n "${VARS}" ]]; then
-                envsubst "${VARS}" < "${yaml}" > "${tmp_yaml}"
-                mv "${tmp_yaml}" "${yaml}"
-                echo "    - Processed $(basename "${yaml}")"
-            else
-                echo "    - Skipping $(basename "${yaml}") (No relevant variables exported)"
-            fi
+        [[ -f "$yaml" ]] || continue
+        # Use .tmp extension to avoid partial writes on crash
+        if envsubst "${VARS}" < "$yaml" > "${yaml}.tmp"; then
+            mv "${yaml}.tmp" "${yaml}"
+        else
+            echo "    Warning: Failed to expand variables in $(basename "$yaml")"
+            rm -f "${yaml}.tmp"
         fi
     done
 fi
@@ -152,80 +190,25 @@ fi
 # ------------------------------------------------------------------------------
 CLAUDE_DIR="${HOTPLEX_HOME}/.claude"
 CLAUDE_JSON="${HOTPLEX_HOME}/.claude.json"
-CREDENTIALS_JSON="${CLAUDE_DIR}/credentials.json"
 
 # Ensure container-private .claude directory exists (named volume auto-creates)
 run_as_hotplex mkdir -p "${CLAUDE_DIR}"
 
-# ------------------------------------------------------------------------------
-# 4.5. Initialize Claude Configuration from Seed
-# ------------------------------------------------------------------------------
-initialize_claude_config() {
-    local claude_json="${HOTPLEX_HOME}/.claude.json"
-    local seed_claude_json="${HOTPLEX_HOME}/.claude/.claude.json"
-
-    # Skip if seed file not available
-    [[ ! -f "${seed_claude_json}" ]] && return 0
-
-    # Skip if container already has config (preserve user runtime state)
-    [[ -f "${claude_json}" ]] && return 0
-
-    # Copy seed config to container home
-    if cp "${seed_claude_json}" "${claude_json}" 2>/dev/null; then
-        [[ "$(id -u)" = "0" ]] && chown hotplex:hotplex "${claude_json}" 2>/dev/null || true
-    fi
-}
-
-# Run initialization
-initialize_claude_config
-
-# ------------------------------------------------------------------------------
-# 5. Cleanup Orphaned Claude userID (prevent OAuth prompts in containers)
-#    Matches internal/engine/maintenance.go:clearClaudeJSONUserID logic
-# ------------------------------------------------------------------------------
-# Background: Claude Code 2.1.81+ uses userID to trigger OAuth authentication.
-# In containerized environments, OAuth cannot complete (no browser), causing
-# "Not logged in · Please run /login" errors. This cleanup removes orphaned
-# userID entries and marks onboarding as completed to prevent prompts.
-#
-# Controlled by HOTPLEX_CLAUDE_CLEAR_USERID=true (default) or false to disable.
-# This mirrors the Go maintenance task that runs every 10 minutes.
-# ------------------------------------------------------------------------------
-if [[ "${HOTPLEX_CLAUDE_CLEAR_USERID:-true}" != "false" ]]; then
-    if [[ -f "${CLAUDE_JSON}" ]]; then
-        # Check if userID exists in config
-        if grep -q '"userID"' "${CLAUDE_JSON}" 2>/dev/null; then
-            # Check if credentials.json exists (valid OAuth setup)
-            if [[ ! -f "${CREDENTIALS_JSON}" ]]; then
-                echo "--> Cleaning up orphaned Claude userID (no OAuth credentials found)..."
-
-                # Use jq to process JSON if available
-                if command -v jq >/dev/null 2>&1; then
-                    # Remove userID and add hasCompletedOnboarding
-                    tmp_file="${CLAUDE_JSON}.tmp"
-                    if jq 'del(.userID) | .hasCompletedOnboarding = true' "${CLAUDE_JSON}" > "${tmp_file}" 2>/dev/null; then
-                        # Preserve permissions
-                        if [[ "$(id -u)" = "0" ]]; then
-                            chown hotplex:hotplex "${tmp_file}" 2>/dev/null || true
-                        fi
-                        mv "${tmp_file}" "${CLAUDE_JSON}"
-                        echo "--> Cleared orphaned userID and set hasCompletedOnboarding=true"
-                    else
-                        echo "--> Warning: Failed to process ${CLAUDE_JSON}, skipping cleanup"
-                        rm -f "${tmp_file}" 2>/dev/null || true
-                    fi
-                else
-                    echo "--> Warning: jq not available, skipping userID cleanup (install jq for automatic cleanup)"
-                fi
-            else
-                echo "--> Valid OAuth setup detected (credentials.json exists), preserving userID"
-            fi
-        fi
+# Ensure .claude.json exists (Claude Code CLI requires this file)
+# Create empty JSON object if missing to prevent "configuration file not found" warnings
+# This file is a runtime state file containing userID, project configs, MCP servers, etc.
+# Reference: https://code.claude.com/docs/en/settings
+if [[ ! -f "${CLAUDE_JSON}" ]]; then
+    echo "--> Creating empty .claude.json configuration file..."
+    run_as_hotplex sh -c "echo '{}' > '${CLAUDE_JSON}'"
+    # Ensure correct permissions
+    if [[ "$(id -u)" = "0" ]]; then
+        chown hotplex:hotplex "${CLAUDE_JSON}" 2>/dev/null || true
     fi
 fi
 
 # ------------------------------------------------------------------------------
-# 6. Git Identity Injection (from environment variables)
+# 5. Git Identity Injection (from environment variables)
 #    Allows configuring Git identity via .env without host .gitconfig dependency
 # ------------------------------------------------------------------------------
 if [[ -n "${GIT_USER_NAME:-}" ]]; then
@@ -246,7 +229,7 @@ if [[ -d "${HOTPLEX_HOME}/projects" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 7. Auto-install pip tools (reinstalled on rebuild via entrypoint)
+# 6. Auto-install pip tools (reinstalled on rebuild via entrypoint)
 # Set PIP_TOOLS env var to install additional packages, e.g., PIP_TOOLS="notebooklm pandas"
 # Inspired by OpenClaw DevKit patterns.
 # ------------------------------------------------------------------------------
@@ -292,77 +275,75 @@ if [[ -n "${PIP_TOOLS:-}" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 7.5. Inject Environment Variables to .bashrc
-#      Exports HOTPLEX, GITHUB, GIT_USER, ANTHROPIC variables to .bashrc
-#      for interactive shell sessions and debugging
+# 7. Start OpenCode Sidecar (if enabled)
 # ------------------------------------------------------------------------------
-inject_env_to_bashrc() {
-    local bashrc="${HOTPLEX_HOME}/.bashrc"
-    local start_marker="# === HotPlex Environment Variables (Auto-generated) ==="
-    local end_marker="# === End HotPlex Environment Variables ==="
+start_opencode_sidecar || true
 
-    # Remove old auto-generated section if exists
-    if grep -qF "${start_marker}" "${bashrc}" 2>/dev/null; then
-        # Use sed to delete the block between markers (inclusive)
-        # Need to escape special chars for sed pattern
-        local start_escaped
-        start_escaped=$(printf '%s\n' "${start_marker}" | sed 's/[[\.*^$()+?{|\\]/\\&/g')
-        local end_escaped
-        end_escaped=$(printf '%s\n' "${end_marker}" | sed 's/[[\.*^$()+?{|\\]/\\&/g')
-
-        sed -i "/^${start_escaped}$/,/^${end_escaped}$/d" "${bashrc}" 2>/dev/null || true
-    fi
-
-    # Append new environment variables
-    {
-        echo ""
-        echo "${start_marker}"
-        echo "# This section is auto-generated by docker-entrypoint.sh"
-        echo "# Do not edit manually - changes will be overwritten on container restart"
-        echo ""
-
-        # Export relevant environment variables
-        # Using printenv to get all environment variables and filter
-        while IFS='=' read -r key value; do
-            # Skip if key is empty
-            [[ -z "${key}" ]] && continue
-
-            # Escape single quotes in value for bash export
-            # This handles values with spaces, special chars, etc.
-            local escaped_value
-            escaped_value=$(printf '%s\n' "${value}" | sed "s/'/'\\\\''/g")
-            echo "export ${key}='${escaped_value}'"
-        done < <(printenv | grep -E "^(HOTPLEX|GITHUB|GIT_USER|ANTHROPIC)_" | sort)
-
-        echo ""
-        echo "${end_marker}"
-    } >> "${bashrc}"
-
-    # Set correct ownership
+# ------------------------------------------------------------------------------
+# 8. Execute CMD with lifecycle management
+#    - No sidecar: exec for optimal PID 1 signal handling (via tini)
+#    - Sidecar active: trap-based lifecycle with watchdog and graceful shutdown
+# ------------------------------------------------------------------------------
+if [[ -z "${OPENCODE_SIDECAR_PID}" ]]; then
+    # No sidecar → exec replaces shell with main process (optimal signal path)
+    echo "==> Starting HotPlex Engine..."
     if [[ "$(id -u)" = "0" ]]; then
-        chown hotplex:hotplex "${bashrc}" 2>/dev/null || true
+        export HOME="${HOTPLEX_HOME}"
+        exec runuser -u hotplex -m -- "$@"
+    else
+        exec "$@"
+    fi
+fi
+
+# --- Sidecar lifecycle mode ---
+echo "==> Starting HotPlex Engine (with sidecar lifecycle)..."
+
+MAIN_PID=""
+SIDECAR_RESTARTS=0
+SIDECAR_MAX_RESTARTS="${OPENCODE_SIDECAR_MAX_RESTARTS:-3}"
+
+# Graceful shutdown: stop sidecar then terminate main process
+shutdown() {
+    echo "==> Received shutdown signal, cleaning up..."
+    stop_opencode_sidecar
+    if is_process_alive "${MAIN_PID}"; then
+        kill -TERM "${MAIN_PID}" 2>/dev/null || true
+    fi
+}
+trap shutdown SIGTERM SIGINT
+
+# Start main process in background
+if [[ "$(id -u)" = "0" ]]; then
+    export HOME="${HOTPLEX_HOME}"
+    runuser -u hotplex -m -- "$@" &
+else
+    "$@" &
+fi
+MAIN_PID=$!
+
+# Monitor loop: restart sidecar on crash, exit when main process dies
+while true; do
+    wait -n 2>/dev/null || true
+
+    # Main process exited → clean up sidecar and exit
+    if ! is_process_alive "${MAIN_PID}"; then
+        echo "==> HotPlex Engine exited"
+        stop_opencode_sidecar
+        wait "${MAIN_PID}" 2>/dev/null
+        MAIN_EXIT=$?
+        exit ${MAIN_EXIT}
     fi
 
-    echo "--> Injected environment variables to .bashrc"
-}
-
-# Only inject when running as root (avoid duplicate injections)
-if [[ "$(id -u)" = "0" ]]; then
-    inject_env_to_bashrc
-fi
-
-# ------------------------------------------------------------------------------
-# 8. Execute CMD (drop privileges if root)
-#    Ensures all files created by the app belong to 'hotplex' user
-# ------------------------------------------------------------------------------
-echo "==> Starting HotPlex Engine..."
-if [[ "$(id -u)" = "0" ]]; then
-    # Ensure HOME is correctly set for hotplex before execution
-    # Note: -m is NOT used because it preserves PID 1's HOME=/root from the base image,
-    # which would make ClaudeCodeExtractor read ~/.claude/settings.json from /root instead
-    # of /home/hotplex/.claude/ where the named volume is mounted.
-    export HOME="${HOTPLEX_HOME}"
-    exec runuser -u hotplex -- "$@"
-else
-    exec "$@"
-fi
+    # Sidecar crashed → attempt restart with backoff limit
+    if [[ -n "${OPENCODE_SIDECAR_PID}" ]] && ! is_process_alive "${OPENCODE_SIDECAR_PID}"; then
+        SIDECAR_RESTARTS=$((SIDECAR_RESTARTS + 1))
+        if [[ ${SIDECAR_RESTARTS} -ge ${SIDECAR_MAX_RESTARTS} ]]; then
+            echo "--> ERROR: OpenCode sidecar exceeded max restarts (${SIDECAR_MAX_RESTARTS}), giving up" >&2
+            OPENCODE_SIDECAR_PID=""
+        else
+            echo "==> OpenCode sidecar crashed (restart #${SIDECAR_RESTARTS}/${SIDECAR_MAX_RESTARTS}), restarting..."
+            sleep 2
+            start_opencode_sidecar || echo "--> WARNING: Sidecar restart failed" >&2
+        fi
+    fi
+done

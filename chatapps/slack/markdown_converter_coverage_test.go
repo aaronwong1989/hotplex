@@ -60,7 +60,7 @@ func TestMarkdownConverter_TableExceedsMaxRows(t *testing.T) {
 
 func TestMarkdownConverter_CodeBlockWithBackticks(t *testing.T) {
 	converter := NewMarkdownConverter(ConverterConfig{
-		EnableCodeBlocks: true,
+		EnableCodeBlocks:  true,
 		MaxCodeBlockLines: 100,
 	})
 
@@ -72,7 +72,7 @@ func TestMarkdownConverter_CodeBlockWithBackticks(t *testing.T) {
 
 func TestMarkdownConverter_CodeBlockNotClosed(t *testing.T) {
 	converter := NewMarkdownConverter(ConverterConfig{
-		EnableCodeBlocks: true,
+		EnableCodeBlocks:  true,
 		MaxCodeBlockLines: 100,
 	})
 
@@ -84,7 +84,7 @@ func TestMarkdownConverter_CodeBlockNotClosed(t *testing.T) {
 
 func TestMarkdownConverter_CodeBlockExceedsLines(t *testing.T) {
 	converter := NewMarkdownConverter(ConverterConfig{
-		EnableCodeBlocks: true,
+		EnableCodeBlocks:  true,
 		MaxCodeBlockLines: 2,
 	})
 
@@ -161,10 +161,10 @@ func TestMarkdownConverter_OnlyNewlines(t *testing.T) {
 
 func TestMarkdownConverter_AllFeaturesDisabled(t *testing.T) {
 	converter := NewMarkdownConverter(ConverterConfig{
-		EnableTables:      false,
-		EnableCodeBlocks:  false,
-		EnableQuotes:      false,
-		EnableLists:       false,
+		EnableTables:     false,
+		EnableCodeBlocks: false,
+		EnableQuotes:     false,
+		EnableLists:      false,
 	})
 
 	input := `| Table |

@@ -48,6 +48,29 @@ const (
 	StatusAnswerLabel             = "✍️ 正在生成回答..."
 )
 
+// internalDirectivePrefixes are OpenCode-internal system prompt markers
+// that should not be shown to end users. These directives control agent behavior
+// (search mode, analyze mode) and structure the conversation context.
+// Note: Both [context] and <context> variants appear in different event types.
+var internalDirectivePrefixes = []string{
+	"[search-mode]",
+	"[analyze-mode]",
+	"[context]",
+	"<context>",
+	"<user_query>",
+}
+
+// isInternalDirective checks if content starts with an OpenCode internal directive
+// that should be filtered from user-facing output.
+func isInternalDirective(content string) bool {
+	for _, prefix := range internalDirectivePrefixes {
+		if strings.HasPrefix(content, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // sessionWrapper wraps intengine.Session to implement chatapps.Session interface
 type sessionWrapper struct {
 	sess *intengine.Session
@@ -509,6 +532,13 @@ func (c *StreamCallback) handleThinking(data any) error {
 		content = m.EventData
 	}
 
+	// 🚫 Filter internal directives (OpenCode-specific)
+	// These are system prompt markers that should not be shown to users
+	if isInternalDirective(content) {
+		c.logger.Debug("Filtering internal directive from thinking", "content_preview", strutil.Truncate(content, 50))
+		return nil // Silent drop
+	}
+
 	// Apply default status if empty
 	if content == "" {
 		content = StatusThinkingLabel
@@ -874,6 +904,28 @@ func (c *StreamCallback) handleAnswer(data any) error {
 		return nil
 	}
 
+	// 🚫 Filter OpenCode internal directives and XML tags from answer content
+	// These are system prompt markers that should not be shown to users
+	if isInternalDirective(content) {
+		c.logger.Debug("Filtering internal directive from answer", "content_preview", strutil.Truncate(content, 50))
+		return nil // Silent drop
+	}
+
+	// 🔍 Debug: Log every handleAnswer call to detect duplicates
+	// Optimization: Single mutex acquisition + debug-level guard to avoid hot-path overhead
+	if c.logger.Enabled(context.TODO(), slog.LevelDebug) {
+		c.mu.Lock()
+		streamActive := c.streamWriterActive
+		accumulatedLen := c.accumulatedContent.Len()
+		c.mu.Unlock()
+
+		c.logger.Debug("handleAnswer called",
+			"content_len", len(content),
+			"content_preview", strutil.Truncate(content, 100),
+			"stream_active", streamActive,
+			"accumulated_len", accumulatedLen)
+	}
+
 	c.mu.Lock()
 
 	// Always accumulate content for potential fallback
@@ -1088,15 +1140,23 @@ func (c *StreamCallback) handleDangerBlock(data any) error {
 // handleSessionStats handles session statistics events
 // Implements EventTypeResult (Turn Complete)
 func (c *StreamCallback) handleSessionStats(data any) error {
+	// 🛡️ GUARD: Prevent duplicate execution - OpenCode Server sends multiple result events
+	// (message_updated with finish, session_idle, etc.), but we only need to finalize once
+	c.mu.Lock()
+	if c.isFinished {
+		c.mu.Unlock()
+		c.logger.Debug("Session already finalized, skipping duplicate event")
+		return nil
+	}
 
 	stats, ok := data.(*event.SessionStatsData)
 	if !ok {
+		c.mu.Unlock()
 		c.logger.Debug("session_stats: invalid data type", "type", fmt.Sprintf("%T", data))
 		return nil
 	}
 
-	// Close native streaming and stop timers if active
-	c.mu.Lock()
+	// Mark as finished and stop timers
 	c.isFinished = true
 	if c.idleTimer != nil {
 		c.idleTimer.Stop()
@@ -1121,6 +1181,13 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 	// Check if Close() already triggered its fallback mechanism
 	// This prevents duplicate sends when both Close() and handleSessionStats could trigger
 	streamUsedFallback := streamWriter != nil && streamWriter.FallbackUsed()
+
+	// 🔍 Debug: Log session finalization state
+	c.logger.Info("Session finalization",
+		"stream_was_active", streamWasActive,
+		"stream_used_fallback", streamUsedFallback,
+		"accumulated_len", len(accumulatedContent),
+		"accumulated_preview", strutil.Truncate(accumulatedContent, 100))
 
 	// Fallback mechanism: if streaming was never active but we have accumulated content,
 	// send the content via direct message.
@@ -1194,6 +1261,8 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 		"files_modified":       int64(stats.FilesModified),
 		"file_paths":           stats.FilePaths,
 		"context_used_percent": stats.ContextUsedPercent, // Context window usage percentage (0-100)
+		"model_used":           stats.ModelUsed,          // Model ID (e.g., claude-sonnet-4 from SSE)
+		"finish_reason":        stats.FinishReason,       // end_turn / tool_use / max_tokens
 	}); err != nil {
 		return err
 	}
@@ -1282,73 +1351,66 @@ func (c *StreamCallback) handleCommandComplete(data any) error {
 
 // handleStepStart handles step start events (OpenCode specific)
 // Implements EventTypeStepStart per spec
+// STATUS-ONLY: Updates status indicator, does NOT send channel message
 func (c *StreamCallback) handleStepStart(data any) error {
-	var content string
-	var metadata map[string]any
+	// Extract metadata for logging
+	var step, total int32
+	var toolName string
 
 	if m, ok := data.(*event.EventWithMeta); ok {
-		content = m.EventData
 		if m.Meta != nil {
-			metadata = map[string]any{
-				"step":          int(m.Meta.CurrentStep),
-				"total":         int(m.Meta.TotalSteps),
-				"duration_ms":   m.Meta.DurationMs,
-				"tool_name":     m.Meta.ToolName,
-				"input_summary": m.Meta.InputSummary,
-			}
+			step = m.Meta.CurrentStep
+			total = m.Meta.TotalSteps
+			toolName = m.Meta.ToolName
 		}
-	} else if s, ok := data.(string); ok {
-		content = s
-	} else {
-		content = fmt.Sprintf("Step Start: %v", data)
 	}
 
-	// Update status indicator
+	// Update status indicator (status-only, no channel message)
 	if err := c.updateStatusMessage(base.MessageTypeStepStart, StatusStepStartLabel); err != nil {
 		c.logger.Warn("Failed to update status for step_start", "error", err)
 	}
 
-	// Add event_type to metadata
-	metadata["event_type"] = string(provider.EventTypeStepStart)
+	// Log step info for debugging
+	c.logger.Debug("Step start",
+		"step", step,
+		"total", total,
+		"tool_name", toolName)
 
-	// Use buildChatMessage helper for consistency
-	return c.buildChatMessage(base.MessageTypeStepStart, content, metadata)
+	// ✅ FIXED: Return nil - do NOT send channel message
+	return nil
 }
 
 // handleStepFinish handles step finish events (OpenCode specific)
 // Implements EventTypeStepFinish per spec
+// STATUS-ONLY: Updates status indicator, does NOT send channel message
 func (c *StreamCallback) handleStepFinish(data any) error {
-	var content string
-	var metadata map[string]any
+	// Extract metadata for logging
+	var step, total int32
+	var status, toolName string
 
 	if m, ok := data.(*event.EventWithMeta); ok {
-		content = m.EventData
 		if m.Meta != nil {
-			metadata = map[string]any{
-				"step":           int(m.Meta.CurrentStep),
-				"total":          int(m.Meta.TotalSteps),
-				"duration_ms":    m.Meta.DurationMs,
-				"tool_name":      m.Meta.ToolName,
-				"status":         m.Meta.Status,
-				"output_summary": m.Meta.OutputSummary,
-			}
+			step = m.Meta.CurrentStep
+			total = m.Meta.TotalSteps
+			status = m.Meta.Status
+			toolName = m.Meta.ToolName
 		}
-	} else if s, ok := data.(string); ok {
-		content = s
-	} else {
-		content = fmt.Sprintf("Step Finish: %v", data)
 	}
 
-	// Update status to show step completion
+	// Update status to show step completion (status-only, no channel message)
 	if err := c.updateStatusMessage(base.MessageTypeStepFinish, StatusStepFinishLabel); err != nil {
 		c.logger.Warn("Failed to update status for step_finish", "error", err)
 	}
 
-	// Add event_type to metadata
-	metadata["event_type"] = string(provider.EventTypeStepFinish)
+	// Log step completion for debugging
+	c.logger.Debug("Step finish",
+		"step", step,
+		"total", total,
+		"status", status,
+		"tool_name", toolName)
 
-	// Use buildChatMessage helper for consistency
-	return c.buildChatMessage(base.MessageTypeStepFinish, content, metadata)
+	// ✅ FIXED: Return nil - do NOT send channel message
+	return nil
 }
 
 // mergeMetadata merges the callback's stored metadata with the provided metadata.

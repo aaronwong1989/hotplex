@@ -208,6 +208,9 @@ func TestRelaySender_Send_NoToken(t *testing.T) {
 }
 
 func TestRelaySender_Send_RetriesOn5xx(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping retry test in short mode")
+	}
 	var attempts atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -254,6 +257,9 @@ func TestRelaySender_Send_NoRetryOn4xx(t *testing.T) {
 }
 
 func TestRelaySender_Send_RetryOn429(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping retry test in short mode")
+	}
 	var attempts atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -278,6 +284,9 @@ func TestRelaySender_Send_RetryOn429(t *testing.T) {
 }
 
 func TestRelaySender_Send_ExhaustsRetries(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping retry test in short mode")
+	}
 	var attempts atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -315,6 +324,9 @@ func TestRelaySender_Send_ContextCanceled(t *testing.T) {
 }
 
 func TestRelaySender_Send_ServerUnreachable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping TCP timeout test in short mode")
+	}
 	sender := NewRelaySender("token")
 	err := sender.Send(context.Background(), &RelayMessage{TaskID: "unreachable", Content: "test"}, "http://127.0.0.1:1")
 	if err == nil {
@@ -323,6 +335,9 @@ func TestRelaySender_Send_ServerUnreachable(t *testing.T) {
 }
 
 func TestRelaySender_Send_ConnectionRefused(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping TCP timeout test in short mode")
+	}
 	// Use a port that is definitely not listening.
 	sender := NewRelaySender("token")
 	err := sender.Send(context.Background(), &RelayMessage{TaskID: "refused", Content: "test"}, "http://localhost:59999")
@@ -531,6 +546,9 @@ func TestRelayManager_Send_AgentNotFound(t *testing.T) {
 }
 
 func TestRelayManager_Send_ServerError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping retry test in short mode")
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

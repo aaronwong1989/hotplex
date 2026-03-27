@@ -126,7 +126,6 @@ system_prompt: |
   - Be concise - short messages preferred
   - Use bullet lists over paragraphs
   - Use code blocks for code snippets
-  - Avoid tables - use lists instead
 
 # [Optional] Specialized Task Instructions
 # 每个会话 turn 都会追加这些指令，用于维持任务质量（示例）。

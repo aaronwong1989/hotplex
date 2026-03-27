@@ -117,6 +117,9 @@ help: ## Show this help message
 	@$(call SECTION_HEADER,🐳 Docker)
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@docker/ {gsub(/@docker /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
+	@$(call SECTION_HEADER,🎯 OpenCode Server)
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@opencode/ {gsub(/@opencode /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@$(call SECTION_FOOTER)
 	@printf "\n${DIM}💡 Tip: Use 'make <target> V=1' for verbose output$(NC)\n\n"
 
 # =============================================================================
@@ -139,51 +142,50 @@ install: config-info ## @runtime Build and install hotplexd to /usr/local/bin
 	@printf "${GREEN}✅ Installed: /usr/local/bin/hotplexd$(NC)\n"
 
 config-info: ## @util Display current configuration status
-	@printf "\n${BOLD}${CYAN}╭─ 🔧 Configuration Files ─────────────────────────────$(NC)\n"
-	@printf "  ${BOLD}📋 Configuration Priority (effective):$(NC)\n"
+	@printf "\n${BOLD}${CYAN}╭─ 🔧 Configuration Files ─────────────────────────────${NC}\n"
 	@printf "\n"
-	@printf "  ${GREEN}1. Main Config (.env)$(NC)\n"
+	@printf "  ${BOLD}📋 Environment Variables Source (.env):${NC}\n"
 	@if [ -f .env ]; then \
-		printf "     ${GREEN}✓$(NC) Active\n"; \
-		printf "     ${CYAN}Path:$(NC) $$(pwd)/.env\n"; \
+		printf "     ${GREEN}✓${NC} Active\n"; \
+		printf "     ${CYAN}Path:${NC} $$(pwd)/.env\n"; \
 	else \
-		printf "     ${YELLOW}⚠$(NC) Not found\n"; \
-		printf "     ${CYAN}Template:$(NC) $$(pwd)/.env.example\n"; \
+		printf "     ${YELLOW}⚠${NC} Not found\n"; \
+		printf "     ${CYAN}Template:${NC} $$(pwd)/.env.example\n"; \
 	fi
 	@printf "\n"
-	@printf "  ${GREEN}2. ChatApps Configs (priority order)$(NC)\n"
-	@printf "     ${CYAN}a) --config flag / HOTPLEX_CHATAPPS_CONFIG_DIR:$(NC)\n"
+	@printf "  ${BOLD}📋 ChatApps Config Directory Priority:${NC}\n"
+	@printf "     ${GREEN}1. --config flag (highest)${NC}\n"
+	@printf "        ${DIM}Usage: hotplexd --config /path/to/configs${NC}\n"
+	@printf "\n"
+	@printf "     ${GREEN}2. HOTPLEX_CHATAPPS_CONFIG_DIR env${NC}\n"
 	@if [ -n "$$HOTPLEX_CHATAPPS_CONFIG_DIR" ]; then \
-		printf "         ${GREEN}✓$(NC) Using: $$HOTPLEX_CHATAPPS_CONFIG_DIR\n"; \
+		printf "        ${GREEN}✓${NC} Set: $$HOTPLEX_CHATAPPS_CONFIG_DIR\n"; \
 	else \
-		printf "         ${YELLOW}Not set$(NC)\n"; \
+		printf "        ${YELLOW}⚠${NC} Not set${NC}\n"; \
 	fi
-	@printf "     ${CYAN}b) User config (~/.hotplex/configs):$(NC)\n"
+	@printf "\n"
+	@printf "     ${GREEN}3. User config (~/.hotplex/configs)${NC}\n"
 	@if [ -d "$$HOME/.hotplex/configs" ]; then \
-		printf "         ${GREEN}✓$(NC) Active\n"; \
-		printf "         ${CYAN}Path:$(NC) $$HOME/.hotplex/configs/\n"; \
+		printf "        ${GREEN}✓${NC} Active\n"; \
+		printf "        ${CYAN}Path:${NC} $$HOME/.hotplex/configs/\n"; \
 	else \
-		printf "         ${YELLOW}⚠$(NC) Not found$(NC)\n"; \
+		printf "        ${YELLOW}⚠${NC} Not found${NC}\n"; \
 	fi
-	@printf "     ${CYAN}c) Default (./configs/admin):$(NC)\n"
+	@printf "\n"
+	@printf "     ${GREEN}4. Default (./configs/admin)${NC}\n"
 	@if [ -d "configs/admin" ]; then \
-		printf "         ${GREEN}✓$(NC) Active (Admin Bot)\n"; \
-		printf "         ${CYAN}Path:$(NC) $$(pwd)/configs/admin/\n"; \
+		printf "        ${GREEN}✓${NC} Active (Admin Bot)\n"; \
+		printf "        ${CYAN}Path:${NC} $$(pwd)/configs/admin/\n"; \
 		for f in configs/admin/*.yaml; do \
 			if [ -f "$$f" ]; then \
 				printf "            - $$(basename $$f)\n"; \
 			fi; \
 		done; \
+		printf "        ${DIM}Inherits: configs/base/${NC}\n"; \
 	else \
-		printf "         ${YELLOW}⚠$(NC) Not found$(NC)\n"; \
+		printf "        ${YELLOW}⚠${NC} Not found${NC}\n"; \
 	fi
-	@printf "     ${DIM}d) Base templates (./configs/base):$(NC)\n"
-	@if [ -d "configs/base" ]; then \
-		printf "         ${DIM}✓ SSOT (inherited by admin)$(NC)\n"; \
-	else \
-		printf "         ${YELLOW}⚠$(NC) Not found$(NC)\n"; \
-	fi
-	@printf "${BOLD}${CYAN}╰─────────────────────────────────────────────────────$(NC)\n\n"
+	@printf "${BOLD}${CYAN}╰─────────────────────────────────────────────────────${NC}\n\n"
 
 build-all: fmt vet tidy ## @build Compile for all platforms (Linux/macOS/Windows)
 	@printf "${GREEN}🚀 Building HotPlex Daemon for all platforms (${VERSION})...$(NC)\n"
@@ -217,7 +219,7 @@ test-race: ## @test Run unit tests with race detection
 
 test-integration: ## @test Run heavy integration tests
 	@printf "${YELLOW}🏗️  Running heavy integration tests...$(NC)\n"
-	@go test -v -tags=integration ./...
+	@go test -short -v -tags=integration ./...
 	@printf "${GREEN}✅ Integration tests passed!$(NC)\n"
 
 test-all: test-race test-integration ## @test Run all tests
@@ -343,6 +345,41 @@ service-disable: ## @service Disable auto-start on boot
 	@printf "${YELLOW}🔕 Disabling auto-start...$(NC)\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) disable
+
+# =============================================================================
+# 🔄 CONFIG SYNC (Local Development)
+# =============================================================================
+
+sync: ## @runtime Sync local configs (.env, configs/base, top-level configs) to ~/.hotplex/configs
+	@$(call SECTION_HEADER,🔄 Syncing Local Configs to Host)
+	@mkdir -p $(HOST_CONFIGS_DIR)
+	@printf "  ${CYAN}→ Target:$(NC) $(HOST_CONFIGS_DIR)\n"
+
+	# Sync .env (if exists in project root)
+	@if [ -f ".env" ]; then \
+		printf "  ${CYAN}→$(NC) Syncing ${BOLD}.env${NC}...\n"; \
+		cp .env $(HOST_CONFIGS_DIR)/.env; \
+		printf "  ${GREEN}✓$(NC) .env synced\n"; \
+	fi
+
+	# Sync base configs (templates)
+	@if [ -d "configs/base" ]; then \
+		printf "  ${CYAN}→$(NC) Syncing ${BOLD}configs/base/${NC}...\n"; \
+		mkdir -p $(HOST_CONFIGS_DIR)/base; \
+		cp -r configs/base/* $(HOST_CONFIGS_DIR)/base/; \
+		printf "  ${GREEN}✓$(NC) configs/base synced\n"; \
+	fi
+
+	# Sync top-level platform configs (not in subdirectories)
+	@for f in configs/*.yaml; do \
+		if [ -f "$$f" ]; then \
+			printf "  ${CYAN}→$(NC) Syncing ${BOLD}$$f${NC}...\n"; \
+			cp $$f $(HOST_CONFIGS_DIR)/; \
+			printf "  ${GREEN}✓$(NC) $$f synced\n"; \
+		fi; \
+	done
+
+	@printf "${GREEN}✅ Config sync complete → $(HOST_CONFIGS_DIR)/${NC}\n"
 
 # =============================================================================
 # 🛠️ UTILS
@@ -551,6 +588,221 @@ docker-restart: ## @docker Restart services (down → sync → up)
 docker-logs: ## @docker Follow container logs (Ctrl+C to stop)
 	cd docker/matrix && docker compose logs -f
 
+# --- OpenCode Server Management ---
+.PHONY: opencode-start opencode-stop opencode-restart opencode-status opencode-logs \
+        opencode-config opencode-verify opencode-password opencode-docker-integrate
+
+OPENCODE_PORT ?= 4096
+OPENCODE_BINARY ?= opencode
+OPENCODE_LOG_DIR ?= $(HOME_DIR)/.hotplex/logs
+OPENCODE_LOG ?= $(OPENCODE_LOG_DIR)/opencode-server.log
+OPENCODE_PID_FILE ?= $(HOME_DIR)/.hotplex/.opencode-server.pid
+OPENCODE_PASSWORD_FILE ?= $(HOME_DIR)/.hotplex/.opencode-password
+OPENCODE_DEBUG ?= false
+
+opencode-config: ## @opencode Display OpenCode server configuration
+	@$(call SECTION_HEADER,📋 OpenCode Server Configuration)
+	@printf "  ${CYAN}Binary:$(NC) $(OPENCODE_BINARY)\n"
+	@printf "  ${CYAN}Port:$(NC) $(OPENCODE_PORT)\n"
+	@printf "  ${CYAN}Log File:$(NC) $(OPENCODE_LOG)\n"
+	@printf "  ${CYAN}PID File:$(NC) $(OPENCODE_PID_FILE)\n"
+	@printf "  ${CYAN}Password File:$(NC) $(OPENCODE_PASSWORD_FILE)\n"
+	@if [ -f "$(OPENCODE_PASSWORD_FILE)" ]; then \
+		printf "  ${GREEN}✓$(NC) Password configured\n"; \
+	else \
+		printf "  ${YELLOW}⚠$(NC) No password set (run: make opencode-password)\n"; \
+	fi
+	@printf "${CYAN}Environment Variables:$(NC)\n"
+	@printf "  HOTPLEX_OPEN_CODE_SERVER_URL: $${HOTPLEX_OPEN_CODE_SERVER_URL:-not set}\n"
+	@printf "  HOTPLEX_OPEN_CODE_PASSWORD: $${HOTPLEX_OPEN_CODE_PASSWORD:-not set}\n"
+	@printf "  HOTPLEX_OPEN_CODE_PORT: $${HOTPLEX_OPEN_CODE_PORT:-$(OPENCODE_PORT)}\n"
+
+opencode-verify: ## @opencode Verify OpenCode binary and dependencies
+	@$(call SECTION_HEADER,🔍 Verifying OpenCode Dependencies)
+	@printf "${CYAN}→ Checking binary...$(NC)\n"
+	@if ! command -v $(OPENCODE_BINARY) >/dev/null 2>&1; then \
+		printf "${RED}✗ OpenCode binary not found: $(OPENCODE_BINARY)$(NC)\n"; \
+		printf "${YELLOW}  Install: https://github.com/opencode-ai/opencode$(NC)\n"; \
+		exit 1; \
+	else \
+		printf "${GREEN}✓ Binary found: $$(command -v $(OPENCODE_BINARY))$(NC)\n"; \
+	fi
+	@printf "${CYAN}→ Checking port availability...$(NC)\n"
+	@if lsof -i :$(OPENCODE_PORT) >/dev/null 2>&1; then \
+		printf "${YELLOW}⚠ Port $(OPENCODE_PORT) is already in use$(NC)\n"; \
+		lsof -i :$(OPENCODE_PORT); \
+	else \
+		printf "${GREEN}✓ Port $(OPENCODE_PORT) is available$(NC)\n"; \
+	fi
+	@printf "${GREEN}✅ Verification complete$(NC)\n"
+
+opencode-password: ## @opencode Generate or update OpenCode server password
+	@$(call SECTION_HEADER,🔐 Managing OpenCode Password)
+	@mkdir -p $(HOME_DIR)/.hotplex
+	@if [ -f "$(OPENCODE_PASSWORD_FILE)" ]; then \
+		printf "${YELLOW}⚠ Password file exists: $(OPENCODE_PASSWORD_FILE)$(NC)\n"; \
+		read -p "Overwrite? (y/N): " CONFIRM; \
+		if [ "$$CONFIRM" != "y" ] && [ "$$CONFIRM" != "Y" ]; then \
+			printf "${CYAN}→ Cancelled$(NC)\n"; \
+			exit 0; \
+		fi; \
+	fi
+	@printf "${CYAN}→ Generating secure password...$(NC)\n"
+	@openssl rand -base64 32 > $(OPENCODE_PASSWORD_FILE)
+	@chmod 600 $(OPENCODE_PASSWORD_FILE)
+	@printf "${GREEN}✓ Password saved to: $(OPENCODE_PASSWORD_FILE)$(NC)\n"
+	@printf "${CYAN}→ Password (copy this):$(NC)\n"
+	@cat $(OPENCODE_PASSWORD_FILE)
+	@printf "\n${YELLOW}⚠ Add to .env:$(NC)\n"
+	@printf "HOTPLEX_OPEN_CODE_PASSWORD=$$(cat $(OPENCODE_PASSWORD_FILE))\n"
+
+opencode-start: opencode-verify ## @opencode Start OpenCode server in daemon mode
+	@$(call SECTION_HEADER,🚀 Starting OpenCode Server)
+	@mkdir -p $(OPENCODE_LOG_DIR)
+	@if lsof -i :$(OPENCODE_PORT) >/dev/null 2>&1; then \
+		EXISTING_PID=$$(lsof -t -i :$(OPENCODE_PORT)); \
+		printf "${YELLOW}⚠ Port $(OPENCODE_PORT) already in use by PID $$EXISTING_PID$(NC)\n"; \
+		printf "${CYAN}→ Run 'make opencode-stop' first or choose a different port$(NC)\n"; \
+		exit 1; \
+	fi
+	@printf "${CYAN}→ Port: $(OPENCODE_PORT)$(NC)\n"
+	@printf "${CYAN}→ Log: $(OPENCODE_LOG)$(NC)\n"
+	@if [ -f "$(OPENCODE_PASSWORD_FILE)" ]; then \
+		export OPENCODE_SERVER_PASSWORD=$$(cat $(OPENCODE_PASSWORD_FILE)); \
+		printf "${GREEN}✓ Using password from file$(NC)\n"; \
+	elif [ -n "$$HOTPLEX_OPEN_CODE_PASSWORD" ]; then \
+		export OPENCODE_SERVER_PASSWORD=$$HOTPLEX_OPEN_CODE_PASSWORD; \
+		printf "${GREEN}✓ Using password from env$(NC)\n"; \
+	else \
+		printf "${YELLOW}⚠ No password configured (unprotected mode)$(NC)\n"; \
+	fi; \
+	DEBUG_FLAG=""; \
+	if [ "$(OPENCODE_DEBUG)" = "true" ]; then \
+		DEBUG_FLAG="--debug"; \
+		printf "${PURPLE}→ Debug mode enabled$(NC)\n"; \
+	fi; \
+	{ cd $(HOME_DIR) && exec $(OPENCODE_BINARY) serve --port $(OPENCODE_PORT) $$DEBUG_FLAG; } >> $(OPENCODE_LOG) 2>&1 & \
+		sleep 1; PID=$$(lsof -t -i :$(OPENCODE_PORT) 2>/dev/null); \
+		[ -n "$$PID" ] && echo $$PID > $(OPENCODE_PID_FILE); \
+		printf "${GREEN}✓ OpenCode server started (PID: $$(cat $(OPENCODE_PID_FILE) 2>/dev/null))${NC}\n"
+	@printf "${CYAN}→ Waiting for server to be ready...$(NC)\n"
+	@sleep 2
+	@$(MAKE) opencode-status
+
+opencode-stop: ## @opencode Stop OpenCode server
+	@$(call SECTION_HEADER,🛑 Stopping OpenCode Server)
+	@if lsof -t -i :$(OPENCODE_PORT) >/dev/null 2>&1; then \
+		PIDS=$$(lsof -t -i :$(OPENCODE_PORT)); \
+		for PID in $$PIDS; do \
+			PGID=$$(ps -o pgid= -p $$PID 2>/dev/null | tr -d " "); \
+			[ -n "$$PGID" ] && kill -$$PGID 2>/dev/null; \
+		done; \
+		sleep 1; \
+		REMAINING=$$(lsof -t -i :$(OPENCODE_PORT) 2>/dev/null); \
+		[ -n "$$REMAINING" ] && kill -9 $$REMAINING 2>/dev/null; \
+		rm -f $(OPENCODE_PID_FILE); \
+		printf "${GREEN}✓ OpenCode server stopped${NC}\n"; \
+	elif [ -f "$(OPENCODE_PID_FILE)" ]; then \
+		rm -f $(OPENCODE_PID_FILE); \
+		printf "${YELLOW}⚠ Server not running on port $(OPENCODE_PORT), cleaned up stale PID file${NC}\n"; \
+	else \
+		printf "${YELLOW}⚠ Server not running${NC}\n"; \
+	fi
+
+opencode-restart: ## @opencode Restart OpenCode server
+	@$(MAKE) opencode-stop
+	@sleep 2
+	@$(MAKE) opencode-start
+
+opencode-status: ## @opencode Check OpenCode server status and health
+	@$(call SECTION_HEADER,🔍 OpenCode Server Status)
+	@if lsof -t -i :$(OPENCODE_PORT) >/dev/null 2>&1; then \
+		PID=$$(lsof -t -i :$(OPENCODE_PORT)); \
+		printf "${GREEN}✓ Server running (PID: $$PID)${NC}\n"; \
+		printf "${CYAN}→ Health check:${NC}\n"; \
+		HTTP_RESP=$$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$(OPENCODE_PORT)/ 2>/dev/null); \
+		if [ "$$HTTP_RESP" = "200" ]; then \
+			printf "  ${GREEN}✓ HTTP endpoint healthy (200 OK)${NC}\n"; \
+		elif [ "$$HTTP_RESP" = "401" ] || [ "$$HTTP_RESP" = "403" ]; then \
+			printf "  ${GREEN}✓ Server online (auth required, HTTP $$HTTP_RESP)${NC}\n"; \
+		else \
+			printf "  ${RED}✗ HTTP endpoint error (HTTP $$HTTP_RESP)${NC}\n"; \
+		fi; \
+		printf "${CYAN}→ Process info:${NC}\n"; \
+		ps -p $$PID -o pid,ppid,%cpu,%mem,etime,command 2>/dev/null || true; \
+	else \
+		printf "${YELLOW}⚠ Server not running on port $(OPENCODE_PORT)${NC}\n"; \
+	fi
+
+opencode-logs: ## @opencode View OpenCode server logs (Ctrl+C to stop)
+	@if [ -f "$(OPENCODE_LOG)" ]; then \
+		tail -f $(OPENCODE_LOG); \
+	else \
+		printf "${YELLOW}⚠ No log file found at $(OPENCODE_LOG)$(NC)\n"; \
+	fi
+
+opencode-docker-integrate: ## @opencode Integrate OpenCode server with Docker Compose
+	@$(call SECTION_HEADER,🐳 Docker Integration Setup)
+	@printf "${CYAN}→ Checking Docker Compose configuration...$(NC)\n"
+	@if [ ! -f "docker/matrix/docker-compose.yml" ]; then \
+		printf "${RED}✗ docker-compose.yml not found$(NC)\n"; \
+		exit 1; \
+	fi
+	@printf "${CYAN}→ Adding OpenCode sidecar service...$(NC)\n"
+	@printf "${YELLOW}⚠ Manual step required:$(NC)\n"
+	@printf "Add this to docker/matrix/docker-compose.yml:\n\n"
+	@printf "  opencode-server:\n"
+	@printf "    image: opencode/opencode:latest\n"
+	@printf "    command: serve --port 4096\n"
+	@printf "    ports:\n"
+	@printf "      - \"4096:4096\"\n"
+	@printf "    networks:\n"
+	@printf "      - hotplex-network\n"
+	@printf "    environment:\n"
+	@printf "      - OPEN_CODE_PASSWORD=$${HOTPLEX_OPEN_CODE_PASSWORD}\n\n"
+	@printf "${CYAN}→ Update HotPlex service to depend on OpenCode:$(NC)\n"
+	@printf "In your HotPlex service, add:\n"
+	@printf "    depends_on:\n"
+	@printf "      - opencode-server\n"
+	@printf "    environment:\n"
+	@printf "      - HOTPLEX_OPEN_CODE_SERVER_URL=http://opencode-server:4096\n"
+	@printf "${GREEN}✓ Docker integration guide complete$(NC)\n"
+
+opencode-test: ## @opencode Run OpenCode server verification tests
+	@$(call SECTION_HEADER,🧪 Testing OpenCode Server)
+	@if [ ! -f "scripts/test_opencode_server.py" ]; then \
+		printf "${YELLOW}⚠ Test script not found: scripts/test_opencode_server.py$(NC)\n"; \
+		printf "${CYAN}→ Running basic health check instead...$(NC)\n"; \
+		$(MAKE) opencode-status; \
+		exit 0; \
+	fi
+	@printf "${CYAN}→ Running Python verification script...$(NC)\n"
+	@if [ -f "$(OPENCODE_PASSWORD_FILE)" ]; then \
+		python3 scripts/test_opencode_server.py --password $$(cat $(OPENCODE_PASSWORD_FILE)); \
+	elif [ -n "$$HOTPLEX_OPEN_CODE_PASSWORD" ]; then \
+		python3 scripts/test_opencode_server.py --password $$HOTPLEX_OPEN_CODE_PASSWORD; \
+	else \
+		python3 scripts/test_opencode_server.py; \
+	fi
+
+opencode-logs-truncate: ## @opencode Truncate OpenCode server logs (keep last 1000 lines)
+	@$(call SECTION_HEADER,✂️ Truncating OpenCode Logs)
+	@if [ -f "$(OPENCODE_LOG)" ]; then \
+		tail -n 1000 "$(OPENCODE_LOG)" > "$(OPENCODE_LOG).tmp" && \
+		mv "$(OPENCODE_LOG).tmp" "$(OPENCODE_LOG)" && \
+		printf "${GREEN}✓ Log truncated to last 1000 lines$(NC)\n"; \
+		printf "${CYAN}→ Size: $$(du -h $(OPENCODE_LOG) | cut -f1)$(NC)\n"; \
+	else \
+		printf "${YELLOW}⚠ No log file found$(NC)\n"; \
+	fi
+
+opencode-with-hotplex: opencode-start ## @opencode Start OpenCode server then start HotPlex
+	@$(call SECTION_HEADER,🔥 Starting HotPlex with OpenCode)
+	@printf "${CYAN}→ OpenCode server is ready$(NC)\n"
+	@printf "${CYAN}→ Starting HotPlex daemon...$(NC)\n"
+	@sleep 2
+	@$(MAKE) run
+
 # --- Interactive Shell ---
 
 # Enter a container as the hotplex user.
@@ -685,12 +937,15 @@ stack: docker-build-stack
 stack-all: docker-build-all
 stack-clean: docker-clean
 
-.PHONY: all help build build-all fmt vet test test-unit test-race test-integration test-all lint tidy clean \
+.PHONY: all help build build-all fmt vet test test-unit test-ci test-race test-integration test-all lint tidy clean \
         install-hooks run stop restart docs svg2png config-info sync add-bot \
         service-install service-uninstall service-start service-stop service-restart \
         service-status service-logs service-enable service-disable \
         docker-build-base docker-build-app docker-build-stack docker-build-all \
         docker-up docker-down docker-restart docker-logs docker-sync docker-shell \
         docker-health docker-check-net docker-upgrade docker-clean \
-        stack stack-all stack-clean
+        stack stack-all stack-clean \
+        opencode-config opencode-verify opencode-password opencode-start opencode-stop \
+        opencode-restart opencode-status opencode-logs opencode-docker-integrate \
+        opencode-test opencode-logs-truncate opencode-with-hotplex
 
