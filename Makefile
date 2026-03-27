@@ -70,7 +70,7 @@ LDFLAGS       := -X 'main.version=v$(VERSION)' -X 'github.com/hrygo/hotplex.Vers
 LOG_DIR       := .logs
 LOG_FILE      := $(LOG_DIR)/daemon.log
 
-.PHONY: all help build build-all fmt vet test test-unit test-ci test-race test-integration test-all lint tidy clean install-hooks run stop restart docs svg2png service-install service-uninstall service-start service-stop service-restart service-status service-logs service-enable service-disable
+.PHONY: all help build build-fast build-all fmt vet test test-unit test-ci test-race test-integration test-all lint tidy clean install-hooks run stop restart docs svg2png service-install service-uninstall service-start service-stop service-restart service-status service-logs service-enable service-disable
 
 # Default target
 all: help
@@ -127,6 +127,11 @@ help: ## Show this help message
 # =============================================================================
 build: fmt vet tidy ## @build Compile the hotplexd daemon
 	@printf "${GREEN}🚀 Building HotPlex Daemon (${VERSION})...$(NC)\n"
+	@mkdir -p $(DIST_DIR)
+	@go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_PATH)
+	@printf "${GREEN}✅ Build complete: ${DIST_DIR}/$(BINARY_NAME)$(NC)\n"
+
+build-fast: ## @build Compile without pre-checks (fast path for restart)
 	@mkdir -p $(DIST_DIR)
 	@go build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_PATH)
 	@printf "${GREEN}✅ Build complete: ${DIST_DIR}/$(BINARY_NAME)$(NC)\n"
@@ -296,7 +301,7 @@ stop: ## @runtime Stop the running daemon and all its child processes
 		printf "${YELLOW}⚠️  No running daemon found$(NC)\n"; \
 	fi
 
-restart: sync build config-info ## @runtime Restart daemon with latest source code
+restart: sync build-fast ## @runtime Restart daemon with latest source code (fast)
 	@mkdir -p $(LOG_DIR)
 	@./scripts/ops/restart_helper.sh "$$(pwd)/$(DIST_DIR)/$(BINARY_NAME)" "$(LOG_FILE)"
 
@@ -580,10 +585,19 @@ docker-dev-all: docker-build-go docker-dev ## @docker Rebuild local Go image and
 docker-down: ## @docker Stop and remove services
 	cd docker/matrix && docker compose down --timeout 30
 
-docker-restart: ## @docker Restart services (down → sync → up)
-	@$(MAKE) docker-down
-	@sleep 2
-	@$(MAKE) docker-up
+docker-restart: docker-sync ## @docker Restart services (sync → recreate, no re-seed)
+	@printf "${CYAN}🔄 Restarting Docker services...$(NC)\n"
+	@IMG=$$(cd docker/matrix && docker compose config --images 2>/dev/null | head -n 1); \
+	[ -z "$$IMG" ] && IMG="ghcr.io/hrygo/hotplex:latest-go (default)"; \
+	printf "${PURPLE}🐳 Image: ${BOLD}$$IMG$(NC)\n"; \
+	cd docker/matrix && \
+		HOST_UID=$(HOST_UID) \
+		VERSION=$(VERSION) \
+		COMMIT=$(COMMIT) \
+		BUILD_TIME=$(BUILD_TIME) \
+		HOTPLEX_HOST_CONFIGS_DIR=$(HOST_CONFIGS_DIR) \
+		docker compose up -d --force-recreate
+	@printf "${GREEN}✅ Services restarted$(NC)\n"
 
 docker-logs: ## @docker Follow container logs (Ctrl+C to stop)
 	cd docker/matrix && docker compose logs -f
@@ -938,7 +952,7 @@ stack-all: docker-build-all
 stack-clean: docker-clean
 
 .PHONY: all help build build-all fmt vet test test-unit test-ci test-race test-integration test-all lint tidy clean \
-        install-hooks run stop restart docs svg2png config-info sync add-bot \
+        install-hooks run stop restart docs svg2png config-info sync add-bot build-fast \
         service-install service-uninstall service-start service-stop service-restart \
         service-status service-logs service-enable service-disable \
         docker-build-base docker-build-app docker-build-stack docker-build-all \
