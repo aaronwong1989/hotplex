@@ -11,17 +11,26 @@ import (
 )
 
 // StatsMessageBuilder builds stats-related Slack messages (SessionStats, CommandProgress, CommandComplete)
-type StatsMessageBuilder struct{}
+type StatsMessageBuilder struct {
+	config *Config
+}
 
-// NewStatsMessageBuilder creates a new StatsMessageBuilder
-func NewStatsMessageBuilder() *StatsMessageBuilder {
-	return &StatsMessageBuilder{}
+// NewStatsMessageBuilder creates a new StatsMessageBuilder with configuration
+func NewStatsMessageBuilder(config *Config) *StatsMessageBuilder {
+	return &StatsMessageBuilder{config: config}
 }
 
 // BuildSessionStatsMessage builds a message for session statistics
 // Implements EventTypeResult (Turn Complete) per spec - compact single-line format
+// With table feature enabled: uses Slack TableBlock for better UX
 // Display format: ⏱️ duration • 🧠 context% • ⚡ tokens in/out • 📝 files • 🔧 tools
 func (b *StatsMessageBuilder) BuildSessionStatsMessage(msg *base.ChatMessage) []slack.Block {
+	// Check if table format is enabled
+	if b.isTableEnabled() {
+		return b.BuildSessionStatsTable(msg)
+	}
+
+	// Fallback to compact single-line format
 	var blocks []slack.Block
 
 	// Build compact stats line: ⏱️ duration • 🧠 context% • ⚡ tokens in/out • 📝 files • 🔧 tools
@@ -189,42 +198,68 @@ func (b *StatsMessageBuilder) BuildCommandCompleteMessage(msg *base.ChatMessage)
 	return []slack.Block{slack.NewContextBlock("", text)}
 }
 
-// BuildSessionStatsTable builds a table-formatted message for session statistics
-// Provides better readability than single-line format for complex stats
-// Suitable for desktop clients; mobile clients should use BuildSessionStatsMessage() instead
+// isTableEnabled checks if table format is enabled in configuration
+// Default: true (opt-out strategy - enabled unless explicitly disabled)
+func (b *StatsMessageBuilder) isTableEnabled() bool {
+	if b.config == nil {
+		return true // Default enabled
+	}
+	if b.config.Features.Markdown.TableConfig == nil {
+		return true // Default enabled
+	}
+	return BoolValue(b.config.Features.Markdown.TableConfig.Enabled, true)
+}
+
+// BuildSessionStatsTable builds a table format message for session statistics
+// Uses TableBuilder for Slack TableBlock rendering
 func (b *StatsMessageBuilder) BuildSessionStatsTable(msg *base.ChatMessage) []slack.Block {
 	tableBuilder := NewTableBuilder(TableConfig{
-		MaxRows:    5,
+		MaxRows:    getMaxTableRows(b.config),
 		Compact:    false,
 		ShowHeader: false,
 	})
-
 	table := tableBuilder.BuildStatsTable(msg)
+	if table == nil {
+		return nil
+	}
 	return []slack.Block{table}
 }
 
-// BuildCommandProgressTable builds a table-formatted message for command progress
-// Suitable for multi-step commands like /hotplex release
+// BuildCommandProgressTable builds a table format message for command progress
 func (b *StatsMessageBuilder) BuildCommandProgressTable(msg *base.ChatMessage) []slack.Block {
 	tableBuilder := NewTableBuilder(TableConfig{
-		MaxRows:    10,
+		MaxRows:    getMaxTableRows(b.config),
 		Compact:    false,
-		ShowHeader: true,
+		ShowHeader: false,
 	})
-
 	table := tableBuilder.BuildCommandProgressTable(msg)
+	if table == nil {
+		return nil
+	}
 	return []slack.Block{table}
 }
 
-// BuildToolCallsTable builds a table-formatted message for tool call summary
-// Displays tool usage statistics at session end
+// BuildToolCallsTable builds a table format message for tool calls
 func (b *StatsMessageBuilder) BuildToolCallsTable(msg *base.ChatMessage) []slack.Block {
 	tableBuilder := NewTableBuilder(TableConfig{
-		MaxRows:    10,
+		MaxRows:    getMaxTableRows(b.config),
 		Compact:    false,
-		ShowHeader: true,
+		ShowHeader: false,
 	})
-
 	table := tableBuilder.BuildToolCallsTable(msg)
+	if table == nil {
+		return nil
+	}
 	return []slack.Block{table}
+}
+
+// getMaxTableRows returns the max table rows limit from config (default: 20)
+func getMaxTableRows(config *Config) int {
+	if config == nil || config.Features.Markdown.TableConfig == nil {
+		return 20
+	}
+	if config.Features.Markdown.TableConfig.MaxRows <= 0 {
+		return 20
+	}
+	return config.Features.Markdown.TableConfig.MaxRows
 }

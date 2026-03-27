@@ -49,8 +49,50 @@ type RateLimitConfig struct {
 	MaxDelayMs  int
 }
 
+// MarkdownConfig controls Markdown to Slack Block Kit conversion
+// Default: All features ENABLED for better UI/UX out-of-box
+// Disable explicitly if needed
 type MarkdownConfig struct {
 	Enabled *bool
+
+	// TableConfig controls Markdown table to Slack TableBlock conversion
+	// Default: enabled (opt-out)
+	TableConfig *TableConversionConfig `yaml:"table"`
+
+	// CodeBlockConfig controls code block rendering (RichTextBlock with code style)
+	// Default: enabled (opt-out)
+	CodeBlockConfig *CodeBlockConfig `yaml:"code_block"`
+
+	// QuoteConfig controls quote rendering (RichTextBlock with italic style)
+	// Default: enabled (opt-out)
+	QuoteConfig *QuoteConfig `yaml:"quote"`
+}
+
+// TableConversionConfig controls table conversion behavior
+type TableConversionConfig struct {
+	// Enabled enables Markdown table → Slack TableBlock conversion
+	// Default: true (opt-out strategy)
+	Enabled *bool `yaml:"enabled"`
+
+	// MaxRows limits table size for performance (default: 20)
+	MaxRows int `yaml:"max_rows"`
+}
+
+// CodeBlockConfig controls code block rendering behavior
+type CodeBlockConfig struct {
+	// Enabled enables RichTextBlock code style for code blocks
+	// Default: true (opt-out strategy)
+	Enabled *bool `yaml:"enabled"`
+
+	// MaxLines limits code block size (default: 100)
+	MaxLines int `yaml:"max_lines"`
+}
+
+// QuoteConfig controls quote rendering behavior
+type QuoteConfig struct {
+	// Enabled enables RichTextBlock italic style for quotes
+	// Default: true (opt-out strategy)
+	Enabled *bool `yaml:"enabled"`
 }
 
 // pairingState holds runtime pairing state with thread-safe access

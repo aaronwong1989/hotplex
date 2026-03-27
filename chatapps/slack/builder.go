@@ -84,7 +84,7 @@ func NewMessageBuilder(config *Config) *MessageBuilder {
 		answer:      NewAnswerMessageBuilder(config, formatter),
 		plan:        NewPlanMessageBuilder(),
 		interactive: NewInteractiveMessageBuilder(),
-		stats:       NewStatsMessageBuilder(),
+		stats:       NewStatsMessageBuilder(config),
 		system:      NewSystemMessageBuilder(),
 	}
 }

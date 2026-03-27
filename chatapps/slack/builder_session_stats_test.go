@@ -11,7 +11,17 @@ import (
 func TestBuildSessionStatsMessage_Int32Types(t *testing.T) {
 	// This test verifies that BuildSessionStatsMessage correctly handles
 	// int32 types from SessionStatsData (the actual types used in production)
-	builder := NewMessageBuilder(&Config{})
+	// Tests the classic context block format (table disabled)
+	config := &Config{
+		Features: FeaturesConfig{
+			Markdown: MarkdownConfig{
+				TableConfig: &TableConversionConfig{
+					Enabled: PtrBool(false), // Test classic format
+				},
+			},
+		},
+	}
+	builder := NewMessageBuilder(config)
 
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeSessionStats,
@@ -63,7 +73,17 @@ func TestBuildSessionStatsMessage_Int64Types(t *testing.T) {
 
 func TestBuildSessionStatsMessage_Empty(t *testing.T) {
 	// When no stats are available, should return empty/nil blocks
-	builder := NewMessageBuilder(&Config{})
+	// Tests classic format (table disabled) - returns nil when no data
+	config := &Config{
+		Features: FeaturesConfig{
+			Markdown: MarkdownConfig{
+				TableConfig: &TableConversionConfig{
+					Enabled: PtrBool(false), // Test classic format
+				},
+			},
+		},
+	}
+	builder := NewMessageBuilder(config)
 
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeSessionStats,
@@ -81,7 +101,17 @@ func TestBuildSessionStatsMessage_Empty(t *testing.T) {
 
 func TestBuildSessionStatsMessage_WithAllFields(t *testing.T) {
 	// Full test with all stats fields populated
-	builder := NewMessageBuilder(&Config{})
+	// Tests classic context block format (table disabled)
+	config := &Config{
+		Features: FeaturesConfig{
+			Markdown: MarkdownConfig{
+				TableConfig: &TableConversionConfig{
+					Enabled: PtrBool(false), // Test classic format
+				},
+			},
+		},
+	}
+	builder := NewMessageBuilder(config)
 
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeSessionStats,
@@ -176,7 +206,17 @@ func TestExtractInt64(t *testing.T) {
 
 func TestBuildSessionStatsMessage_WithContextPercent(t *testing.T) {
 	// Test context window usage percentage display
-	builder := NewMessageBuilder(&Config{})
+	// Tests classic context block format (table disabled)
+	config := &Config{
+		Features: FeaturesConfig{
+			Markdown: MarkdownConfig{
+				TableConfig: &TableConversionConfig{
+					Enabled: PtrBool(false), // Test classic format
+				},
+			},
+		},
+	}
+	builder := NewMessageBuilder(config)
 
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeSessionStats,

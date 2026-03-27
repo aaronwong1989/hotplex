@@ -197,7 +197,17 @@ func TestTableBuilder_TokenValueCell(t *testing.T) {
 
 func TestBuildSessionStatsTable_FromStatsMessageBuilder(t *testing.T) {
 	// Test the integration with StatsMessageBuilder
-	statsBuilder := NewStatsMessageBuilder()
+	config := &Config{
+		Features: FeaturesConfig{
+			Markdown: MarkdownConfig{
+				TableConfig: &TableConversionConfig{
+					Enabled: PtrBool(true),
+					MaxRows: 20,
+				},
+			},
+		},
+	}
+	statsBuilder := NewStatsMessageBuilder(config)
 
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeSessionStats,

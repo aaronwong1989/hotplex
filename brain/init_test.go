@@ -729,12 +729,15 @@ func TestEnhancedBrainWrapper_ChatWithModel_RateLimited(t *testing.T) {
 // ========================================
 
 func TestConfig_Defaults_WhenNoEnv(t *testing.T) {
-	t.Setenv("HOTPLEX_BRAIN_API_KEY", "")
+	// Clear provider type to prevent CLI extractor from interfering
+	t.Setenv("HOTPLEX_PROVIDER_TYPE", "")
+	// Set required API key to activate HOTPLEX_BRAIN_* env vars
+	t.Setenv("HOTPLEX_BRAIN_API_KEY", "test-key")
 	t.Setenv("HOTPLEX_BRAIN_PROVIDER", "openai")
 
 	config := LoadConfigFromEnv()
 
-	assert.False(t, config.Enabled)
+	assert.True(t, config.Enabled) // Now enabled since we set API key
 	assert.Equal(t, "openai", config.Model.Provider)
 	assert.Equal(t, "gpt-4o", config.Model.Model)
 	assert.Equal(t, "openai", config.Model.Protocol)

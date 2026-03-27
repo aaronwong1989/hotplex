@@ -76,11 +76,13 @@ func TestConfig_DefaultValues(t *testing.T) {
 	_ = os.Unsetenv("ANTHROPIC_API_KEY")
 	_ = os.Unsetenv("OPENAI_API_KEY")
 	_ = os.Unsetenv("DEEPSEEK_API_KEY")
+	_ = os.Unsetenv("HOTPLEX_PROVIDER_TYPE") // Prevent CLI extractor interference
+	_ = os.Setenv("HOTPLEX_BRAIN_API_KEY", "test-key") // Required to use HOTPLEX_BRAIN_*
 	_ = os.Setenv("HOTPLEX_BRAIN_PROVIDER", "openai") // Ensure predictable provider for default test
 
 	config := LoadConfigFromEnv()
 
-	assert.False(t, config.Enabled)
+	assert.True(t, config.Enabled) // Enabled when API key is set
 	assert.Equal(t, "openai", config.Model.Provider)
 	assert.Equal(t, "gpt-4o", config.Model.Model)
 	assert.Equal(t, 30, config.Model.TimeoutS)

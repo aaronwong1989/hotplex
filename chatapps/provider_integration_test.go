@@ -58,8 +58,16 @@ func TestProviderToSlackTokenDisplay(t *testing.T) {
 		},
 	}
 
-	// Step 5: Build Slack message
-	builder := slackadapter.NewMessageBuilder(&slackadapter.Config{})
+	// Step 5: Build Slack message (disable table to get ContextBlock)
+	builder := slackadapter.NewMessageBuilder(&slackadapter.Config{
+		Features: slackadapter.FeaturesConfig{
+			Markdown: slackadapter.MarkdownConfig{
+				TableConfig: &slackadapter.TableConversionConfig{
+					Enabled: slackadapter.PtrBool(false), // Use classic format
+				},
+			},
+		},
+	})
 	blocks := builder.BuildSessionStatsMessage(chatMsg)
 
 	// Step 6: Verify Slack message contains tokens
@@ -120,7 +128,15 @@ func TestProviderToSlackTokenDisplay_NoUsage(t *testing.T) {
 		},
 	}
 
-	builder := slackadapter.NewMessageBuilder(&slackadapter.Config{})
+	builder := slackadapter.NewMessageBuilder(&slackadapter.Config{
+		Features: slackadapter.FeaturesConfig{
+			Markdown: slackadapter.MarkdownConfig{
+				TableConfig: &slackadapter.TableConversionConfig{
+					Enabled: slackadapter.PtrBool(false), // Use classic format
+				},
+			},
+		},
+	})
 	blocks := builder.BuildSessionStatsMessage(chatMsg)
 
 	// When no tokens/files/tools, only duration is shown (1 block with just duration)

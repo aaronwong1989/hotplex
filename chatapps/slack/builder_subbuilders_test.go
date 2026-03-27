@@ -261,7 +261,17 @@ func TestInteractiveMessageBuilder_BuildDangerBlockMessage(t *testing.T) {
 // =============================================================================
 
 func TestStatsMessageBuilder_BuildSessionStatsMessage(t *testing.T) {
-	builder := NewMessageBuilder(&Config{})
+	// Test classic context block format (table disabled)
+	config := &Config{
+		Features: FeaturesConfig{
+			Markdown: MarkdownConfig{
+				TableConfig: &TableConversionConfig{
+					Enabled: PtrBool(false), // Test classic format
+				},
+			},
+		},
+	}
+	builder := NewMessageBuilder(config)
 
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeSessionStats,
@@ -448,8 +458,8 @@ func TestBuild_RoutesToCorrectSubBuilder(t *testing.T) {
 		{base.MessageTypeError, "error", false},
 		{base.MessageTypePlanMode, "plan mode", false},
 		{base.MessageTypeSystem, "system", false},
-		// SessionStats is handled by StatusManager, returns nil blocks
-		{base.MessageTypeSessionStats, "stats", true},
+		// SessionStats now has its own builder method (returns TableBlock or ContextBlock)
+		{base.MessageTypeSessionStats, "stats", false},
 	}
 
 	for _, tc := range testCases {
