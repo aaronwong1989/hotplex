@@ -1,5 +1,57 @@
 # CHANGELOG.md
 
+## [v0.36.0] - 2026-03-28
+
+### Features
+- feat(provider): implement OpenCode Server Provider with HTTP transport (#363)
+- feat(slack): enhance markdown UI/UX with table, code, quote and list support (#362)
+- feat(install): 一键安装脚本实现 (#354)
+- feat(docker): isolate Claude plugins in named volume and refactor seed processor
+- feat(docker): implement Claude config seed processing and env injection
+- feat(ci): implement GitHub Flow best practices optimization
+- feat(feishu): add context window usage display to session stats
+- feat(chatapps): add shared formatting utilities
+- feat(chatapps): add context window usage percentage to session stats
+- feat(scripts): add Claude Code stream-json token verification script
+
+### Bug Fixes
+- fix(engine): use dynamic context window size from modelUsage
+- fix(engine): resolve deadlock in handleNormalizedResult
+- fix(engine): use last call tokens for context window calculation
+- fix(chatapps): add cache token fields to session stats metadata (#352)
+- fix(docker): auto-fix permissions for .agent and .claude in projects dir
+- fix(ci): add missing 'changes' job for path-filtered CI optimization
+- fix(ci): upgrade setup-go to v6 for Node.js 24 support
+- fix(ci): correct lazygit download URL and check os.Setenv errors
+- fix(lint): check os.Setenv error return values in maintenance_test
+- fix(ci): correct lazygit download URL format
+
+### Refactoring
+- refactor(slack): upgrade slack-go to v0.20.0 for table block support (#360)
+- refactor(seed): add FORCE_MTIME_SKIP and skills directory force mode support
+- refactor(engine): remove unnecessary implementation-detail comments
+- refactor(ci): trigger Docker build only on tag/release
+- refactor(chatapps): code quality improvements from review
+- refactor(feishu): use shared formatting utility
+- refactor(slack): use shared formatting utility
+- refactor: reorganize scripts directory into subdirectories
+
+### Maintenance
+- chore(scripts): add interactive provider switch script
+- chore(ci): make CI pass a prerequisite for Docker build
+- chore(maintenance): remove unnecessary debug log for missing userID
+
+### Documentation
+- docs: add acceptance criteria for OpenCode Server Provider
+- docs: finalize OpenCode Server Provider spec with SessionIO and audit fixes
+- docs(research): add ACP integration research and OpenClaw deep dive (#357)
+- docs: sync workflow badges to README_zh.md
+- docs(admin): add token cache analysis report
+- docs(install): add one-click install script design spec (#349)
+- docs(training): refactor training materials and add interactive presentation
+- docs: insert presentation assets into claude code training manual
+- docs(training): remove outdated training materials
+
 ## [v0.35.4] - 2026-03-23
 
 ### Features
