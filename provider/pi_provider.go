@@ -245,7 +245,7 @@ func (p *PiProvider) BuildCLIArgs(providerSessionID string, opts *ProviderSessio
 
 // BuildInputMessage constructs the input for pi.
 // Note: Pi typically takes the prompt as a CLI argument, not stdin.
-func (p *PiProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
+func (p *PiProvider) BuildInputMessage(prompt string, taskInstructions string, baseSystemPrompt string) (map[string]any, error) {
 	finalPrompt := p.promptBuilder.Build(prompt, taskInstructions)
 
 	return map[string]any{

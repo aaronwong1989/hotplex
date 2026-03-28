@@ -467,14 +467,23 @@ func (r *Engine) executeWithMultiplex(
 
 	sess.SetCallback(intengine.Callback(r.createEventBridge(cfg, callback, stats, doneChan)))
 
-	// Build provider-specific input message payload
-	// 2. Send input - Skip if this was a cold start and the provider handles initial prompt as CLI args
+	// Build provider-specific input message payload.
+	// System prompt injection rules:
+	// - CLI providers (RequiresInitialPromptAsArg=true): stdin is skipped on cold-start,
+	//   system prompt is injected via --append-system-prompt in buildCLIArgs instead.
+	// - HTTP providers (RequiresInitialPromptAsArg=false): stdin is always used,
+	//   system prompt must be sent here on cold-start first turn only.
+	// Pass baseSystemPrompt only on cold-start first turn to avoid re-injecting
+	// into an existing session that already has the system context embedded.
 	if created && r.provider.Metadata().Features.RequiresInitialPromptAsArg {
-		r.logger.Debug("Skipping Stdin injection for cold-start (already passed via CLI args)",
+		// CLI cold-start: stdin skipped, system prompt via --append-system-prompt (buildCLIArgs)
+		r.logger.Debug("Skipping Stdin injection for cold-start (system prompt via CLI args)",
 			"namespace", r.opts.Namespace,
 			"session_id", cfg.SessionID)
 	} else {
-		input, err := r.provider.BuildInputMessage(prompt, cfg.TaskInstructions)
+		// HTTP cold-start first turn: inject system prompt via BuildInputMessage
+		// HTTP hot-multiplexing: baseSystemPrompt is empty, nothing injected
+		input, err := r.provider.BuildInputMessage(prompt, cfg.TaskInstructions, cfg.BaseSystemPrompt)
 		if err != nil {
 			return fmt.Errorf("build input message: %w", err)
 		}

@@ -219,12 +219,12 @@ func TestPiProvider_BuildInputMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test without task instructions
-	msg, err := provider.BuildInputMessage("Hello", "")
+	msg, err := provider.BuildInputMessage("Hello", "", "")
 	require.NoError(t, err)
 	assert.Equal(t, "Hello", msg["prompt"])
 
 	// Test with task instructions
-	msg, err = provider.BuildInputMessage("What is this?", "Context info")
+	msg, err = provider.BuildInputMessage("What is this?", "Context info", "")
 	require.NoError(t, err)
 	assert.Contains(t, msg["prompt"].(string), "<context>")
 	assert.Contains(t, msg["prompt"].(string), "Context info")

@@ -249,3 +249,75 @@ func TestOpenCodeServerProvider_StepFinishTokenParsing(t *testing.T) {
 		t.Errorf("CacheWriteTokens = %d, want 50", events[0].Metadata.CacheWriteTokens)
 	}
 }
+
+// TestOpenCodeServerProvider_BuildInputMessage_SystemPrompt tests that the system prompt
+// is injected as the "system" field in the message body (cold-start first turn only).
+// Hot-multiplexing/resume turns pass empty string and no "system" field is added.
+func TestOpenCodeServerProvider_BuildInputMessage_SystemPrompt(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	p, err := NewOpenCodeServerProvider(ProviderConfig{}, logger)
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	tests := []struct {
+		name              string
+		prompt            string
+		taskInstructions  string
+		baseSystemPrompt  string
+		wantSystem        string
+		wantSystemPresent bool
+	}{
+		{
+			name:              "cold-start first turn injects system prompt",
+			prompt:            "Hello",
+			taskInstructions:  "Be helpful",
+			baseSystemPrompt:  "You are a helpful assistant",
+			wantSystem:        "You are a helpful assistant",
+			wantSystemPresent: true,
+		},
+		{
+			name:              "hot-multiplexing resume skips system prompt",
+			prompt:            "Continue",
+			taskInstructions:  "",
+			baseSystemPrompt:  "",
+			wantSystemPresent: false,
+		},
+		{
+			name:              "no system prompt provided",
+			prompt:            "Hello",
+			taskInstructions:  "Be concise",
+			baseSystemPrompt:  "",
+			wantSystemPresent: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, err := p.BuildInputMessage(tt.prompt, tt.taskInstructions, tt.baseSystemPrompt)
+			if err != nil {
+				t.Fatalf("BuildInputMessage() error = %v", err)
+			}
+
+			// Verify "system" field presence
+			sys, present := msg["system"]
+			if tt.wantSystemPresent {
+				if !present {
+					t.Error("Expected 'system' field in message, but it was absent")
+				} else if sys != tt.wantSystem {
+					t.Errorf("'system' field = %q, want %q", sys, tt.wantSystem)
+				}
+			} else {
+				if present {
+					t.Errorf("'system' field should be absent, got %q", sys)
+				}
+			}
+
+			// Verify "parts" field always present
+			parts, ok := msg["parts"].([]map[string]any)
+			if !ok || len(parts) == 0 {
+				t.Error("Expected non-empty 'parts' field in message")
+			}
+		})
+	}
+}
