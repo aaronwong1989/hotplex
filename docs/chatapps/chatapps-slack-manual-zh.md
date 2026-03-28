@@ -418,7 +418,7 @@ provider:
   # - bypassPermissions: Fully autonomous (Recommended for Docker/Sandbox)
   # - acceptEdits: Prompt for edits
   # - default: Default CLI behavior
-  default_permission_mode: bypass-permissions 
+  default_permission_mode: bypassPermissions 
   dangerously_skip_permissions: true
 
   # Tool filtering (Provider-level override)

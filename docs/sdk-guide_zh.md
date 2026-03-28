@@ -95,7 +95,7 @@ func main() {
 | `Timeout`          | `time.Duration` | **执行超时**。单次 `Execute` 调用的最大允许时间（默认 5 分钟）。               |
 | `IdleTimeout`      | `time.Duration` | **空闲回收时间**。后台进程超过此时间无活动将被自动清理（默认 30 分钟）。       |
 | `BaseSystemPrompt` | `string`        | **引擎级系统提示词**。在进程启动时注入，作为所有会话的底层行为准则。           |
-| `PermissionMode`   | `string`        | **权限模式**。如 `"bypass-permissions"` (自动授权) 或 `"default"`。            |
+| `PermissionMode`   | `string`        | **权限模式**。如 `"bypassPermissions"` (自动授权) 或 `"default"`。             |
 | `AllowedTools`     | `[]string`      | **工具白名单**。显式允许智能体使用的工具列表（如 `["Bash", "Edit"]`）。        |
 | `DisallowedTools`  | `[]string`      | **工具黑名单**。显式禁止智能体使用的工具列表。                                 |
 | `AdminToken`       | `string`        | **管理令牌**。用于在运行时通过安全审计接口越权或调整策略的凭证。               |
@@ -118,54 +118,54 @@ func main() {
 
 #### 事件类型 (`eventType`)
 
-| 事件类型 | 说明 |
-|----------|------|
-| `thinking` | 智能体逻辑推理中 |
-| `tool_use` | 开始调用本地工具（如 `bash`, `editor_write`） |
-| `tool_result` | 工具执行完毕返回结果 |
-| `answer` | 智能体生成的回复文本片段 |
-| `session_stats` | 会话最终统计（仅在成功结束时触发一次） |
-| `danger_block` | 安全火墙拦截告警 - 需要用户批准 |
-| `runner_exit` | 底层进程意外退出 |
-| `plan_mode` | AI 处于计划模式，正在生成计划 |
-| `exit_plan_mode` | AI 计划完成，请求用户批准 |
-| `ask_user_question` | AI 正在询问澄清问题 |
-| `permission_request` | 来自 Claude Code 的权限请求 |
-| `command_progress` | 斜杠命令执行中，带进度更新 |
-| `command_complete` | 斜杠命令执行完成 |
-| `session_start` | 新会话开始（冷启动） |
-| `engine_starting` | 引擎正在启动 |
-| `user_message_received` | 用户消息已接收 |
+| 事件类型                | 说明                                          |
+| ----------------------- | --------------------------------------------- |
+| `thinking`              | 智能体逻辑推理中                              |
+| `tool_use`              | 开始调用本地工具（如 `bash`, `editor_write`） |
+| `tool_result`           | 工具执行完毕返回结果                          |
+| `answer`                | 智能体生成的回复文本片段                      |
+| `session_stats`         | 会话最终统计（仅在成功结束时触发一次）        |
+| `danger_block`          | 安全火墙拦截告警 - 需要用户批准               |
+| `runner_exit`           | 底层进程意外退出                              |
+| `plan_mode`             | AI 处于计划模式，正在生成计划                 |
+| `exit_plan_mode`        | AI 计划完成，请求用户批准                     |
+| `ask_user_question`     | AI 正在询问澄清问题                           |
+| `permission_request`    | 来自 Claude Code 的权限请求                   |
+| `command_progress`      | 斜杠命令执行中，带进度更新                    |
+| `command_complete`      | 斜杠命令执行完成                              |
+| `session_start`         | 新会话开始（冷启动）                          |
+| `engine_starting`       | 引擎正在启动                                  |
+| `user_message_received` | 用户消息已接收                                |
 
 #### 详细元数据 (`EventMeta`)
 
 除 `session_stats` 外，大部分事件的 `data` 为 `*hotplex.EventWithMeta`。其 `Meta` 包含：
 
-| 字段 | 说明 |
-|------|------|
-| `DurationMs` | 当前步骤耗时 |
-| `TotalDurationMs` | 累计总耗时 |
-| `ToolName` / `ToolID` | 调用的工具名称及唯一 ID |
-| `Status` | 执行状态（`running`, `success`, `error`） |
-| `InputSummary` / `OutputSummary` | 工具输入参数的摘要及输出结果的截断预览 |
-| `FilePath` / `LineCount` | 涉及的文件路径及影响的行数 |
-| `Progress` | 进度百分比（针对长耗时任务） |
-| `InputTokens` / `OutputTokens` | 当前步骤的 Token 消耗 |
+| 字段                             | 说明                                      |
+| -------------------------------- | ----------------------------------------- |
+| `DurationMs`                     | 当前步骤耗时                              |
+| `TotalDurationMs`                | 累计总耗时                                |
+| `ToolName` / `ToolID`            | 调用的工具名称及唯一 ID                   |
+| `Status`                         | 执行状态（`running`, `success`, `error`） |
+| `InputSummary` / `OutputSummary` | 工具输入参数的摘要及输出结果的截断预览    |
+| `FilePath` / `LineCount`         | 涉及的文件路径及影响的行数                |
+| `Progress`                       | 进度百分比（针对长耗时任务）              |
+| `InputTokens` / `OutputTokens`   | 当前步骤的 Token 消耗                     |
 
 #### 最终统计 (`SessionStatsData`)
 
 `session_stats` 事件的 `data` 为 `*hotplex.SessionStatsData`：
 
-| 字段 | 说明 |
-|------|------|
-| `InputTokens` / `OutputTokens` | 会话全过程总 Token |
-| `CacheReadTokens` / `CacheWriteTokens` | 提示词缓存的命中与写入 |
-| `TotalDurationMs` | 从请求开始到结束的总毫秒数 |
-| `ToolCallCount` | 总工具调用次数 |
-| `ToolsUsed` | 调用的工具名称列表（去重） |
-| `FilesModified` | 实际产生修改的文件数 |
-| `TotalCostUSD` | 该轮通话的预估美金成本 |
-| `IsError` | 执行是否以失败告终 |
+| 字段                                   | 说明                       |
+| -------------------------------------- | -------------------------- |
+| `InputTokens` / `OutputTokens`         | 会话全过程总 Token         |
+| `CacheReadTokens` / `CacheWriteTokens` | 提示词缓存的命中与写入     |
+| `TotalDurationMs`                      | 从请求开始到结束的总毫秒数 |
+| `ToolCallCount`                        | 总工具调用次数             |
+| `ToolsUsed`                            | 调用的工具名称列表（去重） |
+| `FilesModified`                        | 实际产生修改的文件数       |
+| `TotalCostUSD`                         | 该轮通话的预估美金成本     |
+| `IsError`                              | 执行是否以失败告终         |
 
 ### 3.4 管理与安全控制 (`HotPlexClient`)
 
@@ -267,10 +267,10 @@ adapter.Start(ctx)
 
 ### 平台特性对比
 
-| 平台 | 关键特性 |
-|------|----------|
+| 平台      | 关键特性                                                            |
+| --------- | ------------------------------------------------------------------- |
 | **Slack** | Block Kit UI、原生流式输出、Assistant Status、斜杠命令、Socket Mode |
-| **飞书** | 卡片消息、交互回调 |
+| **飞书**  | 卡片消息、交互回调                                                  |
 
 ---
 

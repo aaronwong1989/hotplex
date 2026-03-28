@@ -20,97 +20,105 @@ func NewStatsMessageBuilder(config *Config) *StatsMessageBuilder {
 	return &StatsMessageBuilder{config: config}
 }
 
-// BuildSessionStatsMessage builds a message for session statistics
-// Implements EventTypeResult (Turn Complete) per spec - compact single-line format
-// With table feature enabled: uses Slack TableBlock for better UX
-// Display format: ⏱️ duration • 🧠 context% • ⚡ tokens in/out • 📝 files • 🔧 tools
+// buildSessionStatsParts extracts all stats fields from metadata and returns formatted parts.
+// Shared by BuildSessionStatsMessage (compact path) and BuildSessionStatsMessageWithClassicFormat.
+func (b *StatsMessageBuilder) buildSessionStatsParts(meta map[string]any) []string {
+	if meta == nil {
+		return nil
+	}
+	var stats []string
+
+	// Total Duration
+	if duration := base.ExtractInt64(meta, "total_duration_ms"); duration > 0 {
+		stats = append(stats, "⏱️ "+base.FormatDuration(duration))
+	}
+
+	// Context Window Usage Percentage
+	if ctxPercent := base.ExtractFloat64(meta, "context_used_percent"); ctxPercent > 0 {
+		stats = append(stats, fmt.Sprintf("🧠 %.0f%%", ctxPercent))
+	}
+
+	// Tokens (with cache information)
+	tokensIn := base.ExtractInt64(meta, "input_tokens")
+	tokensOut := base.ExtractInt64(meta, "output_tokens")
+	cacheRead := base.ExtractInt64(meta, "cache_read_tokens")
+	cacheWrite := base.ExtractInt64(meta, "cache_write_tokens")
+	if tokensIn > 0 || tokensOut > 0 {
+		tokenStr := fmt.Sprintf("⚡ %s/%s",
+			base.FormatTokenCount(tokensIn), base.FormatTokenCount(tokensOut))
+		if cacheRead > 0 || cacheWrite > 0 {
+			cacheParts := []string{}
+			if cacheRead > 0 {
+				cacheParts = append(cacheParts, fmt.Sprintf("r:%s", base.FormatTokenCount(cacheRead)))
+			}
+			if cacheWrite > 0 {
+				cacheParts = append(cacheParts, fmt.Sprintf("w:%s", base.FormatTokenCount(cacheWrite)))
+			}
+			tokenStr += fmt.Sprintf(" (cache: %s)", strings.Join(cacheParts, ", "))
+		}
+		stats = append(stats, tokenStr)
+	}
+
+	// Cost
+	if cost := base.ExtractFloat64(meta, "total_cost_usd"); cost > 0 {
+		stats = append(stats, "💵 "+base.FormatCost(cost))
+	}
+
+	// Files modified
+	if files := base.ExtractInt64(meta, "files_modified"); files > 0 {
+		stats = append(stats, fmt.Sprintf("📝 %d files", files))
+	}
+
+	// Tool calls
+	if tools := base.ExtractInt64(meta, "tool_call_count"); tools > 0 {
+		stats = append(stats, fmt.Sprintf("🔧 %d tools", tools))
+	}
+
+	// Model used
+	if model := base.ExtractString(meta, "model_used"); model != "" {
+		stats = append(stats, "🤖 "+model)
+	}
+
+	// Finish reason
+	if reason := base.ExtractString(meta, "finish_reason"); reason != "" {
+		reasonLabel := reason
+		switch reason {
+		case "end_turn":
+			reasonLabel = "✅ 正常结束"
+		case "tool_use":
+			reasonLabel = "🔧 工具调用"
+		case "max_tokens":
+			reasonLabel = "⚠️ Token 超限"
+		}
+		stats = append(stats, reasonLabel)
+	}
+
+	return stats
+}
+
+// BuildSessionStatsMessage builds a message for session statistics.
+// With table feature enabled: uses Slack TableBlock for better UX.
 func (b *StatsMessageBuilder) BuildSessionStatsMessage(msg *base.ChatMessage) []slack.Block {
-	// Check if table format is enabled
 	if b.isTableEnabled() {
 		return b.BuildSessionStatsTable(msg)
 	}
+	return b.buildSessionStatsContext(msg.Metadata)
+}
 
-	// Fallback to compact single-line format
-	var blocks []slack.Block
-
-	// Build compact stats line: ⏱️ duration • 🧠 context% • ⚡ tokens in/out • 📝 files • 🔧 tools
-	if msg.Metadata != nil {
-		var stats []string
-
-		// Total Duration
-		if duration := base.ExtractInt64(msg.Metadata, "total_duration_ms"); duration > 0 {
-			stats = append(stats, "⏱️ "+base.FormatDuration(duration))
-		}
-
-		// Context Window Usage Percentage
-		// Shows how much of the 200K context window is used
-		if ctxPercent := base.ExtractFloat64(msg.Metadata, "context_used_percent"); ctxPercent > 0 {
-			stats = append(stats, fmt.Sprintf("🧠 %.0f%%", ctxPercent))
-		}
-
-		// Tokens (with cache information)
-		tokensIn := base.ExtractInt64(msg.Metadata, "input_tokens")
-		tokensOut := base.ExtractInt64(msg.Metadata, "output_tokens")
-		cacheRead := base.ExtractInt64(msg.Metadata, "cache_read_tokens")
-		cacheWrite := base.ExtractInt64(msg.Metadata, "cache_write_tokens")
-		if tokensIn > 0 || tokensOut > 0 {
-			tokenStr := fmt.Sprintf("⚡ %s/%s",
-				base.FormatTokenCount(tokensIn), base.FormatTokenCount(tokensOut))
-			// Add cache info if available
-			if cacheRead > 0 || cacheWrite > 0 {
-				cacheParts := []string{}
-				if cacheRead > 0 {
-					cacheParts = append(cacheParts, fmt.Sprintf("r:%s", base.FormatTokenCount(cacheRead)))
-				}
-				if cacheWrite > 0 {
-					cacheParts = append(cacheParts, fmt.Sprintf("w:%s", base.FormatTokenCount(cacheWrite)))
-				}
-				tokenStr += fmt.Sprintf(" (cache: %s)", strings.Join(cacheParts, ", "))
-			}
-			stats = append(stats, tokenStr)
-		}
-
-		// Cost
-		if cost := base.ExtractFloat64(msg.Metadata, "total_cost_usd"); cost > 0 {
-			stats = append(stats, "💵 "+base.FormatCost(cost))
-		}
-
-		// Files modified
-		if files := base.ExtractInt64(msg.Metadata, "files_modified"); files > 0 {
-			stats = append(stats, fmt.Sprintf("📝 %d files", files))
-		}
-
-		// Tool calls
-		if tools := base.ExtractInt64(msg.Metadata, "tool_call_count"); tools > 0 {
-			stats = append(stats, fmt.Sprintf("🔧 %d tools", tools))
-		}
-
-		// Model used (from SSE ModelID)
-		if model := base.ExtractString(msg.Metadata, "model_used"); model != "" {
-			stats = append(stats, "🤖 "+model)
-		}
-
-		// Finish reason
-		if reason := base.ExtractString(msg.Metadata, "finish_reason"); reason != "" {
-			reasonLabel := reason
-			switch reason {
-			case "end_turn":
-				reasonLabel = "✅ 正常结束"
-			case "tool_use":
-				reasonLabel = "🔧 工具调用"
-			case "max_tokens":
-				reasonLabel = "⚠️ Token 超限"
-			}
-			stats = append(stats, reasonLabel)
-		}
-
-		if len(stats) > 0 {
-			statsText := slack.NewTextBlockObject("mrkdwn", strings.Join(stats, " • "), false, false)
-			blocks = append(blocks, slack.NewContextBlock("", statsText))
-		}
+// buildSessionStatsContext builds a ContextBlock from the given metadata.
+func (b *StatsMessageBuilder) buildSessionStatsContext(meta map[string]any) []slack.Block {
+	parts := b.buildSessionStatsParts(meta)
+	if len(parts) == 0 {
+		return nil
 	}
+	statsText := slack.NewTextBlockObject("mrkdwn", strings.Join(parts, " • "), false, false)
+	return []slack.Block{slack.NewContextBlock("", statsText)}
+}
 
-	return blocks
+// BuildSessionStatsMessageWithClassicFormat always uses the compact ContextBlock format,
+// bypassing the TableBlock. Used as fallback when TableBlock is rejected by Slack API.
+func (b *StatsMessageBuilder) BuildSessionStatsMessageWithClassicFormat(msg *base.ChatMessage) []slack.Block {
+	return b.buildSessionStatsContext(msg.Metadata)
 }
 
 // BuildCommandProgressMessage builds a message for command progress updates
@@ -226,42 +234,39 @@ func (b *StatsMessageBuilder) isTableEnabled() bool {
 func (b *StatsMessageBuilder) BuildSessionStatsTable(msg *base.ChatMessage) []slack.Block {
 	tableBuilder := NewTableBuilder(TableConfig{
 		MaxRows:    getMaxTableRows(b.config),
-		Compact:    false,
 		ShowHeader: false,
 	})
 	table := tableBuilder.BuildStatsTable(msg)
-	if table == nil {
+	if len(table) == 0 {
 		return nil
 	}
-	return []slack.Block{table}
+	return table
 }
 
 // BuildCommandProgressTable builds a table format message for command progress
 func (b *StatsMessageBuilder) BuildCommandProgressTable(msg *base.ChatMessage) []slack.Block {
 	tableBuilder := NewTableBuilder(TableConfig{
 		MaxRows:    getMaxTableRows(b.config),
-		Compact:    false,
 		ShowHeader: false,
 	})
 	table := tableBuilder.BuildCommandProgressTable(msg)
-	if table == nil {
+	if len(table) == 0 {
 		return nil
 	}
-	return []slack.Block{table}
+	return table
 }
 
 // BuildToolCallsTable builds a table format message for tool calls
 func (b *StatsMessageBuilder) BuildToolCallsTable(msg *base.ChatMessage) []slack.Block {
 	tableBuilder := NewTableBuilder(TableConfig{
 		MaxRows:    getMaxTableRows(b.config),
-		Compact:    false,
 		ShowHeader: false,
 	})
 	table := tableBuilder.BuildToolCallsTable(msg)
-	if table == nil {
+	if len(table) == 0 {
 		return nil
 	}
-	return []slack.Block{table}
+	return table
 }
 
 // getMaxTableRows returns the max table rows limit from config (default: 20)

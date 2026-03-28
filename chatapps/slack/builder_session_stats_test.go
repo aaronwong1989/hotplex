@@ -254,3 +254,89 @@ func TestBuildSessionStatsMessage_WithContextPercent(t *testing.T) {
 	// Should NOT contain cache info anymore
 	assert.NotContains(t, textElem.Text, "cache:")
 }
+
+func TestBuildSessionStatsMessageWithClassicFormat(t *testing.T) {
+	// Verify that BuildSessionStatsMessageWithClassicFormat always returns ContextBlock
+	// regardless of table config (e.g., even when table is enabled)
+	config := &Config{
+		Features: FeaturesConfig{
+			Markdown: MarkdownConfig{
+				TableConfig: &TableConversionConfig{
+					Enabled: PtrBool(true), // Table enabled - should still use classic
+				},
+			},
+		},
+	}
+	builder := NewMessageBuilder(config)
+
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeSessionStats,
+		Content: "",
+		Metadata: map[string]any{
+			"event_type":        "session_stats",
+			"total_duration_ms": int64(12500),
+			"input_tokens":      int64(1200),
+			"output_tokens":     int64(350),
+			"tool_call_count":   int64(3),
+			"files_modified":    int64(2),
+		},
+	}
+
+	blocks := builder.BuildSessionStatsMessageWithClassicFormat(msg)
+
+	assert.NotNil(t, blocks)
+	assert.Len(t, blocks, 1)
+
+	// Must be ContextBlock, not TableBlock
+	contextBlock, ok := blocks[0].(*slack.ContextBlock)
+	assert.True(t, ok, "BuildSessionStatsMessageWithClassicFormat must return ContextBlock")
+	assert.NotNil(t, contextBlock)
+}
+
+func TestBuildFallback_SessionStats(t *testing.T) {
+	// Verify BuildFallback returns classic format for session_stats
+	config := &Config{
+		Features: FeaturesConfig{
+			Markdown: MarkdownConfig{
+				TableConfig: &TableConversionConfig{
+					Enabled: PtrBool(true), // Table enabled
+				},
+			},
+		},
+	}
+	builder := NewMessageBuilder(config)
+
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeSessionStats,
+		Content: "",
+		Metadata: map[string]any{
+			"total_duration_ms": int64(30000),
+			"input_tokens":      int64(5000),
+			"output_tokens":     int64(1200),
+			"tool_call_count":   int64(5),
+		},
+	}
+
+	blocks := builder.BuildFallback(msg)
+
+	assert.NotNil(t, blocks)
+	assert.Len(t, blocks, 1)
+
+	// Must be ContextBlock
+	_, ok := blocks[0].(*slack.ContextBlock)
+	assert.True(t, ok, "BuildFallback must return ContextBlock for session_stats")
+}
+
+func TestBuildFallback_UnknownType(t *testing.T) {
+	// BuildFallback returns nil for unknown types
+	builder := NewMessageBuilder(&Config{})
+
+	msg := &base.ChatMessage{
+		Type:    base.MessageTypeAnswer,
+		Content: "hello",
+	}
+
+	blocks := builder.BuildFallback(msg)
+
+	assert.Nil(t, blocks)
+}

@@ -897,7 +897,7 @@ provider:
   type: claude-code
   enabled: true
   default_model: sonnet
-  default_permission_mode: bypass-permissions
+  default_permission_mode: bypassPermissions
   dangerously_skip_permissions: true
 
 # Engine

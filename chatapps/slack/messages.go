@@ -16,6 +16,15 @@ import (
 	"github.com/slack-go/slack"
 )
 
+// isInvalidBlocksError checks if the error is a Slack "invalid_blocks" API error.
+// This error occurs when the workspace does not have the Table Block beta feature enabled.
+func isInvalidBlocksError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "invalid_blocks")
+}
+
 func (a *Adapter) SendMessage(ctx context.Context, sessionID string, msg *base.ChatMessage) error {
 	return a.sender.SendMessage(ctx, sessionID, msg)
 }
@@ -30,7 +39,7 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 		return fmt.Errorf("slack client not initialized")
 	}
 
-	channelID := a.extractChannelID(sessionID, msg)
+	channelID := a.extractChannelID(msg)
 	if channelID == "" {
 		return fmt.Errorf("channel_id not found in session")
 	}
@@ -97,7 +106,19 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 
 			ts, err := a.sendBlocksSDK(ctx, channelID, blocks, threadTS, fallbackText)
 			if err != nil {
-				return err
+				// Fallback: if Slack rejects TableBlock with invalid_blocks, retry with classic format.
+				// This handles workspaces where the Table Block (beta feature) is not yet available.
+				if isInvalidBlocksError(err) && msg.Type == base.MessageTypeSessionStats {
+					a.Logger().Warn("TableBlock rejected by Slack API, retrying with classic format",
+						"error", err,
+						"session_id", sessionID)
+					if fallbackBlocks := a.messageBuilder.BuildFallback(msg); len(fallbackBlocks) > 0 {
+						ts, err = a.sendBlocksSDK(ctx, channelID, fallbackBlocks, threadTS, fallbackText)
+					}
+				}
+				if err != nil {
+					return err
+				}
 			}
 
 			if ts != "" && msg.Metadata != nil {
@@ -233,8 +254,8 @@ func (a *Adapter) sendCommandResponse(responseURL, channelID, threadTS, text str
 	return a.SendToChannel(context.Background(), channelID, text, threadTS)
 }
 
-// extractChannelID extracts channel_id from session or message metadata
-func (a *Adapter) extractChannelID(_ string, msg *base.ChatMessage) string {
+// extractChannelID extracts channel_id from message metadata
+func (a *Adapter) extractChannelID(msg *base.ChatMessage) string {
 	if msg.Metadata == nil {
 		return ""
 	}

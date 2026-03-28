@@ -28,5 +28,5 @@ security:
   # NOTE: It is recommended to set this via HOTPLEX_API_KEY environment variable.
   # If set here, it will be overridden by the environment variable if present.
   api_key: "${HOTPLEX_API_KEY}"
-  # Permission mode: strict, bypass-permissions
-  permission_mode: bypass-permissions
+  # Permission mode: strict, bypassPermissions
+  permission_mode: bypassPermissions

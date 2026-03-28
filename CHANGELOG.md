@@ -425,7 +425,7 @@
 ## [v0.30.1] - 2026-03-16
 
 ### Fixed
-- **Permission Mode Format** - Corrected `--permission-mode` value from `bypass-permissions` to `bypassPermissions` (camelCase) to match Claude Code CLI requirements
+- **Permission Mode Format** - Corrected `--permission-mode` value from `bypassPermissions` to `bypassPermissions` (camelCase) to match Claude Code CLI requirements
 - **Slack Config Validation** - Applied `WithoutServer` option when config validation fails to prevent startup errors
 - **Docker Build Stack** - Fixed Go stack handling in `docker-build-stack` command
 - **Docker Image Tag** - Corrected remote image tag format to `latest-*` pattern
@@ -2217,7 +2217,7 @@ This version marks a significant evolution of HotPlex into a production-grade **
 ## [v0.8.1] - 2026-02-22
 
 ### Fixed
-- **Example Security**: Corrected invalid permission mode `bypass-permissions` to `bypassPermissions` in Go examples, fixing "session is dead" errors.
+- **Example Security**: Corrected invalid permission mode `bypassPermissions` to `bypassPermissions` in Go examples, fixing "session is dead" errors.
 - **SDK Stability**: Fixed an unused variable in `go_opencode_lifecycle` example that prevented compilation.
 
 ### Changed

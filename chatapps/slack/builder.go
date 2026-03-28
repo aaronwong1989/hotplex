@@ -148,6 +148,25 @@ func (b *MessageBuilder) BuildSessionStatsMessage(msg *base.ChatMessage) []slack
 	return b.stats.BuildSessionStatsMessage(msg)
 }
 
+// BuildSessionStatsMessageWithClassicFormat always uses the compact ContextBlock format,
+// bypassing the TableBlock. Used as fallback when TableBlock is rejected by Slack API.
+func (b *MessageBuilder) BuildSessionStatsMessageWithClassicFormat(msg *base.ChatMessage) []slack.Block {
+	return b.stats.BuildSessionStatsMessageWithClassicFormat(msg)
+}
+
+// BuildFallback builds Slack blocks using a fallback format that avoids beta/unstable features.
+// Used when the primary format (e.g., TableBlock) is rejected by the Slack API.
+func (b *MessageBuilder) BuildFallback(msg *base.ChatMessage) []slack.Block {
+	switch msg.Type {
+	case base.MessageTypeSessionStats:
+		// Build with classic ContextBlock format (never TableBlock)
+		return b.stats.BuildSessionStatsMessageWithClassicFormat(msg)
+	default:
+		// No fallback available for other types
+		return nil
+	}
+}
+
 // =============================================================================
 // Helper: Extract tool metadata from provider event
 // =============================================================================
