@@ -290,7 +290,12 @@ func loadServerConfig(configPath string) (*config.ServerLoader, slog.Level, stri
 		configPath = config.ResolveConfigPath("")
 	}
 	if configPath == "" {
+		slog.Info("No server config file found, using defaults")
 		return nil, slog.LevelInfo, "text"
+	}
+
+	if absPath, err := filepath.Abs(configPath); err == nil {
+		slog.Info("Loading server config", "path", absPath)
 	}
 
 	serverCfg, err := config.NewServerLoader(configPath, nil)
@@ -471,6 +476,11 @@ func setupHTTPHandlers(engine *hotplex.Engine, adminToken string, logger *slog.L
 
 	// ChatApps adapters
 	configDir := os.Getenv("HOTPLEX_CHATAPPS_CONFIG_DIR")
+	if configDir != "" {
+		if absDir, err := filepath.Abs(configDir); err == nil {
+			logger.Info("ChatApps config dir", "path", absDir)
+		}
+	}
 	var chatappsMgr *chatapps.AdapterManager
 	if chatapps.IsEnabled(configDir) {
 		chatappsHandler, mgr, err := chatapps.Setup(context.Background(), logger, configDir)

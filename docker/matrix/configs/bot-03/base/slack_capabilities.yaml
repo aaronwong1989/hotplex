@@ -1,438 +1,47 @@
-# Bot-03 Capability Center - Obsidian AI 知识管家
-# 7 个核心 Obsidian Skills 的可视化调用界面
+# HotPlex Capability Center - Predefined Capabilities
 
 capabilities:
-  # ========================================
-  # 1. 快速捕获 (obsidian-capture)
-  # ========================================
-  - id: quick_capture
-    name: 📝 快速捕获
-    icon: ":memo:"
-    description: 快速记录灵感、想法到 Obsidian，自动提取关键词、推荐标签和关联笔记
-    category: capture
+  - id: code_review
+    name: 代码审查
+    icon: ":mag:"
+    description: 对指定文件进行安全/性能/风格审查
+    category: code
     enabled: true
     parameters:
-      - id: content
-        label: 记录内容
-        type: multiline
-        required: true
-        placeholder: "例如: 突然想到一个想法：用 AI 自动分析 Obsidian 知识图谱..."
-      - id: note_type
-        label: 笔记类型
-        type: select
-        required: false
-        default: "灵感"
-        options: [灵感, 想法, 临时笔记, 会议记录, 阅读笔记]
-    prompt_template: |
-      记录一个{{.note_type}}: {{.content}}
-    brain_opts:
-      intent_confirm: false
-      compress_context: true
-      preferred_model: claude-sonnet-4-6
-
-  # ========================================
-  # 2. 知识关联 (obsidian-connect)
-  # ========================================
-  - id: analyze_connections
-    name: 🔗 知识关联分析
-    icon: ":link:"
-    description: 分析笔记间的关联，发现隐含连接、识别知识孤岛、推荐新连接
-    category: analysis
-    enabled: true
-    parameters:
-      - id: note_name
-        label: 笔记名称
+      - id: target
+        label: 审查目标
         type: text
         required: true
-        placeholder: "例如: React Hooks"
-      - id: analysis_type
-        label: 分析类型
-        type: select
-        required: false
-        default: "full"
-        options: [full, islands, recommendations]
-    prompt_template: |
-      分析 [[{{.note_name}}]] 的关联
-      分析类型: {{.analysis_type}}
-    brain_opts:
-      intent_confirm: false
-      compress_context: true
-      preferred_model: claude-sonnet-4-6
-
-  # ========================================
-  # 3. TIL 管理 (obsidian-til)
-  # ========================================
-  - id: create_til
-    name: 💡 TIL (Today I Learned)
-    icon: ":bulb:"
-    description: 记录今天学到的技术知识，自动格式化、代码高亮、技术栈分类
-    category: learning
-    enabled: true
-    parameters:
-      - id: til_content
-        label: TIL 内容
-        type: multiline
-        required: true
-        placeholder: "例如: Go 1.26 新增了 sync.WaitGroup.WaitTimeout 方法，支持超时等待..."
-      - id: language
-        label: 编程语言
-        type: select
-        required: false
-        default: "auto"
-        options: [auto, go, python, typescript, javascript, rust, java, sql]
-    prompt_template: |
-      TIL: {{.til_content}}
-      语言: {{.language}}
-    brain_opts:
-      intent_confirm: false
-      compress_context: true
-      preferred_model: claude-sonnet-4-6
-
-  # ========================================
-  # 4. 定期维护 (obsidian-maintain)
-  # ========================================
-  - id: vault_maintenance
-    name: 🧹 知识库维护
-    icon: ":broom:"
-    description: 清理 Inbox、归档项目、检测断裂链接、生成健康报告
-    category: maintenance
-    enabled: true
-    parameters:
-      - id: task_type
-        label: 维护任务
-        type: select
-        required: true
-        default: "weekly"
-        options: [weekly, monthly, inbox_cleanup, archive_projects, check_links, health_report]
-      - id: days_threshold
-        label: 天数阈值
-        type: number
-        required: false
-        default: 7
-        placeholder: "例如: 7 (清理超过 7 天的笔记)"
-    prompt_template: |
-      执行{{.task_type}}维护
-      天数阈值: {{.days_threshold}}
-    brain_opts:
-      intent_confirm: true
-      compress_context: false
-      preferred_model: claude-sonnet-4-6
-
-  # ========================================
-  # 5. 头脑风暴 (obsidian-brainstorm)
-  # ========================================
-  - id: brainstorm_session
-    name: 🧠 头脑风暴
-    icon: ":brain:"
-    description: 聚合灵感、生成概念图、激发创意、SCAMPER 创新法
-    category: creativity
-    enabled: true
-    parameters:
-      - id: question
-        label: 核心问题
-        type: multiline
-        required: true
-        placeholder: "例如: 如何提升 Obsidian 知识管理效率?"
-      - id: method
-        label: 思考方法
-        type: select
-        required: false
-        default: "standard"
-        options: [standard, scamper, six_hats, first_principles]
-    prompt_template: |
-      头脑风暴: {{.question}}
-      方法: {{.method}}
-    brain_opts:
-      intent_confirm: false
-      compress_context: true
-      preferred_model: claude-sonnet-4-6
-
-  # ========================================
-  # 6. 项目管理 (obsidian-project)
-  # ========================================
-  - id: project_management
-    name: 📋 项目管理
-    icon: ":clipboard:"
-    description: 创建项目、任务追踪、进度报告、里程碑管理
-    category: productivity
-    enabled: true
-    parameters:
-      - id: action
-        label: 操作类型
-        type: select
-        required: true
-        default: "create"
-        options: [create, add_task, progress_report, complete_task]
-      - id: project_name
-        label: 项目名称
-        type: text
-        required: true
-        placeholder: "例如: HotPlex Provider 重构"
-      - id: details
-        label: 详细信息
-        type: multiline
-        required: false
-        placeholder: "任务描述或项目详情..."
-    prompt_template: |
-      项目操作: {{.action}}
-      项目: {{.project_name}}
-      详情: {{.details}}
-    brain_opts:
-      intent_confirm: true
-      compress_context: false
-      preferred_model: claude-sonnet-4-6
-
-  # ========================================
-  # 7. 知识图谱 (obsidian-graph)
-  # ========================================
-  - id: knowledge_graph
-    name: 🕸️ 知识图谱
-    icon: ":spider_web:"
-    description: 知识集群分析、连接强度监控、图谱可视化、演进追踪
-    category: analysis
-    enabled: true
-    parameters:
-      - id: analysis_scope
-        label: 分析范围
-        type: select
-        required: true
-        default: "full"
-        options: [full, clusters, centrality, evolution, island_detection]
-      - id: target_note
-        label: 目标笔记 (可选)
-        type: text
-        required: false
-        placeholder: "留空表示全局分析，或输入笔记名称..."
-    prompt_template: |
-      分析知识图谱
-      范围: {{.analysis_scope}}
-      {{if .target_note}}目标: [[{{.target_note}}]]{{end}}
-    brain_opts:
-      intent_confirm: false
-      compress_context: true
-      preferred_model: claude-sonnet-4-6
-
-  # ========================================
-  # 8. 快捷操作
-  # ========================================
-  - id: daily_review
-    name: 📅 每日回顾
-    icon: ":calendar:"
-    description: 快速查看今日笔记、待处理任务、新建立的连接
-    category: productivity
-    enabled: true
-    parameters:
-      - id: review_type
-        label: 回顾类型
-        type: select
-        required: true
-        default: "today"
-        options: [today, yesterday, this_week, custom_date]
-      - id: custom_date
-        label: 自定义日期
-        type: text
-        required: false
-        placeholder: "YYYY-MM-DD"
-    prompt_template: |
-      每日回顾: {{.review_type}}
-      {{if .custom_date}}日期: {{.custom_date}}{{end}}
-    brain_opts:
-      intent_confirm: false
-      compress_context: true
-      preferred_model: claude-sonnet-4-6
-
-  - id: search_notes
-    name: 🔍 搜索笔记
-    icon: ":mag_right:"
-    description: 在知识库中搜索笔记、标签、内容
-    category: search
-    enabled: true
-    parameters:
-      - id: query
-        label: 搜索关键词
-        type: text
-        required: true
-        placeholder: "例如: React 性能优化"
-      - id: search_type
-        label: 搜索类型
+        placeholder: "例如: src/main.go"
+      - id: focus
+        label: 审查重点
         type: select
         required: false
         default: "all"
-        options: [all, title, tags, content, dataview]
+        options: [all, security, performance, style, maintainability]
     prompt_template: |
-      搜索笔记: {{.query}}
-      类型: {{.search_type}}
+      请对以下内容进行代码审查:
+      目标: {{.target}}
+      重点关注: {{.focus}}
     brain_opts:
       intent_confirm: false
       compress_context: true
       preferred_model: claude-sonnet-4-6
 
-  - id: quick_note
-    name: ⚡ 快速笔记
-    icon: ":zap:"
-    description: 快速创建笔记到指定位置
-    category: capture
+  - id: debug_error
+    name: 错误诊断
+    icon: ":bug:"
+    description: 分析错误信息并给出修复方案
+    category: debug
     enabled: true
     parameters:
-      - id: title
-        label: 笔记标题
-        type: text
-        required: true
-        placeholder: "例如: 项目会议记录"
-      - id: content
-        label: 笔记内容
+      - id: error_message
+        label: 错误信息
         type: multiline
         required: true
-        placeholder: "输入笔记内容..."
-      - id: location
-        label: 存放位置
-        type: select
-        required: false
-        default: "0-Inbox"
-        options: [0-Inbox, 1-Projects, 2-Areas, 3-Resources, 4-Archives, Zettelkasten/Fleeting-Notes]
     prompt_template: |
-      创建笔记: {{.title}}
-      位置: {{.location}}
-      内容: {{.content}}
+      请分析以下错误并提供修复方案:
+      {{.error_message}}
     brain_opts:
       intent_confirm: false
       compress_context: true
-      preferred_model: claude-sonnet-4-6
-
-# ========================================
-# Capability Categories Configuration
-# ========================================
-categories:
-  - id: capture
-    name: 📝 捕获
-    description: 快速记录和创建笔记
-    order: 1
-
-  - id: analysis
-    name: 🔍 分析
-    description: 知识关联和图谱分析
-    order: 2
-
-  - id: learning
-    name: 💡 学习
-    description: TIL 和知识沉淀
-    order: 3
-
-  - id: creativity
-    name: 🧠 创意
-    description: 头脑风暴和灵感聚合
-    order: 4
-
-  - id: productivity
-    name: 📋 效率
-    description: 项目管理和任务追踪
-    order: 5
-
-  - id: maintenance
-    name: 🧹 维护
-    description: 定期清理和健康检查
-    order: 6
-
-  - id: search
-    name: 🔎 搜索
-    description: 快速查找和检索
-    order: 7
-
-# ========================================
-# UI Configuration
-# ========================================
-ui:
-  # 标题配置
-  header:
-    title: "Bot-03 知识管理中心"
-    subtitle: "AI-Powered Obsidian Assistant"
-    icon: ":brain:"
-
-  # 快捷入口
-  quick_actions:
-    - capability_id: quick_capture
-      label: "快速记录"
-      icon: ":memo:"
-    - capability_id: create_til
-      label: "TIL"
-      icon: ":bulb:"
-    - capability_id: daily_review
-      label: "每日回顾"
-      icon: ":calendar:"
-    - capability_id: search_notes
-      label: "搜索"
-      icon: ":mag_right:"
-
-  # 统计展示 (通过 Dataview 查询)
-  stats:
-    enabled: true
-    queries:
-      - id: total_notes
-        label: "总笔记数"
-        query: 'dataview: TABLE length(rows) as count FROM ""'
-      - id: inbox_count
-        label: "Inbox"
-        query: 'dataview: TABLE length(rows) FROM "0-Inbox"'
-      - id: active_projects
-        label: "进行中项目"
-        query: 'dataview: TABLE length(rows) FROM "1-Projects" WHERE status = "active"'
-
-  # 最近活动
-  recent_activity:
-    enabled: true
-    limit: 5
-
-# ========================================
-# Help & Documentation
-# ========================================
-help:
-  enabled: true
-  sections:
-    - title: "🚀 快速开始"
-      content: |
-        1. **快速捕获**: 使用"📝 快速捕获"记录灵感
-        2. **知识关联**: 使用"🔗 知识关联分析"发现笔记间的联系
-        3. **TIL**: 使用"💡 TIL"记录每天学到的技术知识
-        4. **每周维护**: 使用"🧹 知识库维护"保持知识库健康
-
-    - title: "📚 PARA 方法"
-      content: |
-        - **0-Inbox**: 快速捕获，稍后整理
-        - **1-Projects**: 当前活跃项目
-        - **2-Areas**: 持续责任领域
-        - **3-Resources**: 未来有用的资源
-        - **4-Archives**: 完成或归档的内容
-
-    - title: "🔗 相关文档"
-      links:
-        - text: "Obsidian Skills 套件"
-          url: "docs/admin/obsidian-skills-suite.md"
-        - text: "Bot-03 快速开始"
-          url: "docs/admin/obsidian-master-bot03-quickstart.md"
-        - text: "Obsidian CLI 文档"
-          url: "https://help.obsidian.md/cli"
-
-# ========================================
-# Keyboard Shortcuts
-# ========================================
-shortcuts:
-  enabled: true
-  mappings:
-    - key: "c"
-      capability_id: quick_capture
-      description: "快速捕获"
-    - key: "t"
-      capability_id: create_til
-      description: "创建 TIL"
-    - key: "s"
-      capability_id: search_notes
-      description: "搜索笔记"
-    - key: "r"
-      capability_id: daily_review
-      description: "每日回顾"
-    - key: "m"
-      capability_id: vault_maintenance
-      description: "维护知识库"
-    - key: "?"
-      action: "show_help"
-      description: "显示帮助"

@@ -41,8 +41,8 @@ type OCPart struct {
 	TotalSteps int    `json:"total_steps,omitempty"`
 	Reason     string `json:"reason,omitempty"`
 
-	// token usage
-	Usage *OCUsage `json:"usage,omitempty"`
+	// token usage (SDK field name is "tokens")
+	Tokens *OCUsage `json:"tokens,omitempty"`
 
 	// Legacy compatibility (fallback for older versions)
 	Status string `json:"status,omitempty"`
@@ -81,10 +81,12 @@ func (p *OCPart) GetToolName() string {
 }
 
 // OCUsage represents token usage information.
+// JSON tags match OpenCode SDK: input, output, reasoning, cache.
 type OCUsage struct {
-	InputTokens  int32         `json:"input_tokens,omitempty"`
-	OutputTokens int32         `json:"output_tokens,omitempty"`
-	Cache        *OCCacheUsage `json:"cache,omitempty"`
+	Input     int32         `json:"input,omitempty"`
+	Output    int32         `json:"output,omitempty"`
+	Reasoning int32         `json:"reasoning,omitempty"`
+	Cache     *OCCacheUsage `json:"cache,omitempty"`
 }
 
 // OCCacheUsage represents cache token usage.

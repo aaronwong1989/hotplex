@@ -196,6 +196,7 @@ func (s *CLISessionStarter) StartSession(
 		ID:                sessionID,
 		ProviderSessionID: providerSessionID,
 		Config:            cfg,
+		cmd:               cmd,
 		io:                cliIO,
 		cancel:            cancel,
 		jobHandle:         jobHandle,

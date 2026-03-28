@@ -1,5 +1,5 @@
 # docker/matrix/configs/bot-03/server.yaml
-# Bot-03 - DevOps and infrastructure specialist bot
+# Bot-03 - Software engineer bot
 # Inherits from: ./base/server.yaml
 
 inherits: ./base/server.yaml

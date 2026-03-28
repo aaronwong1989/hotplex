@@ -355,7 +355,7 @@ service-disable: ## @service Disable auto-start on boot
 # 🔄 CONFIG SYNC (Local Development)
 # =============================================================================
 
-sync: ## @runtime Sync local configs (.env, configs/base, top-level configs) to ~/.hotplex/configs
+sync: ## @runtime Sync local configs (.env, configs/base, configs/admin, top-level configs) to ~/.hotplex/configs
 	@$(call SECTION_HEADER,🔄 Syncing Local Configs to Host)
 	@mkdir -p $(HOST_CONFIGS_DIR)
 	@printf "  ${CYAN}→ Target:$(NC) $(HOST_CONFIGS_DIR)\n"
@@ -375,6 +375,14 @@ sync: ## @runtime Sync local configs (.env, configs/base, top-level configs) to 
 		printf "  ${GREEN}✓$(NC) configs/base synced\n"; \
 	fi
 
+	# Sync admin configs (dual-role: DevOps + Knowledge Steward)
+	@if [ -d "configs/admin" ]; then \
+		printf "  ${CYAN}→$(NC) Syncing ${BOLD}configs/admin/${NC}...\n"; \
+		mkdir -p $(HOST_CONFIGS_DIR)/admin; \
+		cp -r configs/admin/* $(HOST_CONFIGS_DIR)/admin/; \
+		printf "  ${GREEN}✓$(NC) configs/admin synced\n"; \
+	fi
+
 	# Sync top-level platform configs (not in subdirectories)
 	@for f in configs/*.yaml; do \
 		if [ -f "$$f" ]; then \
@@ -385,7 +393,6 @@ sync: ## @runtime Sync local configs (.env, configs/base, top-level configs) to 
 	done
 
 	@printf "${GREEN}✅ Config sync complete → $(HOST_CONFIGS_DIR)/${NC}\n"
-
 # =============================================================================
 # 🛠️ UTILS
 # =============================================================================

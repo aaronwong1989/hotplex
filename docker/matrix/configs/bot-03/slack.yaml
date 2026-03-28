@@ -1,5 +1,5 @@
 # docker/matrix/configs/bot-03/slack.yaml
-# Bot-03 - Obsidian Master Bot (AI Knowledge Steward)
+# Bot-03 - Software engineer bot
 # Inherits from: ./base/slack.yaml
 
 inherits: ./base/slack.yaml

@@ -20,17 +20,26 @@ RUN ARCH=$(uname -m) && \
 
 # --- Stage 2: AI Tools Collector ---
 FROM node:24-bookworm-slim AS ai-tools-collector
-ARG NPM_MIRROR
+ARG GITHUB_PROXY
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-# 1. Install Claude Code (official installer)
-RUN curl -fsSL https://claude.ai/install.sh | bash
-
-# 2. Install OpenCode (official installer)
-RUN curl -fsSL https://raw.githubusercontent.com/opencode-ai/opencode/refs/heads/main/install | bash
-
-# 3. Install PI Coding Agent (npm fallback)
-RUN npm install -g @mariozechner/pi-coding-agent && \
-    npm cache clean --force
+# 1. Direct Binary Downloads (Architecture Aware)
+RUN arch=$(uname -m) && \
+    case "$arch" in \
+        x86_64) cl_platform="linux-x64"; op_arch="x86_64" ;; \
+        aarch64) cl_platform="linux-arm64"; op_arch="arm64" ;; \
+    esac && \
+    # Install Claude Code (Direct Binary)
+    GCS_BUCKET="https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases" && \
+    VERSION=$(curl -fsSL "$GCS_BUCKET/latest") && \
+    curl -fsSL -o /usr/local/bin/claude "$GCS_BUCKET/$VERSION/$cl_platform/claude" && \
+    chmod +x /usr/local/bin/claude && \
+    # Install OpenCode (Direct Binary)
+    (curl -sSL "${GITHUB_PROXY}https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-$op_arch.tar.gz" || \
+     curl -sSL "https://github.com/opencode-ai/opencode/releases/latest/download/opencode-linux-$op_arch.tar.gz") | tar xz -C /usr/local/bin opencode && \
+    chmod +x /usr/local/bin/opencode
 
 # --- Final Stage: Shared Foundation ---
 FROM debian:bookworm-slim
@@ -97,14 +106,10 @@ RUN chown hotplex:hotplex /home/hotplex/.bashrc
 # 3. Static Tool Injection
 # Copy websocat from tools-collector
 COPY --from=tools-collector /usr/local/bin/websocat /usr/local/bin/websocat
-# Claude Code is already installed via curl installer in Stage 2
-# Install additional npm tools (opencode-ai, pi-coding-agent)
-RUN npm install -g opencode-ai @mariozechner/pi-coding-agent && \
-    npm cache clean --force
+# Copy Claude Code and OpenCode from ai-tools-collector (installed via official installers)
+COPY --from=ai-tools-collector /usr/local/bin/claude /usr/local/bin/claude
+COPY --from=ai-tools-collector /usr/local/bin/opencode /usr/local/bin/opencode
 
-# Create symlinks for npm tools
-RUN ln -sf /usr/local/lib/node_modules/opencode-ai/bin/opencode /usr/local/bin/opencode && \
-    ln -sf /usr/local/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js /usr/local/bin/pi
 
 # 4. Standard Metadata & Entrypoint
 WORKDIR /app

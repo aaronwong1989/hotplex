@@ -14,23 +14,8 @@
     <a href="https://pkg.go.dev/github.com/hrygo/hotplex">
       <img src="https://img.shields.io/badge/go-reference-00ADD8?style=flat-square&logo=go" alt="Go Reference">
     </a>
-    <a href="https://goreportcard.com/report/github.com/hrygo/hotplex">
-      <img src="https://img.shields.io/badge/go-report-brightgreen?style=flat-square" alt="Go Report">
-    </a>
-    <a href="https://codecov.io/gh/hrygo/hotplex">
-      <img src="https://img.shields.io/codecov/c/github/hrygo/hotplex?style=flat-square" alt="Coverage">
-    </a>
     <a href="https://github.com/hrygo/hotplex/actions/workflows/ci.yml">
       <img src="https://github.com/hrygo/hotplex/actions/workflows/ci.yml/badge.svg" alt="CI">
-    </a>
-    <a href="https://github.com/hrygo/hotplex/actions/workflows/release.yml">
-      <img src="https://github.com/hrygo/hotplex/actions/workflows/release.yml/badge.svg" alt="Release">
-    </a>
-    <a href="https://github.com/hrygo/hotplex/actions/workflows/deploy-docs.yml">
-      <img src="https://github.com/hrygo/hotplex/actions/workflows/deploy-docs.yml/badge.svg" alt="Docs">
-    </a>
-    <a href="https://github.com/hrygo/hotplex/actions/workflows/docker-publish.yml">
-      <img src="https://github.com/hrygo/hotplex/actions/workflows/docker-publish.yml/badge.svg" alt="Docker">
     </a>
     <a href="LICENSE">
       <img src="https://img.shields.io/github/license/hrygo/hotplex?style=flat-square&color=blue" alt="License">

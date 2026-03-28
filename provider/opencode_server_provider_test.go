@@ -162,3 +162,90 @@ func TestOpenCodeServerProvider_ToolPartParsing(t *testing.T) {
 		})
 	}
 }
+
+// TestOpenCodeServerProvider_SessionStatusIdle tests that session.status idle
+// triggers a turn-end (EventTypeResult). This is critical for session_stats delivery.
+func TestOpenCodeServerProvider_SessionStatusIdle(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	p, err := NewOpenCodeServerProvider(ProviderConfig{}, logger)
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	rawEvt := `{"type":"session.status","properties":{"status":{"type":"idle"}}}`
+	events, err := p.ParseEvent(rawEvt)
+	if err != nil {
+		t.Fatalf("ParseEvent() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("ParseEvent() returned %d events, want 1", len(events))
+	}
+	if events[0].Type != EventTypeResult {
+		t.Errorf("ParseEvent() type = %s, want %s", events[0].Type, EventTypeResult)
+	}
+	if !p.DetectTurnEnd(events[0]) {
+		t.Error("DetectTurnEnd() = false for session.status idle, want true")
+	}
+}
+
+// TestOpenCodeServerProvider_MessageUpdatedTokenParsing tests that message.updated
+// events correctly parse token usage with SDK field names (input/output).
+func TestOpenCodeServerProvider_MessageUpdatedTokenParsing(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	p, err := NewOpenCodeServerProvider(ProviderConfig{}, logger)
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	rawEvt := `{"type":"message.updated","properties":{"info":{"id":"msg-1","modelID":"claude-sonnet-4-5","finish":"end_turn","tokens":{"input":1200,"output":350},"cost":0.01}}}`
+	events, err := p.ParseEvent(rawEvt)
+	if err != nil {
+		t.Fatalf("ParseEvent() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("ParseEvent() returned %d events, want 1", len(events))
+	}
+	if events[0].Type != EventTypeResult {
+		t.Errorf("ParseEvent() type = %s, want %s", events[0].Type, EventTypeResult)
+	}
+	if events[0].Metadata.InputTokens != 1200 {
+		t.Errorf("InputTokens = %d, want 1200", events[0].Metadata.InputTokens)
+	}
+	if events[0].Metadata.OutputTokens != 350 {
+		t.Errorf("OutputTokens = %d, want 350", events[0].Metadata.OutputTokens)
+	}
+}
+
+// TestOpenCodeServerProvider_StepFinishTokenParsing tests that step-finish parts
+// correctly parse token usage from the "tokens" JSON field (not "usage").
+func TestOpenCodeServerProvider_StepFinishTokenParsing(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	p, err := NewOpenCodeServerProvider(ProviderConfig{}, logger)
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	rawEvt := `{"type":"message.part.updated","properties":{"part":{"type":"step-finish","step_number":1,"total_steps":3,"reason":"end_turn","tokens":{"input":500,"output":200,"reasoning":50,"cache":{"read":100,"write":50}}}}}`
+	events, err := p.ParseEvent(rawEvt)
+	if err != nil {
+		t.Fatalf("ParseEvent() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("ParseEvent() returned %d events, want 1", len(events))
+	}
+	if events[0].Type != EventTypeStepFinish {
+		t.Errorf("ParseEvent() type = %s, want %s", events[0].Type, EventTypeStepFinish)
+	}
+	if events[0].Metadata.InputTokens != 500 {
+		t.Errorf("InputTokens = %d, want 500", events[0].Metadata.InputTokens)
+	}
+	if events[0].Metadata.OutputTokens != 200 {
+		t.Errorf("OutputTokens = %d, want 200", events[0].Metadata.OutputTokens)
+	}
+	if events[0].Metadata.CacheReadTokens != 100 {
+		t.Errorf("CacheReadTokens = %d, want 100", events[0].Metadata.CacheReadTokens)
+	}
+	if events[0].Metadata.CacheWriteTokens != 50 {
+		t.Errorf("CacheWriteTokens = %d, want 50", events[0].Metadata.CacheWriteTokens)
+	}
+}

@@ -5,29 +5,29 @@
   },
   "display_information": {
     "name": "HotPlex Admin",
-    "long_description": "HotPlex 管理助手（HotPlex Admin Bot）是针对 HotPlex 多机器人高度集成系统的专用 O&M（运维）控制平面。它深度专注于系统多维健康诊断、Docker 容器全生命周期管理、会话状态与过期数据清理以及高效率的版本发布自动化流程。该助手严格遵循「只读代码」的安全准则，所有识别到的代码缺陷均会通过其内置的 GitHub 集成以 Issues 形式由机器人自动汇报，从而在本质上确保了生产环境操作的安全边界、合规性与执行透明度，是 HotPlex 矩阵化部署中不可或缺的安全运营底座。",
-    "description": "HotPlex 管理助手 - 专注于系统运维、诊断与发布管理",
+    "long_description": "HotPlex Admin 是一个双角色 AI 助手：(1) DevOps 运维专家 — 管理 HotPlex 多机器人系统的容器生命周期、健康诊断、会话清理和版本发布，严格遵循只读代码安全准则；(2) 知识管家 — 通过原生 Obsidian CLI 管理您的第二大脑，支持快速捕获灵感、知识关联分析、TIL 管理、知识库维护、头脑风暴、项目追踪和知识图谱洞察。基于 PARA 方法和 Zettelkasten 方法论，原生集成 Dataview 和 Tasks 插件。",
+    "description": "HotPlex Admin - DevOps 运维 & 知识管家",
     "background_color": "#0f172a"
   },
   "features": {
     "assistant_view": {
-      "assistant_description": "HotPlex 管理助手是一个专注于 DevOps 和 O&M 的 AI 运行时。它通过集成 docker-container-ops、hotplex-diagnostics 和 hotplex-data-mgmt 等专业技能，为管理员提供实时的系统监控与自动化运维能力。它遵循\"只观察，不修改代码\"的安全准则。",
+      "assistant_description": "HotPlex Admin 是一个双角色 AI 助手。作为 DevOps 专家，它通过 docker-container-ops、hotplex-diagnostics 等技能管理系统运维；作为知识管家，它通过原生 Obsidian CLI 管理您的第二大脑（PARA + Zettelkasten），支持快速捕获、知识关联、TIL、维护、头脑风暴和知识图谱分析。",
       "suggested_prompts": [
         {
-          "title": "🛠️ 运维管理",
-          "message": "执行系统诊断、管理容器状态并清理过期会话（组合 hotplex-diagnostics, docker-container-ops 和 hotplex-data-mgmt 能力）"
+          "title": "🩺 系统状态",
+          "message": "检查所有容器运行状态和系统健康"
         },
         {
-          "title": "🐞 Issue 管理",
-          "message": "分析 GitHub Issues，执行自动标注、重复检测并生成汇总报告（使用 hotplex-issue-master 技能）"
+          "title": "📅 今日回顾",
+          "message": "今日 Obsidian 回顾，查看今天的笔记、待办和新增连接"
         },
         {
-          "title": "🚢 PR 管理",
-          "message": "全方位管理 GitHub Pull Requests，平衡 CI 状态、代码审核建议与自动化流转（使用 hotplex-pr-master 技能）"
+          "title": "📊 知识库报告",
+          "message": "生成知识库健康报告：孤岛笔记、断裂链接、Inbox 积压"
         },
         {
-          "title": "📚 知识库同步",
-          "message": "扫描项目高价值文档并同步至 NotebookLM，确保 AI 知识库是最新的（使用 hotplex-notebooklm）"
+          "title": "🐞 活跃 Issues",
+          "message": "查看当前开放的 GitHub Issues 和 PR 状态"
         }
       ]
     },
@@ -69,11 +69,11 @@
         "channels:history",
         "groups:history",
         "mpim:history",
-        "commands",
         "files:read",
         "files:write",
         "users:read",
-        "team:read"
+        "team:read",
+        "commands"
       ]
     }
   },
@@ -81,10 +81,10 @@
     "event_subscriptions": {
       "bot_events": [
         "app_mention",
+        "app_home_opened",
         "message.channels",
         "message.groups",
         "message.im",
-        "app_home_opened",
         "assistant_thread_started",
         "assistant_thread_context_changed"
       ]

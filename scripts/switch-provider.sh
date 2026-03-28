@@ -116,6 +116,64 @@ yaml_set_provider() {
     ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
 }
 
+# Ensure or remove opencode: block in YAML provider section
+# $1=file  $2=add|remove
+yaml_manage_opencode() {
+    local file="$1" action="$2"
+    [[ -f "$file" ]] || return 1
+
+    case "$action" in
+        add)
+            # Already has opencode block with password? Skip
+            if awk '/^[[:space:]]*opencode:/{f=1} f && /password:/{exit 0} END{exit !f}' "$file"; then
+                return 0
+            fi
+            # Find anchor: prefer last provider field (break on first match, ordered last→first)
+            local anchor=""
+            for a in "dangerously_skip_permissions:" "default_permission_mode:" "default_model:" "type:"; do
+                if grep -q "^[[:space:]]*${a}" "$file" 2>/dev/null; then
+                    anchor="$a"; break
+                fi
+            done
+            [[ -z "$anchor" ]] && return 1
+            awk -v a="$anchor" '
+                $0 ~ "^[[:space:]]*" a {
+                    print; print "  opencode:"
+                    print "    server_url: http://127.0.0.1:4096"
+                    print "    password: \${OPENCODE_SERVER_PASSWORD}"; next
+                }
+                { print }
+            ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+            ;;
+        remove)
+            # Delete opencode: block + preceding blank line (buffered look-back)
+            awk '
+                /^[[:space:]]*opencode:[[:space:]]*$/ {
+                    if (prev !~ /^[[:space:]]*$/) print prev
+                    skip = 1; had_prev = 0; next
+                }
+                skip && /^[[:space:]]{4}/ { next }
+                skip { skip = 0 }
+                { if (had_prev) print prev; prev = $0; had_prev = 1 }
+                END { if (had_prev) print prev }
+            ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+            ;;
+    esac
+}
+
+# Get instance home directory for a docker bot index
+# Parses docker-compose.yml to find HOTPLEX_BOT_ID, then constructs path
+instance_home_for_bot() {
+    local idx="$1"
+    local compose="$MATRIX_DIR/docker-compose.yml"
+    [[ -f "$compose" ]] || return 1
+    local bot_id
+    bot_id=$(grep -A20 "hotplex-${idx}:" "$compose" 2>/dev/null \
+        | grep "HOTPLEX_BOT_ID:" | sed 's/.*HOTPLEX_BOT_ID:[[:space:]]*//')
+    [[ -n "$bot_id" && -d "$HOME/.hotplex/instances/$bot_id" ]] || return 1
+    echo "$HOME/.hotplex/instances/$bot_id"
+}
+
 # Validate provider type
 validate_provider() {
     case "$1" in
@@ -362,13 +420,30 @@ for t in "${TARGETS[@]}"; do
         printf "  ${YELLOW}⚠${NC} ${BOLD}$(basename "$TARGET_ENV")${NC} not found, skipping .env update\n"
     fi
 
-    # Update YAML config
+    # Update YAML config (template)
     if [[ -f "$TARGET_YAML" ]]; then
         yaml_set_provider "$TARGET_YAML" "$NEW_PROVIDER"
+        [[ "$NEW_PROVIDER" == "opencode-server" ]] && yaml_manage_opencode "$TARGET_YAML" add
+        [[ "$NEW_PROVIDER" != "opencode-server" ]] && yaml_manage_opencode "$TARGET_YAML" remove
         printf "  ${GREEN}✓${NC} ${BOLD}${TARGET_YAML#$PROJECT_ROOT/}${NC}: type: ${NEW_PROVIDER}\n"
         ((CHANGES++)) || true
     else
         printf "  ${YELLOW}⚠${NC} YAML not found at ${TARGET_YAML#$PROJECT_ROOT/}, skipping YAML update\n"
+    fi
+
+    # Update instance configs (running Docker configs, hot-reloaded)
+    if [[ "$t" == bot-* ]]; then
+        INSTANCE_HOME=$(instance_home_for_bot "$BOT_IDX") || true
+        if [[ -n "$INSTANCE_HOME" ]]; then
+            for yfile in "$INSTANCE_HOME"/configs/base/{slack,feishu}.yaml; do
+                [[ -f "$yfile" ]] || continue
+                yaml_set_provider "$yfile" "$NEW_PROVIDER"
+                [[ "$NEW_PROVIDER" == "opencode-server" ]] && yaml_manage_opencode "$yfile" add
+                [[ "$NEW_PROVIDER" != "opencode-server" ]] && yaml_manage_opencode "$yfile" remove
+                printf "  ${GREEN}✓${NC} ${BOLD}${yfile#$HOME/}${NC}: synced\n"
+                ((CHANGES++)) || true
+            done
+        fi
     fi
 done
 

@@ -152,8 +152,8 @@ func (p *OpenCodeServerProvider) mapEvent(evt OCSSEEvent) ([]*ProviderEvent, err
 				Type:    EventTypeResult,
 				RawType: evt.Type,
 				Metadata: &ProviderEventMeta{
-					InputTokens:   props.Info.Tokens.InputTokens,
-					OutputTokens:  props.Info.Tokens.OutputTokens,
+					InputTokens:   props.Info.Tokens.Input,
+					OutputTokens:  props.Info.Tokens.Output,
 					TotalCostUSD:  props.Info.Cost,
 					Model:         props.Info.ModelID,
 					ModelName:     props.Info.ModelID,
@@ -174,6 +174,8 @@ func (p *OpenCodeServerProvider) mapEvent(evt OCSSEEvent) ([]*ProviderEvent, err
 		switch props.Status.Type {
 		case "busy":
 			return []*ProviderEvent{{Type: EventTypeSystem, Status: "running"}}, nil
+		case "idle":
+			return []*ProviderEvent{{Type: EventTypeResult, RawType: evt.Type}}, nil
 		case "retry":
 			msg := "Retrying"
 			if props.Status.Attempt > 0 {
@@ -239,8 +241,8 @@ func (p *OpenCodeServerProvider) mapPart(part OCPart, delta string) ([]*Provider
 			c = part.Text
 		}
 		meta := &ProviderEventMeta{}
-		if part.Usage != nil {
-			meta.OutputTokens = part.Usage.OutputTokens
+		if part.Tokens != nil {
+			meta.OutputTokens = part.Tokens.Output
 		}
 		return []*ProviderEvent{{Type: EventTypeThinking, Content: c, Metadata: meta}}, nil
 
@@ -283,12 +285,12 @@ func (p *OpenCodeServerProvider) mapPart(part OCPart, delta string) ([]*Provider
 	case OCPartStepFinish:
 		meta := &ProviderEventMeta{}
 
-		if part.Usage != nil {
-			meta.InputTokens = part.Usage.InputTokens
-			meta.OutputTokens = part.Usage.OutputTokens
-			if part.Usage.Cache != nil {
-				meta.CacheReadTokens = part.Usage.Cache.Read
-				meta.CacheWriteTokens = part.Usage.Cache.Write
+		if part.Tokens != nil {
+			meta.InputTokens = part.Tokens.Input
+			meta.OutputTokens = part.Tokens.Output
+			if part.Tokens.Cache != nil {
+				meta.CacheReadTokens = part.Tokens.Cache.Read
+				meta.CacheWriteTokens = part.Tokens.Cache.Write
 			}
 		}
 
