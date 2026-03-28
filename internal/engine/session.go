@@ -242,6 +242,21 @@ func (s *Session) SetCallback(cb Callback) {
 	s.callback = cb
 }
 
+// SetIOCallback propagates the callback to the underlying HTTP I/O layer.
+// This is required for HTTP sessions where HTTPSessionIO.StartReading() is blocked
+// by a gate until SetCallback is called. Without this, StartReading() times out
+// after 30 seconds and all SSE events are silently dropped.
+func (s *Session) SetIOCallback(cb Callback) {
+	if s.io == nil {
+		return
+	}
+	// HTTPSessionIO has its own SetCallback which closes the startReadingGate.
+	// CLISessionIO does not have this method (it uses Session.callback directly).
+	if httpIO, ok := s.io.(*HTTPSessionIO); ok {
+		httpIO.SetCallback(func(eventType string, data any) error { return cb(eventType, data) })
+	}
+}
+
 // GetCallback returns the current callback.
 func (s *Session) GetCallback() Callback {
 	s.mu.RLock()

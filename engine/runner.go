@@ -466,6 +466,7 @@ func (r *Engine) executeWithMultiplex(
 	doneChan := make(chan struct{})
 
 	sess.SetCallback(intengine.Callback(r.createEventBridge(cfg, callback, stats, doneChan)))
+	sess.SetIOCallback(intengine.Callback(r.createEventBridge(cfg, callback, stats, doneChan)))
 
 	// Send input. Rules:
 	// - CLI cold-start (RequiresInitialPromptAsArg=true): stdin skipped, prompt via CLI arg.

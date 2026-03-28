@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,6 +21,10 @@ import (
 // It connects to an opencode serve instance and provides SSE event streaming
 // with automatic reconnection using exponential backoff.
 // Uses separate HTTP clients for REST (with timeout) and SSE (no timeout).
+// heartbeatRE matches SSE event "type" field for server heartbeat events.
+// Handles both compact and spaced JSON formats.
+var heartbeatRE = regexp.MustCompile(`"type"\s*:\s*"server\.heartbeat"`)
+
 type HTTPTransport struct {
 	baseURL    string
 	restClient *http.Client // REST calls with timeout
@@ -141,6 +147,12 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 			return
 		}
 
+		if err == nil {
+			// connectAndStream returned nil: connection succeeded (read at least one event).
+			// This is a true reconnect success, not just "received an event".
+			t.reconnectsSuccess.Add(1)
+		}
+
 		if attempt >= maxAttempts {
 			t.reconnectsFailed.Add(1)
 			t.logger.Error("SSE reconnection failed: max retry attempts exceeded",
@@ -151,9 +163,10 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 			// Continue retrying but log at error level every subsequent attempt
 		}
 
-		// Exponential backoff with jitter: adds up to 1s random jitter to avoid synchronized retries.
+		// Exponential backoff with jitter: adds up to 500ms random jitter to avoid synchronized retries.
+		// Uses global rand source (not cryptographic; acceptable for jitter).
 		baseDelay := time.Duration(min(10<<uint(attempt), 60)) * time.Second // Caps at 60s
-		jitter := time.Duration(attempt%3) * time.Second                      // 0-2s jitter
+		jitter := time.Duration(rand.Int63n(int64(baseDelay) / 2))           // 0-50% of baseDelay
 		delay := baseDelay + jitter
 
 		t.logger.Warn("SSE disconnected, reconnecting",
@@ -220,11 +233,11 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) erro
 		if attempt != nil {
 			*attempt = 0
 		}
-		t.reconnectsSuccess.Add(1)
 
 		// Heartbeat detection: server sends server.heartbeat every 10s.
-		// Update last heartbeat timestamp for health monitoring.
-		if strings.Contains(jsonLine, `"type":"server.heartbeat"`) {
+		// Uses regex to handle both compact (`{"type":"server.heartbeat"}) and
+		// spaced (`{"type": "server.heartbeat", ...}`) JSON formats.
+		if heartbeatRE.MatchString(jsonLine) {
 			t.lastHeartbeat.Store(time.Now().Unix())
 			t.logger.Debug("SSE heartbeat received",
 				"last_heartbeat_ts", t.lastHeartbeat.Load(),

@@ -205,10 +205,14 @@ func (h *HTTPSessionIO) WriteInput(msg map[string]any) error {
 	}
 	h.mu.Unlock()
 
-	h.logger.Info("HTTPSessionIO.WriteInput sending message",
-		"session_id", h.sessionID,
-		"msg_keys", getMapKeys(msg),
-		"msg_json", mustMarshalJSON(msg))
+	// Guard expensive JSON marshaling behind Debug log level.
+	// Info-level logging would marshal every WriteInput regardless of enabled log level.
+	if h.logger.Enabled(context.Background(), slog.LevelDebug) {
+		h.logger.Debug("HTTPSessionIO.WriteInput sending message",
+			"session_id", h.sessionID,
+			"msg_keys", getMapKeys(msg),
+			"msg_json", mustMarshalJSON(msg))
+	}
 
 	if err := h.transport.Send(context.Background(), h.sessionID, msg); err != nil {
 		h.logger.Error("HTTPSessionIO.WriteInput failed",
@@ -342,9 +346,6 @@ func (h *HTTPSessionIO) StartReading() {
 	}
 	h.logger.Info("StartReading: events channel closed", "total_events", eventCount)
 }
-
-// ReadStderrFromHTTPSession is a no-op for HTTP sessions (no stderr).
-func ReadStderrFromHTTPSession(_ *slog.Logger) {}
 
 var _ SessionIO = (*CLISessionIO)(nil)
 var _ SessionIO = (*HTTPSessionIO)(nil)
