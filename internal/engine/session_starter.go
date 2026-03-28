@@ -319,12 +319,18 @@ func (s *CLISessionStarter) buildCLIArgs(providerSessionID string, sessLog *slog
 		SessionID:                  providerSessionID,
 	}
 
-	if s.markerStore.Exists(providerSessionID) {
-		if s.provider.VerifySession(providerSessionID, cfg.WorkDir) {
-			opts.ResumeSession = true
-			opts.ProviderSessionID = providerSessionID
-			sessLog.Info("Resuming existing persistent CLI session")
-		} else {
+	// BaseSystemPrompt 注入规则（Claude Code 专用）：
+	// - 冷启动 + 会话初次创建：注入（持久化到会话上下文）
+	// - Resume / 热复用：不注入（会话已有上下文，重复注入会破坏对话连贯性）
+	isNewSession := !s.markerStore.Exists(providerSessionID)
+	if !isNewSession && s.provider.VerifySession(providerSessionID, cfg.WorkDir) {
+		opts.ResumeSession = true
+		opts.ProviderSessionID = providerSessionID
+		sessLog.Info("Resuming existing persistent CLI session")
+		// 清除 BaseSystemPrompt：resume 时不应重新注入
+		opts.BaseSystemPrompt = ""
+	} else {
+		if !isNewSession {
 			sessLog.Warn("Marker exists but CLI session data not found, creating fresh session",
 				"provider_session_id", providerSessionID)
 			if err := s.markerStore.Delete(providerSessionID); err != nil {
@@ -333,14 +339,12 @@ func (s *CLISessionStarter) buildCLIArgs(providerSessionID string, sessLog *slog
 			if err := s.provider.CleanupSession(providerSessionID, cfg.WorkDir); err != nil {
 				sessLog.Warn("Failed to cleanup stale CLI session file", "error", err)
 			}
-			opts.ProviderSessionID = providerSessionID
-			sessLog.Info("Creating new CLI session (marker was stale)")
 		}
-	} else {
 		opts.ProviderSessionID = providerSessionID
 		if err := s.provider.CleanupSession(providerSessionID, cfg.WorkDir); err != nil {
 			sessLog.Warn("Failed to cleanup stale CLI session file", "error", err)
 		}
+		// 新建会话：保留 BaseSystemPrompt（将在 BuildCLIArgs 中注入为 --append-system-prompt）
 		sessLog.Info("Creating new persistent CLI session")
 	}
 
