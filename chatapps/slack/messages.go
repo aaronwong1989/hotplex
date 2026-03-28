@@ -436,6 +436,12 @@ func (a *Adapter) SetStatus(ctx context.Context, channelID, threadTS string, sta
 		return fmt.Errorf("slack client not initialized")
 	}
 
+	// Clear status when text is empty — use explicit ClearStatus to properly reset
+	// Slack assistant status instead of sending an empty string which may not clear.
+	if text == "" {
+		return a.ClearStatus(ctx, channelID, threadTS)
+	}
+
 	// Try native Assistant API if capable
 	if a.isAssistantCapable.Load() {
 		err := a.SetAssistantStatus(ctx, channelID, threadTS, text)

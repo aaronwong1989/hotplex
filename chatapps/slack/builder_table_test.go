@@ -62,7 +62,7 @@ func TestBuildStatsTable_BasicStats(t *testing.T) {
 	assert.NotNil(t, table)
 	assert.Equal(t, "session_stats", table.BlockID)
 	assert.Equal(t, slack.MBTTable, table.Type)
-	assert.Len(t, table.Rows, 5) // Duration, Input, Output, Files, Tools
+	assert.Len(t, table.Rows, 4) // Duration + Input + Output + Files (no Tools row in table) // Duration, Input, Output, Files, Tools
 }
 
 func TestBuildStatsTable_WithCacheTokens(t *testing.T) {
@@ -165,7 +165,7 @@ func TestBuildStatsTable_Int32Types(t *testing.T) {
 
 	table := getNativeTable(builder.BuildStatsTable(msg))
 	assert.NotNil(t, table)
-	assert.Len(t, table.Rows, 5)
+	assert.Len(t, table.Rows, 4) // Duration + Input + Output + Files (no Tools row in table)
 }
 
 // TestBuildStatsTable_NoBlockIdInJSON verifies the critical fix:
@@ -224,24 +224,21 @@ func TestBuildCommandProgressTable_Basic(t *testing.T) {
 	assert.Len(t, table.Rows, 5) // Header + 4 data rows
 }
 
-func TestBuildToolCallsTable_Basic(t *testing.T) {
+func TestBuildToolCallsTable_Removed(t *testing.T) {
+	// BuildToolCallsTable is stubbed — metadata["tool_calls"] is never populated.
+	// Engine does not provide per-tool call statistics; tool_call_count is used instead.
 	builder := NewTableBuilder(TableConfig{MaxRows: 10, ShowHeader: true})
-
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeSessionStats,
 		Content: "",
 		Metadata: map[string]any{
 			"tool_calls": []map[string]any{
 				{"name": "Read", "count": int64(15), "success_rate": "100%"},
-				{"name": "Edit", "count": int64(8), "success_rate": "100%"},
-				{"name": "Bash", "count": int64(5), "success_rate": "80%"},
 			},
 		},
 	}
-
-	table := getNativeTable(builder.BuildToolCallsTable(msg))
-	assert.NotNil(t, table)
-	assert.Len(t, table.Rows, 4) // Header + 3 tool rows
+	blocks := builder.BuildToolCallsTable(msg)
+	assert.Nil(t, blocks)
 }
 
 func TestBuildSessionStatsTable_FromStatsMessageBuilder(t *testing.T) {
@@ -278,7 +275,7 @@ func TestBuildSessionStatsTable_FromStatsMessageBuilder(t *testing.T) {
 	tb, ok := blocks[0].(tableBlock)
 	assert.True(t, ok, "BuildSessionStatsTable must return tableBlock")
 	assert.Equal(t, slack.MBTTable, tb.Type)
-	assert.Len(t, tb.Rows, 5)
+	assert.Len(t, tb.Rows, 4) // Duration + Input + Output + Files (no Tools row in table)
 }
 
 func TestTableCell_EmptyBlockID(t *testing.T) {

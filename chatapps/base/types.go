@@ -241,6 +241,8 @@ func MessageTypeToStatusType(msgType MessageType) StatusType {
 		return StatusToolResult
 	case MessageTypeAnswer, MessageTypeExitPlanMode:
 		return StatusAnswering
+	case MessageTypeSessionStats:
+		return StatusIdle
 	default:
 		return StatusIdle
 	}

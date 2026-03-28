@@ -171,7 +171,7 @@ func extractCellElements(cell *slack.RichTextBlock) []tableRichTextSection {
 
 // BuildStatsTable builds a Table Block for session statistics.
 // Note: Session stats tables intentionally omit a header row regardless of ShowHeader
-// (label/value rows are self-describing), unlike BuildCommandProgressTable and BuildToolCallsTable.
+// (label/value rows are self-describing), unlike BuildCommandProgressTable.
 func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 	native := slack.NewTableBlock("session_stats")
 	native = native.WithColumnSettings(
@@ -196,6 +196,15 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 	if v := base.ExtractInt64(metadata, "total_duration_ms"); v > 0 {
 		addRow("⏱️ Duration", base.FormatDuration(v))
 	}
+	if v := base.ExtractInt64(metadata, "thinking_duration_ms"); v > 0 {
+		addRow("🧠 Think", base.FormatDuration(v))
+	}
+	if v := base.ExtractInt64(metadata, "tool_duration_ms"); v > 0 {
+		addRow("🔧 Tools", base.FormatDuration(v))
+	}
+	if v := base.ExtractFloat64(metadata, "context_used_percent"); v > 0 {
+		addRow("🧠 Context", fmt.Sprintf("%.0f%%", v))
+	}
 	if v := base.ExtractInt64(metadata, "input_tokens"); v > 0 {
 		cache := base.ExtractInt64(metadata, "cache_read_tokens")
 		addRow("⚡ Input", tb.formatTokenCell(v, cache))
@@ -204,8 +213,10 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 		cache := base.ExtractInt64(metadata, "cache_write_tokens")
 		addRow("⚡ Output", tb.formatTokenCell(v, cache))
 	}
+	if v := base.ExtractFloat64(metadata, "total_cost_usd"); v > 0 {
+		addRow("💵 Cost", base.FormatCost(v))
+	}
 	addRowOpt("📝 Files", fmt.Sprintf("%d modified", base.ExtractInt64(metadata, "files_modified")), base.ExtractInt64(metadata, "files_modified") > 0)
-	addRowOpt("🔧 Tools", fmt.Sprintf("%d calls", base.ExtractInt64(metadata, "tool_call_count")), base.ExtractInt64(metadata, "tool_call_count") > 0)
 	if v := base.ExtractString(metadata, "model_used"); v != "" {
 		addRow("🤖 Model", v)
 	}
@@ -219,7 +230,7 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 		case "max_tokens":
 			label = "⚠️ Token 超限"
 		}
-		addRow("📋 结束原因", label)
+		addRow("📋 结束", label)
 	}
 
 	return []slack.Block{tableBlock{TableBlock: native}}
@@ -281,39 +292,8 @@ func (tb *TableBuilder) BuildCommandProgressTable(msg *base.ChatMessage) []slack
 	return []slack.Block{tableBlock{TableBlock: native}}
 }
 
-// BuildToolCallsTable builds a Table Block for tool call summary.
+// BuildToolCallsTable is removed — metadata["tool_calls"] is never populated by the engine.
+// Kept for reference until the engine provides per-tool call statistics.
 func (tb *TableBuilder) BuildToolCallsTable(msg *base.ChatMessage) []slack.Block {
-	native := slack.NewTableBlock("tool_calls")
-	metadata := msg.Metadata
-	if metadata == nil {
-		return []slack.Block{tableBlock{TableBlock: native}}
-	}
-	toolCalls, ok := metadata["tool_calls"].([]map[string]any)
-	if !ok || len(toolCalls) == 0 {
-		return []slack.Block{tableBlock{TableBlock: native}}
-	}
-	if tb.config.ShowHeader {
-		native.AddRow(tb.cell("Tool"), tb.cell("Calls"), tb.cell("Success"))
-	}
-	for i, tool := range toolCalls {
-		if i >= tb.config.MaxRows {
-			break
-		}
-		name := ""
-		calls := int64(0)
-		success := "100%"
-		if n, ok := tool["name"].(string); ok {
-			name = n
-		}
-		if c, ok := tool["count"].(int64); ok {
-			calls = c
-		} else if c, ok := tool["count"].(int); ok {
-			calls = int64(c)
-		}
-		if s, ok := tool["success_rate"].(string); ok {
-			success = s
-		}
-		native.AddRow(tb.cell(name), tb.cell(fmt.Sprintf("%d", calls)), tb.cell(success))
-	}
-	return []slack.Block{tableBlock{TableBlock: native}}
+	return nil
 }

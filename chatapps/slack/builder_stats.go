@@ -256,19 +256,6 @@ func (b *StatsMessageBuilder) BuildCommandProgressTable(msg *base.ChatMessage) [
 	return table
 }
 
-// BuildToolCallsTable builds a table format message for tool calls
-func (b *StatsMessageBuilder) BuildToolCallsTable(msg *base.ChatMessage) []slack.Block {
-	tableBuilder := NewTableBuilder(TableConfig{
-		MaxRows:    getMaxTableRows(b.config),
-		ShowHeader: false,
-	})
-	table := tableBuilder.BuildToolCallsTable(msg)
-	if len(table) == 0 {
-		return nil
-	}
-	return table
-}
-
 // getMaxTableRows returns the max table rows limit from config (default: 20)
 func getMaxTableRows(config *Config) int {
 	if config == nil || config.Features.Markdown.TableConfig == nil {
