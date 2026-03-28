@@ -225,12 +225,18 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 		switch v {
 		case "end_turn":
 			label = "✅ 正常结束"
-		case "tool_use":
-			label = "🔧 工具调用"
+		case "tool_use", "tool_calls":
+			// tool_calls: MiniMax API stop_reason format
+			// tool_use: OpenAI-compatible API format
+			// Skip: redundant with tool count row (🔧 N tools)
 		case "max_tokens":
 			label = "⚠️ Token 超限"
+		default:
+			label = "❓ " + v
 		}
-		addRow("📋 结束", label)
+		if v != "tool_use" && v != "tool_calls" {
+			addRow("📋 结束", label)
+		}
 	}
 
 	return []slack.Block{tableBlock{TableBlock: native}}

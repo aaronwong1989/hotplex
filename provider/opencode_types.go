@@ -173,6 +173,10 @@ type OCSession struct {
 // FinishReason represents the reason why a step finished
 type FinishReason string
 
+// ReasonToolCalls matches MiniMax API's stop_reason value for tool-use termination.
+// OpenAI-compatible API uses "tool_use"; MiniMax uses "tool_calls".
+var ReasonToolCalls FinishReason = "tool_calls"
+
 const (
 	ReasonMaxTokens FinishReason = "max_tokens"
 	ReasonToolUse   FinishReason = "tool_use"
@@ -184,6 +188,7 @@ const (
 var finishReasonMessages = map[FinishReason]string{
 	ReasonMaxTokens: "⚠️ Token 限制达到，建议增加配额",
 	ReasonToolUse:   "🔧 需要执行工具调用",
+	ReasonToolCalls: "🔧 需要执行工具调用",
 	ReasonEndTurn:   "✅ 回答生成完毕",
 }
 

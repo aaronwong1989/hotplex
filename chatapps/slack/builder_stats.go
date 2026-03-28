@@ -85,12 +85,18 @@ func (b *StatsMessageBuilder) buildSessionStatsParts(meta map[string]any) []stri
 		switch reason {
 		case "end_turn":
 			reasonLabel = "✅ 正常结束"
-		case "tool_use":
-			reasonLabel = "🔧 工具调用"
+		case "tool_use", "tool_calls":
+			// tool_calls: MiniMax API stop_reason format
+			// tool_use: OpenAI-compatible API format
+			// Skip: redundant with tool count display (🔧 N tools)
 		case "max_tokens":
 			reasonLabel = "⚠️ Token 超限"
+		default:
+			reasonLabel = ""
 		}
-		stats = append(stats, reasonLabel)
+		if reasonLabel != "" {
+			stats = append(stats, reasonLabel)
+		}
 	}
 
 	return stats
