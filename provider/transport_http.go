@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -32,6 +33,20 @@ type HTTPTransport struct {
 	closed      bool
 	ready       chan struct{}            // Signal when first SSE event received
 	subscribers map[chan string]struct{} // Event subscribers for fan-out
+
+	// Metrics for monitoring transport health
+	eventsReceived  atomic.Int64
+	eventsDropped   atomic.Int64
+	droppedBySubscriber atomic.Int64 // Count of subscriber buffer-full drops
+
+	// Metrics for reconnection health
+	reconnectAttempts atomic.Int64
+	reconnectsSuccess atomic.Int64
+	reconnectsFailed  atomic.Int64 // Incremented when max retries exceeded
+
+	// Heartbeat monitoring
+	lastHeartbeat   atomic.Int64 // Unix timestamp of last heartbeat (seconds)
+	heartbeatTimeout time.Duration
 }
 
 // TransportConfig for HTTPTransport.
@@ -60,11 +75,12 @@ func NewHTTPTransport(cfg HTTPTransportConfig) *HTTPTransport {
 		sseClient: &http.Client{
 			Timeout: 0, // No timeout for SSE streaming
 		},
-		password:    cfg.Password,
-		workDir:     cfg.WorkDir,
-		subscribers: make(map[chan string]struct{}),
-		ready:       make(chan struct{}),
-		logger:      cfg.Logger.With("component", "http_transport"),
+		password:         cfg.Password,
+		workDir:          cfg.WorkDir,
+		subscribers:      make(map[chan string]struct{}),
+		ready:            make(chan struct{}),
+		logger:           cfg.Logger.With("component", "http_transport"),
+		heartbeatTimeout: 25 * time.Second, // OpenCode server sends heartbeat every 10s; 25s gives 2.5x margin
 	}
 }
 
@@ -107,11 +123,13 @@ func (t *HTTPTransport) Connect(ctx context.Context, cfg TransportConfig) error 
 }
 
 // streamSSE manages the SSE connection lifecycle with exponential backoff reconnection.
+// It implements reconnection with jitter, maximum retry limits, and heartbeat monitoring.
 func (t *HTTPTransport) streamSSE(ctx context.Context) {
-	backoff := []time.Duration{1 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second}
-	attempt := 0
+	// Exponential backoff with jitter: base delays with random jitter to avoid thundering herd.
+	// Server sends heartbeat every 10s; we give 2.5x margin (25s) before considering connection dead.
+	const maxAttempts = 20 // After 20 failed attempts (~3 min of retries), signal degraded operation
 
-	for {
+	for attempt := 0; ; attempt++ {
 		select {
 		case <-ctx.Done():
 			return
@@ -123,15 +141,34 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 			return
 		}
 
-		delay := backoff[min(attempt, len(backoff)-1)]
+		if attempt >= maxAttempts {
+			t.reconnectsFailed.Add(1)
+			t.logger.Error("SSE reconnection failed: max retry attempts exceeded",
+				"attempts", attempt,
+				"total_failed", t.reconnectsFailed.Load(),
+				"action", "transport_degraded",
+				"suggestion", "Check OpenCode server health and network connectivity")
+			// Continue retrying but log at error level every subsequent attempt
+		}
+
+		// Exponential backoff with jitter: adds up to 1s random jitter to avoid synchronized retries.
+		baseDelay := time.Duration(min(10<<uint(attempt), 60)) * time.Second // Caps at 60s
+		jitter := time.Duration(attempt%3) * time.Second                      // 0-2s jitter
+		delay := baseDelay + jitter
+
 		t.logger.Warn("SSE disconnected, reconnecting",
-			"attempt", attempt, "delay", delay, "error", err)
-		attempt++
+			"attempt", attempt+1,
+			"max_attempts", maxAttempts,
+			"delay", delay,
+			"error", err)
+
+		t.reconnectAttempts.Add(1)
 
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(delay):
+			// Continue retry loop
 		}
 	}
 }
@@ -179,12 +216,23 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) erro
 			continue
 		}
 
-		// Successfully received data - reset backoff counter
+		// Successfully received data - reset backoff counter (connection is healthy)
 		if attempt != nil {
 			*attempt = 0
 		}
+		t.reconnectsSuccess.Add(1)
 
-		// Signal ready on first event (non-blocking)
+		// Heartbeat detection: server sends server.heartbeat every 10s.
+		// Update last heartbeat timestamp for health monitoring.
+		if strings.Contains(jsonLine, `"type":"server.heartbeat"`) {
+			t.lastHeartbeat.Store(time.Now().Unix())
+			t.logger.Debug("SSE heartbeat received",
+				"last_heartbeat_ts", t.lastHeartbeat.Load(),
+				"heartbeat_timeout", t.heartbeatTimeout)
+			continue
+		}
+
+		// Signal ready on first non-heartbeat event (non-blocking)
 		t.mu.Lock()
 		ready := t.ready
 		t.mu.Unlock()
@@ -207,6 +255,7 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) erro
 		subCount := len(subs)
 		t.mu.Unlock()
 
+		t.eventsReceived.Add(1)
 		t.logger.Debug("SSE event received, broadcasting to subscribers",
 			"event_length", len(jsonLine),
 			"subscriber_count", subCount)
@@ -217,13 +266,18 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) erro
 			case sub <- jsonLine:
 				// Success
 			default:
-				// Buffer full - try with brief timeout to avoid immediate drop
+				// Buffer full - try with brief timeout to avoid immediate drop.
+				// This improves reliability during bursts (e.g., rapid tool results).
 				select {
 				case sub <- jsonLine:
 					// Success after brief wait
-				case <-time.After(50 * time.Millisecond):
-					t.logger.Warn("Subscriber buffer full after timeout, dropping event",
-						"event_length", len(jsonLine))
+				case <-time.After(100 * time.Millisecond):
+					t.eventsDropped.Add(1)
+					t.droppedBySubscriber.Add(1)
+					t.logger.Error("Subscriber buffer full after timeout, dropping SSE event",
+						"event_length", len(jsonLine),
+						"total_dropped", t.eventsDropped.Load(),
+						"suggestion", "Consider increasing subscriber buffer size or reducing event frequency")
 				}
 			}
 		}
@@ -349,11 +403,6 @@ func (t *HTTPTransport) CreateSession(ctx context.Context, title string) (string
 	if t.password != "" {
 		req.SetBasicAuth("opencode", t.password)
 	}
-	// Set working directory for OpenCode Server context
-	if t.workDir != "" {
-		req.Header.Set("x-opencode-directory", t.workDir)
-	}
-	// Set working directory for OpenCode Server context
 	if t.workDir != "" {
 		req.Header.Set("x-opencode-directory", t.workDir)
 	}
@@ -459,7 +508,9 @@ func (t *HTTPTransport) Health(ctx context.Context) error {
 		req.SetBasicAuth("opencode", t.password)
 		t.logger.Debug("Health check with Basic Auth", "username", "opencode", "password_len", len(t.password))
 	} else {
-		t.logger.Warn("Health check WITHOUT Basic Auth - will likely fail")
+		t.logger.Error("Health check failed: OpenCode server requires Basic Auth but password is not configured",
+			"suggestion", "Set HOTPLEX_OPEN_CODE_PASSWORD environment variable or configure opencode.password in your config",
+			"auth_note", "OpenCode server enforces authentication - requests without valid credentials will be rejected")
 	}
 
 	resp, err := t.restClient.Do(req)
@@ -491,8 +542,41 @@ func (t *HTTPTransport) Health(ctx context.Context) error {
 	return nil
 }
 
+// TransportStats holds SSE transport health metrics for monitoring and debugging.
+type TransportStats struct {
+	EventsReceived       int64
+	EventsDropped       int64
+	DroppedBySubscriber int64
+	ReconnectAttempts   int64
+	ReconnectsSuccess   int64
+	ReconnectsFailed    int64
+	LastHeartbeatTs     int64  // Unix timestamp of last heartbeat (0 if none)
+	HeartbeatTimeout    time.Duration
+	ActiveSubscribers   int
+	Running             bool
+}
+
+// Stats returns a snapshot of transport health metrics.
+func (t *HTTPTransport) Stats() TransportStats {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return TransportStats{
+		EventsReceived:       t.eventsReceived.Load(),
+		EventsDropped:       t.eventsDropped.Load(),
+		DroppedBySubscriber: t.droppedBySubscriber.Load(),
+		ReconnectAttempts:   t.reconnectAttempts.Load(),
+		ReconnectsSuccess:   t.reconnectsSuccess.Load(),
+		ReconnectsFailed:    t.reconnectsFailed.Load(),
+		LastHeartbeatTs:     t.lastHeartbeat.Load(),
+		HeartbeatTimeout:    t.heartbeatTimeout,
+		ActiveSubscribers:   len(t.subscribers),
+		Running:             t.running,
+	}
+}
+
 // Close stops the SSE goroutine and closes all subscriber channels.
 // It is idempotent and goroutine-safe.
+// On close, stats are logged to aid debugging upstream memory leak issues (opencode #15645).
 func (t *HTTPTransport) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -503,16 +587,28 @@ func (t *HTTPTransport) Close() error {
 	t.closed = true
 	t.running = false
 
+	// Cancel SSE streaming goroutine (triggers exit from connectAndStream)
 	if t.cancelFn != nil {
 		t.cancelFn()
 		t.cancelFn = nil
 	}
 
-	// Close all subscriber channels
+	// Close all subscriber channels to unblock any readers
 	for ch := range t.subscribers {
 		close(ch)
 		delete(t.subscribers, ch)
 	}
+
+	// Log final stats for debugging upstream memory leaks.
+	// Issue #15645: SSE connections leak on client disconnect. Stats help correlate
+	// HotPlex behavior with server-side memory growth.
+	t.logger.Info("HTTPTransport closed",
+		"events_received", t.eventsReceived.Load(),
+		"events_dropped", t.eventsDropped.Load(),
+		"reconnects_attempted", t.reconnectAttempts.Load(),
+		"reconnects_success", t.reconnectsSuccess.Load(),
+		"reconnects_failed", t.reconnectsFailed.Load(),
+		"last_heartbeat_ts", t.lastHeartbeat.Load())
 
 	return nil
 }

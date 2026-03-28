@@ -206,8 +206,9 @@ func (s *CLISessionStarter) StartSession(
 		TaskInstructions:  cfg.TaskInstructions,
 		statusChange:      make(chan SessionStatus, 10),
 		logger:            sessLog,
-		IsResuming:        isResuming,
-		callback:          cb,
+		IsResuming:            isResuming,
+		FirstMessageOnSession: !isResuming, // New session needs BuildInputMessage; resumed session already has context
+		callback:             cb,
 	}
 
 	if err := sess.OpenLogFile(); err != nil {
@@ -448,34 +449,19 @@ func (s *HTTPSessionStarter) StartSession(
 		Status:            SessionStatusStarting,
 		TaskInstructions:  cfg.TaskInstructions,
 		statusChange:      make(chan SessionStatus, 10),
-		logger:            sessLog,
-		callback:          cb,
+		logger:               sessLog,
+		FirstMessageOnSession: true, // HTTP sessions always need first BuildInputMessage
+		callback:             nil, // Will be set by runner.go before StartReading
 	}
 
-	// Inject callback into HTTPSessionIO so StartReading can dispatch events.
-	// CRITICAL: Use sess.GetCallback() instead of closure variable 'cb' because
-	// the callback is set AFTER session creation (in runner.go Execute).
-	httpIO.SetCallback(func(event string, data any) error {
-		if event == "runner_exit" {
-			sess.mu.Lock()
-			if sess.Status != SessionStatusDead {
-				sess.Status = SessionStatusDead
-				if !sess.closed {
-					select {
-					case sess.statusChange <- SessionStatusDead:
-					default:
-					}
-				}
-			}
-			sess.mu.Unlock()
-		}
-		// Get the current callback from session (set by Engine.Execute)
-		if currentCb := sess.GetCallback(); currentCb != nil {
-			return currentCb(event, data)
-		}
-		return nil
-	})
-
+	// Start SSE event reader goroutine (blocked by httpIO.startReadingGate).
+	// The gate is closed in runner.go when SetCallback is called.
+	// This ordering ensures no events are lost between session creation and callback setup:
+	//   1. Connect() → SSE connection established, events buffered (64-channel)
+	//   2. CreateSession() → server creates session, events for this session start arriving
+	//   3. Session returned to caller
+	//   4. SetCallback() → callback set AND gate closed → StartReading unblocks
+	//   5. Buffered events are processed with correct callback
 	panicx.SafeGo(sessLog, func() {
 		httpIO.StartReading()
 	})

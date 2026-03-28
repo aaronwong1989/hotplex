@@ -179,7 +179,8 @@ func (p *ClaudeCodeProvider) BuildCLIArgs(providerSessionID string, opts *Provid
 }
 
 // BuildInputMessage constructs the stream-json input message.
-func (p *ClaudeCodeProvider) BuildInputMessage(prompt string, taskInstructions string, baseSystemPrompt string) (map[string]any, error) {
+// baseSystemPrompt is ignored — Claude Code handles it via --append-system-prompt in BuildCLIArgs.
+func (p *ClaudeCodeProvider) BuildInputMessage(prompt string, taskInstructions string, _ string) (map[string]any, error) {
 	finalPrompt := p.promptBuilder.Build(prompt, taskInstructions)
 
 	return map[string]any{

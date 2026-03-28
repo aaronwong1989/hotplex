@@ -352,15 +352,6 @@ func (b *PromptBuilder) Build(prompt, taskInstructions string) string {
 		taskInstructions, prompt)
 }
 
-// BuildInputMessage creates a standard input message map for JSON serialization.
-func (b *PromptBuilder) BuildInputMessage(prompt, taskInstructions string) map[string]any {
-	return map[string]any{
-		"prompt":            prompt,
-		"task_instructions": taskInstructions,
-		"final_prompt":      b.Build(prompt, taskInstructions),
-	}
-}
-
 // ============================================================================
 // Binary Resolution Helper
 // ============================================================================

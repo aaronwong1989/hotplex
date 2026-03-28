@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/provider"
@@ -134,12 +135,17 @@ type HTTPSessionIO struct {
 	logger    *slog.Logger
 
 	// callback handles session events (runner_exit, raw_line).
-	// Set at construction time by HTTPSessionStarter.
+	// Set via SetCallback before StartReading is called.
 	callback SessionCallback
 
 	// eventsCh is the subscribed SSE event channel from transport.
 	// Each HTTPSessionIO gets its own channel for fan-out.
 	eventsCh <-chan string
+
+	// startReadingGate blocks StartReading until StartReading is explicitly called.
+	// This ensures the SSE reader does not begin before the session callback is set,
+	// preventing event loss during the session creation window (Connect → CreateSession → SetCallback).
+	startReadingGate chan struct{}
 
 	mu       sync.Mutex
 	closed   bool
@@ -169,12 +175,23 @@ func NewHTTPSessionIO(transport provider.Transport, sessionID string, cancelFn f
 		logger:    logger.With("session_id", sessionID),
 		eventsCh:  eventsCh,
 		cancelFn:  cancelFn,
+		// Gate is created open in NewHTTPSessionIO (for CLISessionStarter compatibility).
+		// HTTPSessionStarter.StartSession creates HTTPSessionIO with an open gate, but
+		// will close it immediately after CreateSession returns, before returning to caller.
+		// The SSE goroutine (runner.go) will then start reading after SetCallback.
+		startReadingGate: make(chan struct{}),
 	}
 }
 
 // SetCallback sets the session callback for event dispatch.
+// It also closes the startReadingGate to unblock the SSE reader goroutine.
 func (h *HTTPSessionIO) SetCallback(cb SessionCallback) {
 	h.callback = cb
+	// Signal the SSE reader to start. This happens in runner.go after
+	// GetOrCreateSession returns and before WriteInput is called.
+	// The goroutine was already started in session_starter.go via SafeGo(httpIO.StartReading),
+	// but blocked here until the callback is ready.
+	close(h.startReadingGate)
 }
 
 // WriteInput implements SessionIO.
@@ -239,7 +256,15 @@ func (h *HTTPSessionIO) Close() error {
 		h.cancelFn()
 		h.cancelFn = nil
 	}
-	_ = h.transport.DeleteSession(context.Background(), h.sessionID)
+	// Use timeout context to prevent hanging on server unresponsiveness.
+	// 5 seconds is sufficient for server-side session cleanup.
+	deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := h.transport.DeleteSession(deleteCtx, h.sessionID); err != nil {
+		h.logger.Warn("Failed to delete HTTP session on close",
+			"session_id", h.sessionID,
+			"error", err)
+	}
 	return nil
 }
 
@@ -257,15 +282,31 @@ func (h *HTTPSessionIO) IsAlive() bool {
 }
 
 // StartReading starts the SSE event dispatch loop.
-// It reads from the subscribed events channel and dispatches "raw_line" and "runner_exit" callbacks.
+// It blocks on startReadingGate until SetCallback is called (in runner.go),
+// ensuring the SSE reader never processes events without a valid callback.
 // Call via panicx.SafeGo.
 func (h *HTTPSessionIO) StartReading() {
+	// Gate wait: ensures the SSE reader does not begin processing events
+	// before the session callback is set in runner.go.
+	// Events arriving on the SSE channel before this point are buffered
+	// by the transport's 64-channel subscriber buffer.
+	h.logger.Debug("StartReading: waiting for gate (callback setup)")
+	select {
+	case <-h.startReadingGate:
+		h.logger.Debug("StartReading: gate opened, callback is ready")
+	case <-time.After(30 * time.Second):
+		h.logger.Error("StartReading: timeout waiting for gate, exiting")
+		return
+	}
+
 	h.mu.Lock()
 	cb := h.callback
 	eventsCh := h.eventsCh
 	h.mu.Unlock()
 
-	h.logger.Debug("StartReading called", "has_events_channel", eventsCh != nil, "has_callback", cb != nil)
+	h.logger.Debug("StartReading executing",
+		"has_events_channel", eventsCh != nil,
+		"has_callback", cb != nil)
 
 	defer func() {
 		h.logger.Info("StartReading exiting, calling runner_exit")

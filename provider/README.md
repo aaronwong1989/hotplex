@@ -108,7 +108,7 @@ type Provider interface {
     Name() string
     Metadata() ProviderMeta
     BuildCLIArgs(sessionID string, opts *ProviderSessionOptions) []string
-    BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error)
+    BuildInputMessage(prompt string, taskInstructions string, baseSystemPrompt string) (map[string]any, error)
     ParseEvent(line string) ([]*ProviderEvent, error)
     DetectTurnEnd(event *ProviderEvent) bool
     ValidateBinary() (string, error)
