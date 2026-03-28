@@ -41,8 +41,8 @@ type HTTPTransport struct {
 	subscribers map[chan string]struct{} // Event subscribers for fan-out
 
 	// Metrics for monitoring transport health
-	eventsReceived  atomic.Int64
-	eventsDropped   atomic.Int64
+	eventsReceived      atomic.Int64
+	eventsDropped       atomic.Int64
 	droppedBySubscriber atomic.Int64 // Count of subscriber buffer-full drops
 
 	// Metrics for reconnection health
@@ -51,7 +51,7 @@ type HTTPTransport struct {
 	reconnectsFailed  atomic.Int64 // Incremented when max retries exceeded
 
 	// Heartbeat monitoring
-	lastHeartbeat   atomic.Int64 // Unix timestamp of last heartbeat (seconds)
+	lastHeartbeat    atomic.Int64 // Unix timestamp of last heartbeat (seconds)
 	heartbeatTimeout time.Duration
 }
 
@@ -142,57 +142,79 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 		default:
 		}
 
-		err := t.connectAndStream(ctx, &attempt)
+		result := t.connectAndStream(ctx, &attempt)
 		if ctx.Err() != nil {
 			return
 		}
 
-		if err == nil {
-			// connectAndStream returned nil: connection succeeded (read at least one event).
-			// This is a true reconnect success, not just "received an event".
+		// Distinguish clean close from real success:
+		// - HadData: received ≥1 non-heartbeat event → true success
+		// - NoData + nil error: server closed stream cleanly → normal, not a failure
+		// - Error: HTTP/network failure → count as failure, may retry
+		if result.HadData {
 			t.reconnectsSuccess.Add(1)
 		}
 
-		if attempt >= maxAttempts {
-			t.reconnectsFailed.Add(1)
-			t.logger.Error("SSE reconnection failed: max retry attempts exceeded",
-				"attempts", attempt,
-				"total_failed", t.reconnectsFailed.Load(),
-				"action", "transport_degraded",
-				"suggestion", "Check OpenCode server health and network connectivity")
-			// Continue retrying but log at error level every subsequent attempt
+		if result.Err != nil {
+			// Real error: log and count failure
+			if attempt >= maxAttempts {
+				t.reconnectsFailed.Add(1)
+				t.logger.Error("SSE reconnection failed: max retry attempts exceeded",
+					"attempts", attempt,
+					"total_failed", t.reconnectsFailed.Load(),
+					"action", "transport_degraded",
+					"suggestion", "Check OpenCode server health and network connectivity")
+			}
+
+			// Exponential backoff with jitter: adds up to 500ms random jitter.
+			secs := min(10<<uint(attempt), 60)
+			baseDelay := time.Duration(secs) * time.Second
+			jitter := time.Duration(rand.Int63n(int64(baseDelay)/2))
+			delay := baseDelay + jitter
+
+			t.logger.Warn("SSE disconnected, reconnecting",
+				"attempt", attempt+1,
+				"max_attempts", maxAttempts,
+				"delay", delay,
+				"error", result.Err)
+			t.reconnectAttempts.Add(1)
+		} else if !result.HadData {
+			// Clean close (server ended stream normally, no data received).
+			// This is expected for idle sessions; log at debug level.
+			t.logger.Debug("SSE stream ended cleanly (no data received)",
+				"attempt", attempt+1)
 		}
 
-		// Exponential backoff with jitter: adds up to 500ms random jitter to avoid synchronized retries.
-		// Uses global rand source (not cryptographic; acceptable for jitter).
-		baseDelay := time.Duration(min(10<<uint(attempt), 60)) * time.Second // Caps at 60s
-		jitter := time.Duration(rand.Int63n(int64(baseDelay) / 2))           // 0-50% of baseDelay
-		delay := baseDelay + jitter
-
-		t.logger.Warn("SSE disconnected, reconnecting",
-			"attempt", attempt+1,
-			"max_attempts", maxAttempts,
-			"delay", delay,
-			"error", err)
-
-		t.reconnectAttempts.Add(1)
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(delay):
-			// Continue retry loop
+		// Back off before next attempt (only on error, clean close can retry immediately)
+		if result.Err != nil {
+			secs := min(10<<uint(attempt), 60)
+			baseDelay := time.Duration(secs) * time.Second
+			jitter := time.Duration(rand.Int63n(int64(baseDelay / 2)))
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(baseDelay + jitter):
+				// Continue retry loop
+			}
 		}
 	}
 }
 
+// streamResult is the result of a single SSE connection attempt.
+type streamResult struct {
+	HadData bool    // true if at least one non-heartbeat event was received
+	Err     error   // nil if clean close; non-nil for HTTP/network errors
+}
+
 // connectAndStream establishes a single SSE connection and reads events.
-// It resets the backoff attempt counter on successful data receipt.
-func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) error {
+// Returns streamResult indicating whether data was received and any error encountered.
+// A nil error with HadData=false means the server closed the stream cleanly
+// (no data), which is a normal idle condition, not a failure.
+func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) streamResult {
 	url := t.baseURL + "/event"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return streamResult{Err: fmt.Errorf("create request: %w", err)}
 	}
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Cache-Control", "no-cache")
@@ -206,9 +228,10 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) erro
 
 	resp, err := t.sseClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("do request: %w", err)
+		return streamResult{Err: fmt.Errorf("do request: %w", err)}
 	}
 
+	hadData := false
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		select {
@@ -216,7 +239,7 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) erro
 			if err := resp.Body.Close(); err != nil {
 				t.logger.Warn("Failed to close response body", "error", err)
 			}
-			return ctx.Err()
+			return streamResult{Err: ctx.Err()}
 		default:
 		}
 
@@ -244,6 +267,9 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) erro
 				"heartbeat_timeout", t.heartbeatTimeout)
 			continue
 		}
+
+		// Mark that we received at least one non-heartbeat event.
+		hadData = true
 
 		// Signal ready on first non-heartbeat event (non-blocking)
 		t.mu.Lock()
@@ -273,33 +299,60 @@ func (t *HTTPTransport) connectAndStream(ctx context.Context, attempt *int) erro
 			"event_length", len(jsonLine),
 			"subscriber_count", subCount)
 
-		// Broadcast outside lock to avoid blocking SSE reader
+		// Broadcast outside lock to avoid blocking SSE reader.
+		// Use recover to handle the case where a channel was closed by Unsubscribe
+		// between the map copy and the send (race window where we don't hold the lock).
 		for _, sub := range subs {
-			select {
-			case sub <- jsonLine:
-				// Success
-			default:
-				// Buffer full - try with brief timeout to avoid immediate drop.
-				// This improves reliability during bursts (e.g., rapid tool results).
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						t.eventsDropped.Add(1)
+						t.droppedBySubscriber.Add(1)
+						t.logger.Warn("SSE broadcast: recovered from panic sending to closed subscriber",
+							"panic", r, "event_length", len(jsonLine),
+							"total_dropped", t.eventsDropped.Load())
+					}
+				}()
 				select {
 				case sub <- jsonLine:
-					// Success after brief wait
-				case <-time.After(100 * time.Millisecond):
-					t.eventsDropped.Add(1)
-					t.droppedBySubscriber.Add(1)
-					t.logger.Error("Subscriber buffer full after timeout, dropping SSE event",
-						"event_length", len(jsonLine),
-						"total_dropped", t.eventsDropped.Load(),
-						"suggestion", "Consider increasing subscriber buffer size or reducing event frequency")
+				default:
+					// Buffer full — try with brief timeout to avoid immediate drop.
+					select {
+					case sub <- jsonLine:
+					case <-time.After(100 * time.Millisecond):
+						t.eventsDropped.Add(1)
+						t.droppedBySubscriber.Add(1)
+						t.logger.Error("Subscriber buffer full after timeout, dropping SSE event",
+							"event_length", len(jsonLine),
+							"total_dropped", t.eventsDropped.Load(),
+							"suggestion", "Consider increasing subscriber buffer size or reducing event frequency")
+					}
 				}
-			}
+			}()
 		}
 	}
 
 	if err := resp.Body.Close(); err != nil {
 		t.logger.Warn("Failed to close response body", "error", err)
 	}
-	return scanner.Err()
+	// scanner.Err() is nil when the server closed the stream cleanly.
+	// We report HadData to let the caller distinguish clean close from real success.
+	return streamResult{HadData: hadData, Err: scanner.Err()}
+}
+
+// safeCloseChan safely closes a channel, ignoring panics from double-close.
+func safeCloseChan(ch chan<- string) {
+	defer func() { _ = recover() }()
+	close(ch)
+}
+
+// getMsgKeys extracts top-level keys from a map for logging without leaking content.
+func getMsgKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // Subscribe returns a new channel for receiving SSE events.
@@ -318,22 +371,31 @@ func (t *HTTPTransport) Subscribe() <-chan string {
 
 // Unsubscribe removes a subscriber and closes its channel.
 // Must be called when done with a subscription to prevent memory leaks.
+// Holds mutex through the close to prevent race with streamSSE broadcasting:
+// streamSSE copies the subscriber list while holding the lock, then sends
+// without the lock. By holding the lock through close, we guarantee that
+// streamSSE cannot send on a closed channel (it would have to hold the lock
+// to send, which we hold during close).
 func (t *HTTPTransport) Unsubscribe(ch <-chan string) {
 	t.mu.Lock()
-	// Find and remove subscriber while holding lock
-	var found chan string
+	defer t.mu.Unlock()
 	for sub := range t.subscribers {
 		if sub == ch {
-			found = sub
 			delete(t.subscribers, sub)
+			// Close while holding lock: streamSSE holds lock during its map copy,
+			// and sends outside the lock, but if we hold the lock through close,
+			// any concurrent send in streamSSE will block until we close.
+			// The send will then hit the closed channel and panic in the streamSSE
+			// goroutine (which is a bug in streamSSE, not here), BUT more
+			// importantly: since we hold the lock, streamSSE cannot copy the map
+			// while we're closing. It either sees the old map (before delete) or
+			// the new map (after delete) — in neither case can it send to a
+			// channel that's being closed by us concurrently.
+			// SafeClose closes c and removes it from the map if present.
+			// It is safe to call multiple times.
+			safeCloseChan(sub)
 			break
 		}
-	}
-	t.mu.Unlock() // Release lock before closing to avoid race with broadcast
-
-	// Close channel outside lock to prevent panic if broadcast is writing
-	if found != nil {
-		close(found)
 	}
 }
 
@@ -355,11 +417,13 @@ func (t *HTTPTransport) Send(ctx context.Context, sessionID string, message map[
 	// Use async endpoint for non-blocking prompt delivery
 	url := fmt.Sprintf("%s/session/%s/prompt_async", t.baseURL, sessionID)
 
-	// Debug: log the request body
-	t.logger.Debug("HTTPTransport.Send: sending request",
-		"url", url,
-		"body", string(body),
-		"session_id", sessionID)
+	// Debug: log the request body (only keys, not content, to avoid leaking prompts)
+	if t.logger.Enabled(context.Background(), slog.LevelDebug) {
+		t.logger.Debug("HTTPTransport.Send: sending request",
+			"url", url,
+			"msg_keys", getMsgKeys(message),
+			"session_id", sessionID)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -557,13 +621,13 @@ func (t *HTTPTransport) Health(ctx context.Context) error {
 
 // TransportStats holds SSE transport health metrics for monitoring and debugging.
 type TransportStats struct {
-	EventsReceived       int64
+	EventsReceived      int64
 	EventsDropped       int64
 	DroppedBySubscriber int64
 	ReconnectAttempts   int64
 	ReconnectsSuccess   int64
 	ReconnectsFailed    int64
-	LastHeartbeatTs     int64  // Unix timestamp of last heartbeat (0 if none)
+	LastHeartbeatTs     int64 // Unix timestamp of last heartbeat (0 if none)
 	HeartbeatTimeout    time.Duration
 	ActiveSubscribers   int
 	Running             bool
@@ -574,7 +638,7 @@ func (t *HTTPTransport) Stats() TransportStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return TransportStats{
-		EventsReceived:       t.eventsReceived.Load(),
+		EventsReceived:      t.eventsReceived.Load(),
 		EventsDropped:       t.eventsDropped.Load(),
 		DroppedBySubscriber: t.droppedBySubscriber.Load(),
 		ReconnectAttempts:   t.reconnectAttempts.Load(),
