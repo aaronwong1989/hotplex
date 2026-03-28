@@ -112,7 +112,7 @@ func NewEngine(options EngineOptions) (*Engine, error) {
 		}
 		if httpProvider, ok := prv.(HTTPTransportProvider); ok {
 			transport := httpProvider.GetHTTPTransport()
-			starter = intengine.NewHTTPSessionStarter(transport, prv, logger, options)
+			starter = intengine.NewHTTPSessionStarter(transport, prv, persistence.NewDefaultFileMarkerStore(), logger, options)
 		} else {
 			return nil, fmt.Errorf("http provider %s does not expose transport", meta.Type)
 		}

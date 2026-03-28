@@ -145,9 +145,12 @@ func (sm *SessionPool) getOrCreateSession(ctx context.Context, sessionID string,
 		sm.mu.Unlock()
 	}()
 
-	// startSession is heavy, but now doesn't block other sessionIDs
+	// startSession is heavy, but now doesn't block other sessionIDs.
+	// If StartSession returns an error after starting the HTTPSessionIO goroutine,
+	// we must clean up via CleanupOnError to avoid the 30s goroutine leak.
 	sess, err := sm.starter.StartSession(ctx, sessionID, cfg, prompt, nil)
 	if err != nil {
+		sm.starter.CleanupOnError()
 		return nil, false, err
 	}
 
@@ -257,12 +260,9 @@ func (sm *SessionPool) cleanupSessionLocked(sessionID string) error {
 	sess.mu.Unlock()
 
 	// For CLI sessions: kill process group and reap zombie.
+	// Note: s.io.Close() (CLISessionIO.Close) already calls cancel() internally,
+	// so we do NOT call sess.cancel() here to avoid double-invocation.
 	if sess.io != nil && sess.io.IsCLI() {
-		// Cancel context to kill process if using CommandContext.
-		if sess.cancel != nil {
-			sess.cancel()
-		}
-
 		// Force kill if needed (pass jobHandle for Windows Job Object termination).
 		sys.KillProcessGroup(sess.cmd, sess.jobHandle)
 
