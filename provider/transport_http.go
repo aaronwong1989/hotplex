@@ -15,6 +15,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/hrygo/hotplex/internal/strutil"
 )
 
 // HTTPTransport implements Transport using HTTP clients.
@@ -163,10 +165,11 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 					"attempts", attempt,
 					"total_failed", t.reconnectsFailed.Load(),
 					"action", "transport_degraded",
-					"suggestion", "Check OpenCode server health and network connectivity")
+					"suggestive", "Check OpenCode server health and network connectivity")
 			}
 
-			// Exponential backoff with jitter: adds up to 500ms random jitter.
+			// Compute backoff once: both for logging and for sleeping.
+			// Uses global rand source (not cryptographic; acceptable for jitter).
 			secs := min(10<<uint(attempt), 60)
 			baseDelay := time.Duration(secs) * time.Second
 			jitter := time.Duration(rand.Int63n(int64(baseDelay)/2))
@@ -178,24 +181,18 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 				"delay", delay,
 				"error", result.Err)
 			t.reconnectAttempts.Add(1)
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(delay):
+				// Continue retry loop
+			}
 		} else if !result.HadData {
 			// Clean close (server ended stream normally, no data received).
 			// This is expected for idle sessions; log at debug level.
 			t.logger.Debug("SSE stream ended cleanly (no data received)",
 				"attempt", attempt+1)
-		}
-
-		// Back off before next attempt (only on error, clean close can retry immediately)
-		if result.Err != nil {
-			secs := min(10<<uint(attempt), 60)
-			baseDelay := time.Duration(secs) * time.Second
-			jitter := time.Duration(rand.Int63n(int64(baseDelay / 2)))
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(baseDelay + jitter):
-				// Continue retry loop
-			}
 		}
 	}
 }
@@ -346,15 +343,6 @@ func safeCloseChan(ch chan<- string) {
 	close(ch)
 }
 
-// getMsgKeys extracts top-level keys from a map for logging without leaking content.
-func getMsgKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 // Subscribe returns a new channel for receiving SSE events.
 // Each subscriber gets its own channel, enabling fan-out to multiple sessions.
 // The caller must call Unsubscribe when done to prevent memory leaks.
@@ -421,7 +409,7 @@ func (t *HTTPTransport) Send(ctx context.Context, sessionID string, message map[
 	if t.logger.Enabled(context.Background(), slog.LevelDebug) {
 		t.logger.Debug("HTTPTransport.Send: sending request",
 			"url", url,
-			"msg_keys", getMsgKeys(message),
+			"msg_keys", strutil.MapKeys(message),
 			"session_id", sessionID)
 	}
 

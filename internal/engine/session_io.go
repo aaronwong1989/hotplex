@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hrygo/hotplex/internal/strutil"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/provider"
 )
@@ -226,7 +227,7 @@ func (h *HTTPSessionIO) WriteInput(msg map[string]any) error {
 	if h.logger.Enabled(context.Background(), slog.LevelDebug) {
 		h.logger.Debug("HTTPSessionIO.WriteInput sending message",
 			"session_id", h.sessionID,
-			"msg_keys", getMapKeys(msg))
+			"msg_keys", strutil.MapKeys(msg))
 	}
 
 	// Hold lock through Send: Close() blocks here until Send completes.
@@ -243,14 +244,6 @@ func (h *HTTPSessionIO) WriteInput(msg map[string]any) error {
 
 	h.logger.Info("HTTPSessionIO.WriteInput succeeded", "session_id", h.sessionID)
 	return nil
-}
-
-func getMapKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 // Close implements SessionIO. It cancels the SSE context and deletes the server session.
