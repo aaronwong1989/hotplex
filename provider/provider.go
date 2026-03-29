@@ -225,6 +225,31 @@ type OpenCodeConfig struct {
 	// WorkDir is the working directory for OpenCode Server context.
 	// This is passed via x-opencode-directory HTTP header to specify project directory.
 	WorkDir string `json:"work_dir,omitempty" koanf:"work_dir"`
+
+	// BinaryPath is the path to the opencode binary (for nursed mode).
+	// If empty, uses "opencode" from PATH.
+	BinaryPath string `json:"binary_path,omitempty" koanf:"binary_path"`
+
+	// ServeArgs are additional arguments for "opencode serve" command.
+	ServeArgs []string `json:"serve_args,omitempty" koanf:"serve_args"`
+
+	// WorkDirTemplate is the template for resolving work directory per session.
+	// Variables: {namespace}, {session_id}, {date}
+	// Default: "/hotplex/{namespace}/{date}/{session_id}"
+	WorkDirTemplate string `json:"workdir_template,omitempty" koanf:"workdir_template"`
+
+	// HealthCheckInterval is the interval for health checks (e.g., "10s").
+	HealthCheckInterval string `json:"health_check_interval,omitempty" koanf:"health_check_interval"`
+
+	// StartupTimeout is the timeout for process startup (e.g., "60s").
+	StartupTimeout string `json:"startup_timeout,omitempty" koanf:"startup_timeout"`
+
+	// RestartBackoff is the backoff intervals for restart attempts.
+	// Example: ["1s", "2s", "4s", "8s", "16s", "30s"]
+	RestartBackoff []string `json:"restart_backoff,omitempty" koanf:"restart_backoff"`
+
+	// MaxFailBurst is the maximum number of consecutive failures before entering dead state.
+	MaxFailBurst int `json:"max_fail_burst,omitempty" koanf:"max_fail_burst"`
 }
 
 // PiConfig contains pi-mono (pi-coding-agent) specific configuration.
