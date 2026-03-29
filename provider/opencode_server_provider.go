@@ -351,8 +351,24 @@ func estimateContextWindow(modelID string) int32 {
 }
 
 // DetectTurnEnd detects if an event indicates the end of a turn.
+// OpenCode Server emits result events in two contexts:
+//  1. message.updated with finish: per-step intermediate result (NOT turn end)
+//  2. session.idle / session.status(idle): session is truly idle (turn end)
+//
+// Only session-level idle events indicate the turn is complete.
+// Treating per-step results as turn-end would prematurely finalize the session,
+// leaving the Slack status bar stuck at "✅ 当前任务阶段构建完成".
 func (p *OpenCodeServerProvider) DetectTurnEnd(e *ProviderEvent) bool {
-	return e != nil && (e.Type == EventTypeResult || e.Type == EventTypeError)
+	if e == nil {
+		return false
+	}
+	if e.Type == EventTypeError {
+		return true
+	}
+	if e.Type != EventTypeResult {
+		return false
+	}
+	return e.RawType == OCEventSessionIdle || e.RawType == OCEventSessionStatus
 }
 
 // CleanupSession removes session resources.

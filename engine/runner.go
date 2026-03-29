@@ -591,6 +591,35 @@ func (r *Engine) handleStreamRawLine(line string, cfg *types.Config, stats *Sess
 	}
 
 	for _, pevt := range pevtSlice {
+		// Pre-accumulate stats from intermediate result events (e.g., OpenCode Server
+		// message.updated with finish). These carry per-step token/cost data that we
+		// need for the final session_stats. OpenCode Server sends accumulated totals
+		// (not incremental deltas), so we use assignment, not addition.
+		// This MUST run before DetectTurnEnd, because the final session.idle event
+		// carries no metadata — the stats are only available from these intermediates.
+		if pevt.Type == provider.EventTypeResult && pevt.Metadata != nil {
+			stats.mu.Lock()
+			if pevt.Metadata.InputTokens > 0 {
+				stats.InputTokens = pevt.Metadata.InputTokens
+				stats.lastInputTokens = pevt.Metadata.InputTokens
+			}
+			if pevt.Metadata.OutputTokens > 0 {
+				stats.OutputTokens = pevt.Metadata.OutputTokens
+			}
+			if pevt.Metadata.CacheReadTokens > 0 {
+				stats.CacheReadTokens = pevt.Metadata.CacheReadTokens
+				stats.lastCacheReadTokens = pevt.Metadata.CacheReadTokens
+			}
+			if pevt.Metadata.CacheWriteTokens > 0 {
+				stats.CacheWriteTokens = pevt.Metadata.CacheWriteTokens
+				stats.lastCacheWriteTokens = pevt.Metadata.CacheWriteTokens
+			}
+			if pevt.Metadata.ContextWindow > 0 {
+				stats.lastContextWindow = pevt.Metadata.ContextWindow
+			}
+			stats.mu.Unlock()
+		}
+
 		// Detect if this event indicates the turn is over
 		if r.provider.DetectTurnEnd(pevt) {
 			if err := r.handleNormalizedResult(pevt, stats, cfg, callback); err != nil {
@@ -692,20 +721,27 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 		//   2. Calculate from tokens using ContextWindow from provider
 		//   3. Fallback to conservative default (200K)
 		var contextUsedPercent float64
-		if pevt.Metadata != nil {
-			if pevt.Metadata.ContextUsedPercent != nil && *pevt.Metadata.ContextUsedPercent > 0 {
-				// Priority 1: Provider-provided direct percentage
-				contextUsedPercent = *pevt.Metadata.ContextUsedPercent
-			} else {
-				// Priority 2-3: Calculate from tokens
-				contextWindowTokens := pevt.Metadata.ContextWindow
-				if contextWindowTokens <= 0 {
-					contextWindowTokens = int32(200000) // Default 200K
-				}
-				totalInputTokens := stats.lastInputTokens + stats.lastCacheReadTokens + stats.lastCacheWriteTokens
-				if contextWindowTokens > 0 && totalInputTokens > 0 {
-					contextUsedPercent = float64(totalInputTokens) / float64(contextWindowTokens) * 100
-				}
+		if pevt.Metadata != nil && pevt.Metadata.ContextUsedPercent != nil && *pevt.Metadata.ContextUsedPercent > 0 {
+			// Priority 1: Provider-provided direct percentage
+			contextUsedPercent = *pevt.Metadata.ContextUsedPercent
+		} else {
+			// Priority 2-3: Calculate from tokens
+			// Use ContextWindow from metadata if available, otherwise fall back
+			// to lastContextWindow saved from intermediate message.updated events.
+			// This handles session.idle (nil metadata) correctly.
+			contextWindowTokens := int32(0)
+			if pevt.Metadata != nil {
+				contextWindowTokens = pevt.Metadata.ContextWindow
+			}
+			if contextWindowTokens <= 0 {
+				contextWindowTokens = stats.lastContextWindow
+			}
+			if contextWindowTokens <= 0 {
+				contextWindowTokens = int32(200000) // Default 200K
+			}
+			totalInputTokens := stats.lastInputTokens + stats.lastCacheReadTokens + stats.lastCacheWriteTokens
+			if contextWindowTokens > 0 && totalInputTokens > 0 {
+				contextUsedPercent = float64(totalInputTokens) / float64(contextWindowTokens) * 100
 			}
 		}
 

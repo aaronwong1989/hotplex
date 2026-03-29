@@ -30,6 +30,7 @@ type SessionStats struct {
 	lastInputTokens      int32 `json:"-"`
 	lastCacheReadTokens  int32 `json:"-"`
 	lastCacheWriteTokens int32 `json:"-"`
+	lastContextWindow    int32 `json:"-"` // Model context window size (e.g., 200000)
 
 	// Current tool tracking
 	currentToolStart time.Time `json:"-"`

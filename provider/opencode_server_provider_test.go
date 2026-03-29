@@ -74,8 +74,16 @@ func TestOpenCodeServerProvider_DetectTurnEnd(t *testing.T) {
 		want  bool
 	}{
 		{&ProviderEvent{Type: EventTypeAnswer, Content: "some answer"}, false},
-		{&ProviderEvent{Type: EventTypeResult}, true},
+		// session.idle → true turn end
+		{&ProviderEvent{Type: EventTypeResult, RawType: OCEventSessionIdle}, true},
+		// session.status → true turn end
+		{&ProviderEvent{Type: EventTypeResult, RawType: OCEventSessionStatus}, true},
+		// message.updated (per-step) → NOT turn end
+		{&ProviderEvent{Type: EventTypeResult, RawType: OCEventMessageUpdated}, false},
+		// error always ends turn
 		{&ProviderEvent{Type: EventTypeError}, true},
+		// nil → false
+		{nil, false},
 	}
 
 	for _, tt := range tests {
