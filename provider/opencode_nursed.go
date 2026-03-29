@@ -211,7 +211,7 @@ func (p *OpenCodeNursedProvider) BuildCLIArgs(_ string, _ *ProviderSessionOption
 }
 
 // BuildInputMessage creates an input message for the OpenCode API.
-func (p *OpenCodeNursedProvider) BuildInputMessage(prompt, taskInstructions string) (map[string]any, error) {
+func (p *OpenCodeNursedProvider) BuildInputMessage(prompt, taskInstructions, baseSystemPrompt string) (map[string]any, error) {
 	msg := map[string]any{
 		"parts": []map[string]any{{
 			"type": OCPartText,
