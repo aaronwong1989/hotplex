@@ -202,6 +202,8 @@ const (
 	StatusToolUse      StatusType = "tool_use"
 	StatusToolResult   StatusType = "tool_result"
 	StatusAnswering    StatusType = "answering"
+	StatusStepFinish   StatusType = "step_finish"   // Current task stage building complete
+	StatusSessionStats StatusType = "session_stats" // Session finalization (used for clearing)
 	StatusIdle         StatusType = "idle"
 )
 
@@ -224,6 +226,8 @@ var StatusEmojiMap = map[StatusType]string{
 	StatusToolUse:      "gear",
 	StatusToolResult:   "wrench",
 	StatusAnswering:    "pencil",
+	StatusStepFinish:   "white_check_mark",
+	StatusSessionStats: "white_circle",
 	StatusIdle:         "white_circle",
 }
 
@@ -241,6 +245,10 @@ func MessageTypeToStatusType(msgType MessageType) StatusType {
 		return StatusToolResult
 	case MessageTypeAnswer, MessageTypeExitPlanMode:
 		return StatusAnswering
+	case MessageTypeStepFinish:
+		return StatusStepFinish
+	case MessageTypeSessionStats:
+		return StatusSessionStats
 	default:
 		return StatusIdle
 	}

@@ -39,6 +39,14 @@ func (m *StatusManager) Notify(ctx context.Context, channelID, threadTS string, 
 	m.current = status
 	m.lastText = text
 
+	// When text is empty, SetStatus short-circuits to ClearStatus without updating
+	// internal state. We must update state FIRST, then call SetStatus, so that
+	// subsequent Notify calls see the correct (cleared) state and the throttle check
+	// (m.current == status && m.lastText == text) doesn't incorrectly block updates.
+	// This is safe because ClearStatus only calls the platform API and returns.
+	if text == "" {
+		return m.provider.ClearStatus(ctx, channelID, threadTS)
+	}
 	return m.provider.SetStatus(ctx, channelID, threadTS, status, text)
 }
 

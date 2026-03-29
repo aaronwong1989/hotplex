@@ -142,6 +142,63 @@ func TestStatusManager_Clear(t *testing.T) {
 	}
 }
 
+// TestStatusManager_Notify_ClearThenRestore verifies that clearing status via Notify("")
+// (e.g., session_stats with empty text) correctly updates internal state so that
+// subsequent Notify with the same non-empty text as before is NOT incorrectly
+// deduplicated. This is a regression test for the bug where step_finish status
+// ("✅ 当前任务阶段构建完成") was stuck because the clear (text="") didn't update
+// internal state, causing the next step_finish Notify to be blocked by the
+// throttle check (m.current == status && m.lastText == text).
+func TestStatusManager_Notify_ClearThenRestore(t *testing.T) {
+	provider := &mockStatusProvider{}
+	logger := testLogger()
+	manager := NewStatusManager(provider, logger)
+
+	ctx := context.Background()
+
+	// Step 1: Set a non-empty status (e.g., step_finish)
+	_ = manager.Notify(ctx, "C123", "T100", base.StatusStepFinish, "✅ 当前任务阶段构建完成")
+
+	if len(provider.calls) != 1 {
+		t.Fatalf("step 1: expected 1 call, got %d", len(provider.calls))
+	}
+	if provider.calls[0].method != "SetStatus" {
+		t.Errorf("step 1: expected SetStatus, got %s", provider.calls[0].method)
+	}
+
+	// Step 2: Clear status via Notify with empty text (how handleSessionStats clears)
+	_ = manager.Notify(ctx, "C123", "T100", base.StatusSessionStats, "")
+
+	// BUG: before the fix, ClearStatus was called but internal state was NOT updated.
+	// This meant the next step_finish Notify would see:
+	//   m.current = StatusStepFinish, m.lastText = "✅ 当前任务阶段构建完成"
+	// and throttle incorrectly blocked it.
+	//
+	// After fix: ClearStatus is called AND internal state is updated, so the
+	// subsequent step_finish Notify is correctly dispatched.
+	if len(provider.calls) != 2 {
+		t.Fatalf("step 2: expected 2 calls, got %d", len(provider.calls))
+	}
+	if provider.calls[1].method != "ClearStatus" {
+		t.Errorf("step 2: expected ClearStatus, got %s", provider.calls[1].method)
+	}
+
+	// Step 3: Notify with same non-empty text as step 1.
+	// This should NOT be deduplicated (should call SetStatus again).
+	// BUG: before fix, this was incorrectly blocked by throttle.
+	_ = manager.Notify(ctx, "C123", "T100", base.StatusStepFinish, "✅ 当前任务阶段构建完成")
+
+	if len(provider.calls) != 3 {
+		t.Fatalf("step 3: expected 3 calls (clear-then-restore should NOT deduplicate), got %d", len(provider.calls))
+	}
+	if provider.calls[2].method != "SetStatus" {
+		t.Errorf("step 3: expected SetStatus, got %s", provider.calls[2].method)
+	}
+	if provider.calls[2].text != "✅ 当前任务阶段构建完成" {
+		t.Errorf("step 3: expected text '✅ 当前任务阶段构建完成', got %q", provider.calls[2].text)
+	}
+}
+
 func TestStatusManager_Current(t *testing.T) {
 	provider := &mockStatusProvider{}
 	logger := testLogger()

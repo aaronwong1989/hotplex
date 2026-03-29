@@ -81,7 +81,7 @@ func TestClaudeCodeProvider_BuildInputMessage(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	msg, err := provider.BuildInputMessage("Hello, world!", "You are a code reviewer")
+	msg, err := provider.BuildInputMessage("Hello, world!", "You are a code reviewer", "")
 	if err != nil {
 		t.Fatalf("Failed to build input message: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestClaudeCodeProvider_BuildInputMessage(t *testing.T) {
 func TestClaudeCodeProvider_BuildInputMessage_NoInstructions(t *testing.T) {
 	enabled := true
 	provider, _ := NewClaudeCodeProvider(ProviderConfig{Type: ProviderTypeClaudeCode, Enabled: &enabled}, nil)
-	msg, _ := provider.BuildInputMessage("Hello!", "")
+	msg, _ := provider.BuildInputMessage("Hello!", "", "")
 	content := msg["message"].(map[string]any)["content"].([]map[string]any)
 	text := content[0]["text"].(string)
 	expected := "Hello!"

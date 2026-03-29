@@ -235,7 +235,7 @@ func (p *mockProvider) BuildCLIArgs(sessionID string, opts *ProviderSessionOptio
 	return []string{"--session-id", sessionID}
 }
 
-func (p *mockProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
+func (p *mockProvider) BuildInputMessage(prompt string, taskInstructions string, _ string) (map[string]any, error) {
 	return map[string]any{"prompt": prompt}, nil
 }
 

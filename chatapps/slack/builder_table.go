@@ -1,194 +1,285 @@
 // Package slack provides the Slack adapter implementation for the hotplex engine.
 // Table builder for structured data display using Slack's native Table Block.
+//
+// Correct Table Block cell schema per Slack API:
+//   - rich_text cells: { "type": "rich_text", "elements": [{ "type": "rich_text_section", "elements": [...] }] }
+//   - NO block_id field in cells (slack-go SDK's RichTextBlock.MarshalJSON incorrectly emits it,
+//     causing Slack API "invalid_blocks" error).
+//
+// Solution: Use a custom tableBlock wrapper with MarshalJSON that serializes cells
+// without block_id, while still accepting []*RichTextBlock from the SDK for type safety.
 package slack
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/hrygo/hotplex/chatapps/base"
 	"github.com/slack-go/slack"
 )
 
-// TableBuilder provides utilities for building Slack Table Blocks
-// Supports structured data display with better readability than single-line format
+// TableBuilder provides utilities for building Slack Table Blocks.
 type TableBuilder struct {
 	config TableConfig
 }
 
-// TableConfig configures table display behavior
+// TableConfig configures table display behavior.
 type TableConfig struct {
 	MaxRows    int  // Maximum rows to display (performance protection)
-	Compact    bool // Compact mode for mobile optimization
 	ShowHeader bool // Whether to show header row
 }
 
-// NewTableBuilder creates a new TableBuilder with given configuration
+// NewTableBuilder creates a new TableBuilder with given configuration.
 func NewTableBuilder(config TableConfig) *TableBuilder {
 	if config.MaxRows <= 0 {
-		config.MaxRows = 10 // Default max rows
+		config.MaxRows = 10
 	}
 	return &TableBuilder{config: config}
 }
 
-// BuildStatsTable builds a Table Block for session statistics
-// Displays: Duration, Input/Output Tokens (with cache), Files Modified, Tool Calls
-func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) *slack.TableBlock {
-	table := slack.NewTableBlock("session_stats")
+// tableCell serializes as a Slack Table Block cell without block_id.
+// Slack API only accepts { "type": "rich_text", "elements": [...] } — no block_id.
+type tableCell struct {
+	Type     string                 `json:"type"`
+	Elements []tableRichTextSection `json:"elements"`
+}
 
-	// Configure column settings for proper rendering
-	// Column 0: Label (left-aligned, not wrapped)
-	// Column 1: Value (left-aligned, wrapped for long text)
-	table = table.WithColumnSettings(
-		slack.ColumnSetting{
-			Align:     slack.ColumnAlignmentLeft,
-			IsWrapped: false,
-		},
-		slack.ColumnSetting{
-			Align:     slack.ColumnAlignmentLeft,
-			IsWrapped: true,
-		},
-	)
+type tableRichTextSection struct {
+	Type     string                     `json:"type"`
+	Elements []tableRichTextSectionElem `json:"elements"`
+}
 
-	metadata := msg.Metadata
+// tableRichTextSectionElem is a discriminated union of element types.
+// Only fields relevant for JSON serialization are included.
+type tableRichTextSectionElem struct {
+	Type      string    `json:"type"`
+	Text      string    `json:"text,omitempty"`
+	URL       string    `json:"url,omitempty"`
+	ChannelID string    `json:"channel_id,omitempty"`
+	UserID    string    `json:"user_id,omitempty"`
+	Name      string    `json:"name,omitempty"`
+	Unicode   string    `json:"unicode,omitempty"`
+	SkinTone  int       `json:"skin_tone,omitempty"`
+	Style     *styleRef `json:"style,omitempty"`
+}
 
-	if metadata == nil {
-		return table
+type styleRef struct {
+	Bold   bool `json:"bold,omitempty"`
+	Italic bool `json:"italic,omitempty"`
+	Strike bool `json:"strike,omitempty"`
+	Code   bool `json:"code,omitempty"`
+}
+
+// tableBlock wraps slack.TableBlock for correct JSON serialization.
+// It implements json.Marshaler so that when embedded in a blocks array,
+// cells serialize without the block_id field that Slack rejects.
+type tableBlock struct {
+	*slack.TableBlock
+}
+
+// MarshalJSON produces Slack API-compliant JSON for a Table Block.
+// The SDK's TableBlock.MarshalJSON would emit block_id inside cells,
+// which Slack rejects with "invalid_blocks". We override it here.
+func (t tableBlock) MarshalJSON() ([]byte, error) {
+	// Build a plain struct with the correct JSON shape.
+	type alias struct {
+		Type    string                `json:"type"`
+		BlockID string                `json:"block_id,omitempty"`
+		Rows    [][]tableCell         `json:"rows"`
+		ColSets []slack.ColumnSetting `json:"column_settings,omitempty"`
 	}
 
-	// Row 1: Duration
-	if duration := base.ExtractInt64(metadata, "total_duration_ms"); duration > 0 {
-		table.AddRow(
-			tb.buildLabelCell("⏱️ Duration"),
-			tb.buildValueCell(base.FormatDuration(duration)),
-		)
-	}
-
-	// Row 2-3: Input/Output Tokens with cache info
-	tokensIn := base.ExtractInt64(metadata, "input_tokens")
-	tokensOut := base.ExtractInt64(metadata, "output_tokens")
-	cacheRead := base.ExtractInt64(metadata, "cache_read_tokens")
-	cacheWrite := base.ExtractInt64(metadata, "cache_write_tokens")
-
-	if tokensIn > 0 {
-		table.AddRow(
-			tb.buildLabelCell("⚡ Input"),
-			tb.buildTokenValueCell(tokensIn, cacheRead),
-		)
-	}
-
-	if tokensOut > 0 {
-		table.AddRow(
-			tb.buildLabelCell("⚡ Output"),
-			tb.buildTokenValueCell(tokensOut, cacheWrite),
-		)
-	}
-
-	// Row 4: Files Modified
-	if files := base.ExtractInt64(metadata, "files_modified"); files > 0 {
-		table.AddRow(
-			tb.buildLabelCell("📝 Files"),
-			tb.buildValueCell(fmt.Sprintf("%d modified", files)),
-		)
-	}
-
-	// Row 5: Tool Calls
-	if tools := base.ExtractInt64(metadata, "tool_call_count"); tools > 0 {
-		table.AddRow(
-			tb.buildLabelCell("🔧 Tools"),
-			tb.buildValueCell(fmt.Sprintf("%d calls", tools)),
-		)
-	}
-
-	// Row 6: Model Used (from SSE ModelID metadata)
-	if model := base.ExtractString(metadata, "model_used"); model != "" {
-		table.AddRow(
-			tb.buildLabelCell("🤖 Model"),
-			tb.buildValueCell(model),
-		)
-	}
-
-	// Row 7: Finish Reason (end_turn / tool_use / max_tokens)
-	if reason := base.ExtractString(metadata, "finish_reason"); reason != "" {
-		reasonLabel := reason
-		switch reason {
-		case "end_turn":
-			reasonLabel = "✅ 正常结束"
-		case "tool_use":
-			reasonLabel = "🔧 工具调用"
-		case "max_tokens":
-			reasonLabel = "⚠️ Token 超限"
+	cells := make([][]tableCell, 0, len(t.Rows))
+	for _, row := range t.Rows {
+		var rowCells []tableCell
+		for _, cell := range row {
+			if cell == nil {
+				continue
+			}
+			elems := extractCellElements(cell)
+			rowCells = append(rowCells, tableCell{
+				Type:     string(cell.Type),
+				Elements: elems,
+			})
 		}
-		table.AddRow(
-			tb.buildLabelCell("📋 结束原因"),
-			tb.buildValueCell(reasonLabel),
-		)
+		cells = append(cells, rowCells)
 	}
 
-	return table
-}
-
-// buildLabelCell creates a label cell (left column) with consistent styling
-func (tb *TableBuilder) buildLabelCell(text string) *slack.RichTextBlock {
-	section := slack.NewRichTextSection(
-		slack.NewRichTextSectionTextElement(text, nil),
-	)
-	return slack.NewRichTextBlock("label", section)
-}
-
-// buildValueCell creates a value cell (right column) with consistent styling
-func (tb *TableBuilder) buildValueCell(text string) *slack.RichTextBlock {
-	section := slack.NewRichTextSection(
-		slack.NewRichTextSectionTextElement(text, nil),
-	)
-	return slack.NewRichTextBlock("value", section)
-}
-
-// buildTokenValueCell formats token count with cache information
-// Format: "100K (cache: 10K)" or "100K" if no cache
-func (tb *TableBuilder) buildTokenValueCell(total, cache int64) *slack.RichTextBlock {
-	text := base.FormatTokenCount(total)
-	if cache > 0 {
-		text += fmt.Sprintf(" (cache: %s)", base.FormatTokenCount(cache))
+	obj := alias{
+		Type:    string(t.Type),
+		BlockID: t.BlockID,
+		Rows:    cells,
 	}
-	return tb.buildValueCell(text)
+	if len(t.ColumnSettings) > 0 {
+		obj.ColSets = t.ColumnSettings
+	}
+	return json.Marshal(obj)
 }
 
-// BuildCommandProgressTable builds a Table Block for command progress tracking
-// Displays multi-step command execution with status for each step
-// Format: Step | Status | Details
-func (tb *TableBuilder) BuildCommandProgressTable(msg *base.ChatMessage) *slack.TableBlock {
-	table := slack.NewTableBlock("command_progress")
+// extractCellElements converts a RichTextBlock's generic []RichTextElement
+// into a []tableRichTextSection for JSON serialization.
+// Only handles the element types used by this builder.
+func extractCellElements(cell *slack.RichTextBlock) []tableRichTextSection {
+	if cell == nil || len(cell.Elements) == 0 {
+		return nil
+	}
+	var sections []tableRichTextSection
+	for _, elem := range cell.Elements {
+		rtSec, ok := elem.(*slack.RichTextSection)
+		if !ok {
+			continue
+		}
+		var elems []tableRichTextSectionElem
+		for _, se := range rtSec.Elements {
+			switch v := se.(type) {
+			case slack.RichTextSectionTextElement:
+				e := tableRichTextSectionElem{Type: "text"}
+				e.Text = v.Text
+				if v.Style != nil {
+					e.Style = &styleRef{
+						Bold:   v.Style.Bold,
+						Italic: v.Style.Italic,
+						Strike: v.Style.Strike,
+						Code:   v.Style.Code,
+					}
+				}
+				elems = append(elems, e)
+			case slack.RichTextSectionLinkElement:
+				e := tableRichTextSectionElem{Type: "link"}
+				e.URL = v.URL
+				e.Text = v.Text
+				elems = append(elems, e)
+			case slack.RichTextSectionChannelElement:
+				elems = append(elems, tableRichTextSectionElem{Type: "channel", ChannelID: v.ChannelID})
+			case slack.RichTextSectionUserElement:
+				elems = append(elems, tableRichTextSectionElem{Type: "user", UserID: v.UserID})
+			case slack.RichTextSectionEmojiElement:
+				e := tableRichTextSectionElem{Type: "emoji", Name: v.Name, Unicode: v.Unicode}
+				if v.SkinTone != 0 {
+					e.SkinTone = v.SkinTone
+				}
+				elems = append(elems, e)
+			}
+		}
+		sections = append(sections, tableRichTextSection{
+			Type:     string(rtSec.Type),
+			Elements: elems,
+		})
+	}
+	return sections
+}
+
+// BuildStatsTable builds a Table Block for session statistics.
+// Note: Session stats tables intentionally omit a header row regardless of ShowHeader
+// (label/value rows are self-describing), unlike BuildCommandProgressTable.
+func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
+	native := slack.NewTableBlock("session_stats")
+	native = native.WithColumnSettings(
+		slack.ColumnSetting{Align: slack.ColumnAlignmentLeft, IsWrapped: false},
+		slack.ColumnSetting{Align: slack.ColumnAlignmentLeft, IsWrapped: true},
+	)
+
 	metadata := msg.Metadata
-
 	if metadata == nil {
-		return table
+		return []slack.Block{tableBlock{TableBlock: native}}
 	}
 
-	// Get steps from metadata
+	addRow := func(label, value string) {
+		native.AddRow(tb.cell(label), tb.cell(value))
+	}
+	addRowOpt := func(label string, value string, ok bool) {
+		if ok {
+			native.AddRow(tb.cell(label), tb.cell(value))
+		}
+	}
+
+	if v := base.ExtractInt64(metadata, "total_duration_ms"); v > 0 {
+		addRow("⏱️ Duration", base.FormatDuration(v))
+	}
+	if v := base.ExtractInt64(metadata, "thinking_duration_ms"); v > 0 {
+		addRow("🧠 Think", base.FormatDuration(v))
+	}
+	if v := base.ExtractInt64(metadata, "tool_duration_ms"); v > 0 {
+		addRow("🔧 Tools", base.FormatDuration(v))
+	}
+	if v := base.ExtractFloat64(metadata, "context_used_percent"); v > 0 {
+		addRow("🧠 Context", fmt.Sprintf("%.0f%%", v))
+	}
+	if v := base.ExtractInt64(metadata, "input_tokens"); v > 0 {
+		cache := base.ExtractInt64(metadata, "cache_read_tokens")
+		addRow("⚡ Input", tb.formatTokenCell(v, cache))
+	}
+	if v := base.ExtractInt64(metadata, "output_tokens"); v > 0 {
+		cache := base.ExtractInt64(metadata, "cache_write_tokens")
+		addRow("⚡ Output", tb.formatTokenCell(v, cache))
+	}
+	if v := base.ExtractFloat64(metadata, "total_cost_usd"); v > 0 {
+		addRow("💵 Cost", base.FormatCost(v))
+	}
+	addRowOpt("📝 Files", fmt.Sprintf("%d modified", base.ExtractInt64(metadata, "files_modified")), base.ExtractInt64(metadata, "files_modified") > 0)
+	if v := base.ExtractString(metadata, "model_used"); v != "" {
+		addRow("🤖 Model", v)
+	}
+	if v := base.ExtractString(metadata, "finish_reason"); v != "" {
+		label := v
+		switch v {
+		case "end_turn":
+			label = "✅ 正常结束"
+		case "tool_use", "tool_calls":
+			// tool_calls: MiniMax API stop_reason format
+			// tool_use: OpenAI-compatible API format
+			// Skip: redundant with tool count row (🔧 N tools)
+		case "max_tokens":
+			label = "⚠️ Token 超限"
+		default:
+			label = "❓ " + v
+		}
+		if v != "tool_use" && v != "tool_calls" {
+			addRow("📋 结束", label)
+		}
+	}
+
+	return []slack.Block{tableBlock{TableBlock: native}}
+}
+
+// cell creates a simple text cell with empty block_id (Slack API requirement).
+func (tb *TableBuilder) cell(text string) *slack.RichTextBlock {
+	section := slack.NewRichTextSection(
+		slack.NewRichTextSectionTextElement(text, nil),
+	)
+	return slack.NewRichTextBlock("", section) // block_id intentionally empty
+}
+
+// formatTokenCell formats token count with optional cache info.
+func (tb *TableBuilder) formatTokenCell(total, cache int64) string {
+	s := base.FormatTokenCount(total)
+	if cache > 0 {
+		s += fmt.Sprintf(" (cache: %s)", base.FormatTokenCount(cache))
+	}
+	return s
+}
+
+// BuildCommandProgressTable builds a Table Block for command progress.
+func (tb *TableBuilder) BuildCommandProgressTable(msg *base.ChatMessage) []slack.Block {
+	native := slack.NewTableBlock("command_progress")
+	metadata := msg.Metadata
+	if metadata == nil {
+		return []slack.Block{tableBlock{TableBlock: native}}
+	}
 	steps, ok := metadata["steps"].([]map[string]any)
 	if !ok || len(steps) == 0 {
-		return table
+		return []slack.Block{tableBlock{TableBlock: native}}
 	}
-
-	// Add header row
 	if tb.config.ShowHeader {
-		table.AddRow(
-			tb.buildLabelCell("Step"),
-			tb.buildLabelCell("Status"),
-			tb.buildLabelCell("Details"),
-		)
+		native.AddRow(tb.cell("Step"), tb.cell("Status"), tb.cell("Details"))
 	}
-
-	// Add step rows
 	for i, step := range steps {
 		if i >= tb.config.MaxRows {
 			break
 		}
-
-		stepNum := fmt.Sprintf("%d/%d", i+1, len(steps))
+		num := fmt.Sprintf("%d/%d", i+1, len(steps))
 		status := "⏸️ Pending"
 		details := ""
-
 		if s, ok := step["status"].(string); ok {
 			switch s {
 			case "done":
@@ -202,70 +293,7 @@ func (tb *TableBuilder) BuildCommandProgressTable(msg *base.ChatMessage) *slack.
 		if d, ok := step["details"].(string); ok {
 			details = d
 		}
-
-		table.AddRow(
-			tb.buildValueCell(stepNum),
-			tb.buildValueCell(status),
-			tb.buildValueCell(details),
-		)
+		native.AddRow(tb.cell(num), tb.cell(status), tb.cell(details))
 	}
-
-	return table
-}
-
-// BuildToolCallsTable builds a Table Block for tool call summary
-// Displays: Tool Name | Call Count | Success Rate
-func (tb *TableBuilder) BuildToolCallsTable(msg *base.ChatMessage) *slack.TableBlock {
-	table := slack.NewTableBlock("tool_calls")
-	metadata := msg.Metadata
-
-	if metadata == nil {
-		return table
-	}
-
-	// Get tool calls from metadata
-	toolCalls, ok := metadata["tool_calls"].([]map[string]any)
-	if !ok || len(toolCalls) == 0 {
-		return table
-	}
-
-	// Add header row
-	if tb.config.ShowHeader {
-		table.AddRow(
-			tb.buildLabelCell("Tool"),
-			tb.buildLabelCell("Calls"),
-			tb.buildLabelCell("Success"),
-		)
-	}
-
-	// Add tool rows
-	for i, tool := range toolCalls {
-		if i >= tb.config.MaxRows {
-			break
-		}
-
-		name := ""
-		calls := int64(0)
-		success := "100%"
-
-		if n, ok := tool["name"].(string); ok {
-			name = n
-		}
-		if c, ok := tool["count"].(int64); ok {
-			calls = c
-		} else if c, ok := tool["count"].(int); ok {
-			calls = int64(c)
-		}
-		if s, ok := tool["success_rate"].(string); ok {
-			success = s
-		}
-
-		table.AddRow(
-			tb.buildValueCell(name),
-			tb.buildValueCell(fmt.Sprintf("%d", calls)),
-			tb.buildValueCell(success),
-		)
-	}
-
-	return table
+	return []slack.Block{tableBlock{TableBlock: native}}
 }

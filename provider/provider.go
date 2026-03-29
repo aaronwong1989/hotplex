@@ -59,7 +59,9 @@ type Provider interface {
 
 	// BuildInputMessage constructs the stdin message payload for sending user input.
 	// This handles provider-specific input formatting (e.g., stream-json for Claude).
-	BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error)
+	// The baseSystemPrompt is injected as a system message for providers that support it
+	// (e.g., OpenCode Server's "system" field). Pass empty string to skip injection.
+	BuildInputMessage(prompt string, taskInstructions string, baseSystemPrompt string) (map[string]any, error)
 
 	// ParseEvent parses a raw output line into one or more normalized ProviderEvents.
 	// Returns empty slice if the line should be ignored (e.g., system messages).
@@ -373,15 +375,6 @@ func (b *PromptBuilder) Build(prompt, taskInstructions string) string {
 	}
 	return fmt.Sprintf("<context>\n%s\n</context>\n\n<user_query>\n%s\n</user_query>",
 		taskInstructions, prompt)
-}
-
-// BuildInputMessage creates a standard input message map for JSON serialization.
-func (b *PromptBuilder) BuildInputMessage(prompt, taskInstructions string) map[string]any {
-	return map[string]any{
-		"prompt":            prompt,
-		"task_instructions": taskInstructions,
-		"final_prompt":      b.Build(prompt, taskInstructions),
-	}
 }
 
 // ============================================================================

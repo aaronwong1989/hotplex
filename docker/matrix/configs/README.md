@@ -69,7 +69,7 @@ server_addr: :8080                 # Used for health checks or HTTP mode
 provider:
   type: claude-code                # claude-code | opencode
   default_model: sonnet
-  default_permission_mode: bypass-permissions
+  default_permission_mode: bypassPermissions
   dangerously_skip_permissions: true
 
 engine:
@@ -138,7 +138,7 @@ server:
 # Security Configuration
 security:
   api_key: "${HOTPLEX_API_KEY}"
-  permission_mode: bypass-permissions
+  permission_mode: bypassPermissions
 ```
 
 ## Creating New Bots

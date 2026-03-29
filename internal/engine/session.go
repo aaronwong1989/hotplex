@@ -54,11 +54,12 @@ type Session struct {
 	mu     sync.RWMutex
 	closed bool
 
-	callback   Callback
-	logger     *slog.Logger
-	logFile    *os.File // Session-specific log file for stderr persistence
-	ext        any      // Extension payload for consumer packages
-	IsResuming bool     // True if session was resumed from persistent marker
+	callback              Callback
+	logger                *slog.Logger
+	logFile               *os.File // Session-specific log file for stderr persistence
+	ext                   any      // Extension payload for consumer packages
+	IsResuming            bool     // True if session was resumed from persistent marker
+	FirstMessageOnSession bool     // True until the first BuildInputMessage is sent (for HTTP hot-multiplexing gate)
 }
 
 // IsAlive checks if the process is still running.
@@ -239,6 +240,21 @@ func (s *Session) SetCallback(cb Callback) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.callback = cb
+}
+
+// SetIOCallback propagates the callback to the underlying HTTP I/O layer.
+// This is required for HTTP sessions where HTTPSessionIO.StartReading() is blocked
+// by a gate until SetCallback is called. Without this, StartReading() times out
+// after 30 seconds and all SSE events are silently dropped.
+func (s *Session) SetIOCallback(cb Callback) {
+	if s.io == nil {
+		return
+	}
+	// HTTPSessionIO has its own SetCallback which closes the startReadingGate.
+	// CLISessionIO does not have this method (it uses Session.callback directly).
+	if httpIO, ok := s.io.(*HTTPSessionIO); ok {
+		httpIO.SetCallback(func(eventType string, data any) error { return cb(eventType, data) })
+	}
 }
 
 // GetCallback returns the current callback.

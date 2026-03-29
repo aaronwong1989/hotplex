@@ -112,7 +112,7 @@ func NewEngine(options EngineOptions) (*Engine, error) {
 		}
 		if httpProvider, ok := prv.(HTTPTransportProvider); ok {
 			transport := httpProvider.GetHTTPTransport()
-			starter = intengine.NewHTTPSessionStarter(transport, prv, logger, options)
+			starter = intengine.NewHTTPSessionStarter(transport, prv, persistence.NewDefaultFileMarkerStore(), logger, options)
 		} else {
 			return nil, fmt.Errorf("http provider %s does not expose transport", meta.Type)
 		}
@@ -466,15 +466,28 @@ func (r *Engine) executeWithMultiplex(
 	doneChan := make(chan struct{})
 
 	sess.SetCallback(intengine.Callback(r.createEventBridge(cfg, callback, stats, doneChan)))
+	sess.SetIOCallback(intengine.Callback(r.createEventBridge(cfg, callback, stats, doneChan)))
 
-	// Build provider-specific input message payload
-	// 2. Send input - Skip if this was a cold start and the provider handles initial prompt as CLI args
+	// Send input. Rules:
+	// - CLI cold-start (RequiresInitialPromptAsArg=true): stdin skipped, prompt via CLI arg.
+	// - First turn (any provider): BuildInputMessage + WriteInput with system prompt.
+	// - Hot-multiplexing / resume: BuildInputMessage + WriteInput without system prompt.
 	if created && r.provider.Metadata().Features.RequiresInitialPromptAsArg {
-		r.logger.Debug("Skipping Stdin injection for cold-start (already passed via CLI args)",
+		r.logger.Debug("Skipping Stdin injection for cold-start (system prompt via CLI args)",
 			"namespace", r.opts.Namespace,
 			"session_id", cfg.SessionID)
+	} else if sess.FirstMessageOnSession {
+		input, err := r.provider.BuildInputMessage(prompt, cfg.TaskInstructions, cfg.BaseSystemPrompt)
+		if err != nil {
+			return fmt.Errorf("build input message: %w", err)
+		}
+		if err := sess.WriteInput(input); err != nil {
+			return fmt.Errorf("write input: %w", err)
+		}
+		sess.FirstMessageOnSession = false
 	} else {
-		input, err := r.provider.BuildInputMessage(prompt, cfg.TaskInstructions)
+		// Hot-multiplexing / resume: send prompt without system prompt.
+		input, err := r.provider.BuildInputMessage(prompt, cfg.TaskInstructions, "")
 		if err != nil {
 			return fmt.Errorf("build input message: %w", err)
 		}

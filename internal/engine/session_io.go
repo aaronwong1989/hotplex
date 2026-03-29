@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"os/exec"
 	"sync"
+	"time"
 
+	"github.com/hrygo/hotplex/internal/strutil"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/provider"
 )
@@ -134,12 +136,17 @@ type HTTPSessionIO struct {
 	logger    *slog.Logger
 
 	// callback handles session events (runner_exit, raw_line).
-	// Set at construction time by HTTPSessionStarter.
+	// Set via SetCallback before StartReading is called.
 	callback SessionCallback
 
 	// eventsCh is the subscribed SSE event channel from transport.
 	// Each HTTPSessionIO gets its own channel for fan-out.
 	eventsCh <-chan string
+
+	// startReadingGate blocks StartReading until StartReading is explicitly called.
+	// This ensures the SSE reader does not begin before the session callback is set,
+	// preventing event loss during the session creation window (Connect → CreateSession → SetCallback).
+	startReadingGate chan struct{}
 
 	mu       sync.Mutex
 	closed   bool
@@ -169,31 +176,66 @@ func NewHTTPSessionIO(transport provider.Transport, sessionID string, cancelFn f
 		logger:    logger.With("session_id", sessionID),
 		eventsCh:  eventsCh,
 		cancelFn:  cancelFn,
+		// Gate is created open in NewHTTPSessionIO (for CLISessionStarter compatibility).
+		// HTTPSessionStarter.StartSession creates HTTPSessionIO with an open gate, but
+		// will close it immediately after CreateSession returns, before returning to caller.
+		// The SSE goroutine (runner.go) will then start reading after SetCallback.
+		startReadingGate: make(chan struct{}),
 	}
 }
 
 // SetCallback sets the session callback for event dispatch.
+// It also closes the startReadingGate to unblock the SSE reader goroutine.
+// Safe to call multiple times: closing an already-closed channel recovers via deferred recover().
 func (h *HTTPSessionIO) SetCallback(cb SessionCallback) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.callback = cb
+	// Gate may already be closed if StartReading timed out (30s) before SetCallback arrived.
+	// Recover prevents panic: "close of closed channel".
+	defer func() {
+		if r := recover(); r != nil {
+			h.logger.Debug("SetCallback: startReadingGate already closed (timeout race), recovering",
+				"panic", r)
+		}
+	}()
+	// Check if already closed to avoid panic on double-close.
+	// The gate is a struct{} channel; sending on a closed channel panics.
+	// We only close it if it hasn't been closed yet.
+	select {
+	case <-h.startReadingGate:
+		// Already closed (drained or never created open)
+	default:
+		close(h.startReadingGate)
+	}
 }
 
 // WriteInput implements SessionIO.
 // It sends the message via HTTP POST to the opencode serve session.
+// Holds h.mu through the entire Send to prevent Close() from racing in the gap
+// between the closed-check and the network call.
 func (h *HTTPSessionIO) WriteInput(msg map[string]any) error {
 	h.mu.Lock()
 	if h.closed {
 		h.mu.Unlock()
-		h.logger.Error("WriteInput rejected: session closed", "session_id", h.sessionID)
+		h.logger.Debug("WriteInput rejected: session closed", "session_id", h.sessionID)
 		return fmt.Errorf("session closed")
 	}
+
+	// Guard expensive JSON marshaling behind Debug log level.
+	// Info-level logging would marshal every WriteInput regardless of enabled log level.
+	if h.logger.Enabled(context.Background(), slog.LevelDebug) {
+		h.logger.Debug("HTTPSessionIO.WriteInput sending message",
+			"session_id", h.sessionID,
+			"msg_keys", strutil.MapKeys(msg))
+	}
+
+	// Hold lock through Send: Close() blocks here until Send completes.
+	// This eliminates the race where Close() deletes the session while Send is in flight.
+	err := h.transport.Send(context.Background(), h.sessionID, msg)
 	h.mu.Unlock()
 
-	h.logger.Info("HTTPSessionIO.WriteInput sending message",
-		"session_id", h.sessionID,
-		"msg_keys", getMapKeys(msg),
-		"msg_json", mustMarshalJSON(msg))
-
-	if err := h.transport.Send(context.Background(), h.sessionID, msg); err != nil {
+	if err != nil {
 		h.logger.Error("HTTPSessionIO.WriteInput failed",
 			"session_id", h.sessionID,
 			"error", err)
@@ -202,22 +244,6 @@ func (h *HTTPSessionIO) WriteInput(msg map[string]any) error {
 
 	h.logger.Info("HTTPSessionIO.WriteInput succeeded", "session_id", h.sessionID)
 	return nil
-}
-
-func mustMarshalJSON(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("<marshal error: %v>", err)
-	}
-	return string(b)
-}
-
-func getMapKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 // Close implements SessionIO. It cancels the SSE context and deletes the server session.
@@ -239,7 +265,15 @@ func (h *HTTPSessionIO) Close() error {
 		h.cancelFn()
 		h.cancelFn = nil
 	}
-	_ = h.transport.DeleteSession(context.Background(), h.sessionID)
+	// Use timeout context to prevent hanging on server unresponsiveness.
+	// 5 seconds is sufficient for server-side session cleanup.
+	deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := h.transport.DeleteSession(deleteCtx, h.sessionID); err != nil {
+		h.logger.Warn("Failed to delete HTTP session on close",
+			"session_id", h.sessionID,
+			"error", err)
+	}
 	return nil
 }
 
@@ -257,21 +291,47 @@ func (h *HTTPSessionIO) IsAlive() bool {
 }
 
 // StartReading starts the SSE event dispatch loop.
-// It reads from the subscribed events channel and dispatches "raw_line" and "runner_exit" callbacks.
+// It blocks on startReadingGate until SetCallback is called (in runner.go),
+// ensuring the SSE reader never processes events without a valid callback.
 // Call via panicx.SafeGo.
 func (h *HTTPSessionIO) StartReading() {
+	// Gate wait: ensures the SSE reader does not begin processing events
+	// before the session callback is set in runner.go.
+	// Events arriving on the SSE channel before this point are buffered
+	// by the transport's 64-channel subscriber buffer.
+	h.logger.Debug("StartReading: waiting for gate (callback setup)")
+
+	// Use a background goroutine to wait for the gate with timeout,
+	// then signal via a channel so the main loop can defer cleanup.
+	gateDone := make(chan struct{})
+	go func() {
+		select {
+		case <-h.startReadingGate:
+			h.logger.Debug("StartReading: gate opened, callback is ready")
+		case <-time.After(30 * time.Second):
+			h.logger.Error("StartReading: timeout waiting for gate, exiting")
+		}
+		close(gateDone)
+	}()
+
+	// Wait for gate resolution (blocks until goroutine above signals).
+	<-gateDone
+
+	// At this point either the gate opened (normal path) or we timed out.
+	// Either way, we must run cleanup: the session may already be in the pool
+	// even if the callback never arrived (runner panicked or timed out before SetCallback).
+	// Defers guarantee cleanup runs regardless of which path we took.
 	h.mu.Lock()
 	cb := h.callback
 	eventsCh := h.eventsCh
 	h.mu.Unlock()
-
-	h.logger.Debug("StartReading called", "has_events_channel", eventsCh != nil, "has_callback", cb != nil)
 
 	defer func() {
 		h.logger.Info("StartReading exiting, calling runner_exit")
 		if cb != nil {
 			_ = cb("runner_exit", nil)
 		}
+		// Always Close to clean up transport subscription and delete server session.
 		if err := h.Close(); err != nil {
 			h.logger.Warn("Failed to close session", "error", err)
 		}
@@ -301,9 +361,6 @@ func (h *HTTPSessionIO) StartReading() {
 	}
 	h.logger.Info("StartReading: events channel closed", "total_events", eventCount)
 }
-
-// ReadStderrFromHTTPSession is a no-op for HTTP sessions (no stderr).
-func ReadStderrFromHTTPSession(_ *slog.Logger) {}
 
 var _ SessionIO = (*CLISessionIO)(nil)
 var _ SessionIO = (*HTTPSessionIO)(nil)

@@ -38,12 +38,12 @@ HotPlex 将自动继承当前机器的认证状态。
 
 ### Provider 配置参数
 
-| 参数                    | 类型       | 说明                                                     |
-| :---------------------- | :--------- | :------------------------------------------------------- |
-| `DefaultPermissionMode` | `string`   | 设置为 `"bypass-permissions"` 可对工具调用进行自动授权。 |
-| `AllowedTools`          | `[]string` | 工具白名单（如 `["Bash", "Read", "Edit"]`）。            |
-| `DisallowedTools`       | `[]string` | 工具黑名单，显式禁止使用的工具。                         |
-| `Model`                 | `string`   | 覆盖默认模型（如 `claude-3-5-sonnet-20241022`）。        |
+| 参数                    | 类型       | 说明                                                    |
+| :---------------------- | :--------- | :------------------------------------------------------ |
+| `DefaultPermissionMode` | `string`   | 设置为 `"bypassPermissions"` 可对工具调用进行自动授权。 |
+| `AllowedTools`          | `[]string` | 工具白名单（如 `["Bash", "Read", "Edit"]`）。           |
+| `DisallowedTools`       | `[]string` | 工具黑名单，显式禁止使用的工具。                        |
+| `Model`                 | `string`   | 覆盖默认模型（如 `claude-3-5-sonnet-20241022`）。       |
 
 ## 核心特性
 
@@ -73,7 +73,7 @@ import (
 func main() {
 	// 1. 初始化 Claude Code Provider (默认方式)
 	claudePrv, _ := hotplex.NewClaudeCodeProvider(hotplex.ProviderConfig{
-		DefaultPermissionMode: "bypass-permissions",
+		DefaultPermissionMode: "bypassPermissions",
 		AllowedTools:          []string{"Bash", "Read", "Edit"},
 	}, nil)
 

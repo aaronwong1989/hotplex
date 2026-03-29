@@ -97,12 +97,19 @@ func (p *OpenCodeServerProvider) BuildCLIArgs(_ string, _ *ProviderSessionOption
 }
 
 // BuildInputMessage creates an input message for the OpenCode API.
-func (p *OpenCodeServerProvider) BuildInputMessage(prompt, taskInstructions string) (map[string]any, error) {
+// The baseSystemPrompt is injected as the "system" field (per-message system instructions).
+// Pass empty string to skip injection (e.g., resume/hot-multiplexing turns).
+func (p *OpenCodeServerProvider) BuildInputMessage(prompt, taskInstructions, baseSystemPrompt string) (map[string]any, error) {
 	msg := map[string]any{
 		"parts": []map[string]any{{
 			"type": OCPartText,
 			"text": p.promptBuilder.Build(prompt, taskInstructions),
 		}},
+	}
+
+	// Inject system prompt if provided (cold-start first turn only).
+	if baseSystemPrompt != "" {
+		msg["system"] = baseSystemPrompt
 	}
 
 	// Debug log to verify message structure
@@ -113,6 +120,7 @@ func (p *OpenCodeServerProvider) BuildInputMessage(prompt, taskInstructions stri
 		} else {
 			p.logger.Debug("BuildInputMessage created",
 				"prompt_len", len(prompt),
+				"has_system", baseSystemPrompt != "",
 				"msg_json", string(b))
 		}
 	}

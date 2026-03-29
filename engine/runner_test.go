@@ -363,7 +363,7 @@ func (m *mockTokenTestProvider) BuildCLIArgs(sessionID string, opts *provider.Pr
 	return []string{"--session-id", sessionID}
 }
 
-func (m *mockTokenTestProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
+func (m *mockTokenTestProvider) BuildInputMessage(prompt string, taskInstructions string, _ string) (map[string]any, error) {
 	return map[string]any{"prompt": prompt}, nil
 }
 

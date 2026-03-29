@@ -40,7 +40,7 @@ Claude Code is configured via `hotplex.ClaudeCodeProvider`.
 
 | Option                  | Type       | Description                                                      |
 | :---------------------- | :--------- | :--------------------------------------------------------------- |
-| `DefaultPermissionMode` | `string`   | Set to `"bypass-permissions"` to auto-authorize tool usage.      |
+| `DefaultPermissionMode` | `string`   | Set to `"bypassPermissions"` to auto-authorize tool usage.       |
 | `AllowedTools`          | `[]string` | Whitelist of tools the agent can use (e.g., `["Bash", "Edit"]`). |
 | `DisallowedTools`       | `[]string` | Blacklist of tools to forbid.                                    |
 | `Model`                 | `string`   | Override the default model (e.g., `claude-3-5-sonnet-20241022`). |
@@ -73,7 +73,7 @@ import (
 func main() {
 	// 1. Initialize Claude Code Provider (Default)
 	claudePrv, _ := hotplex.NewClaudeCodeProvider(hotplex.ProviderConfig{
-		DefaultPermissionMode: "bypass-permissions",
+		DefaultPermissionMode: "bypassPermissions",
 		AllowedTools:          []string{"Bash", "Read", "Edit"},
 	}, nil)
 

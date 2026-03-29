@@ -30,6 +30,13 @@ type SessionStarter interface {
 
 	// TransportType returns the transport type identifier ("cli" or "http").
 	TransportType() string
+
+	// CleanupOnError cleans up any partially-initialized session resources
+	// when StartSession returns an error. This is needed because HTTPSessionStarter
+	// starts the StartReading goroutine before returning; if StartSession returns
+	// an error, the goroutine's 30s timeout is the only cleanup unless this is called.
+	// For CLISessionStarter this is a no-op.
+	CleanupOnError()
 }
 
 // CLISessionStarter spawns CLI subprocess sessions.
@@ -63,6 +70,10 @@ func NewCLISessionStarter(
 		opts:        opts,
 	}
 }
+
+// CleanupOnError is a no-op for CLISessionStarter.
+// CLI sessions are cleaned up via Session.close() + sys.KillProcessGroup in cleanupSessionLocked.
+func (s *CLISessionStarter) CleanupOnError() {}
 
 // TransportType implements SessionStarter.
 func (s *CLISessionStarter) TransportType() string { return "cli" }
@@ -193,21 +204,22 @@ func (s *CLISessionStarter) StartSession(
 	cliIO := NewCLISessionIO(cmd, stdin, stdout, stderr, cancel, sessLog)
 
 	sess := &Session{
-		ID:                sessionID,
-		ProviderSessionID: providerSessionID,
-		Config:            cfg,
-		cmd:               cmd,
-		io:                cliIO,
-		cancel:            cancel,
-		jobHandle:         jobHandle,
-		CreatedAt:         time.Now(),
-		LastActive:        time.Now(),
-		Status:            SessionStatusStarting,
-		TaskInstructions:  cfg.TaskInstructions,
-		statusChange:      make(chan SessionStatus, 10),
-		logger:            sessLog,
-		IsResuming:        isResuming,
-		callback:          cb,
+		ID:                    sessionID,
+		ProviderSessionID:     providerSessionID,
+		Config:                cfg,
+		cmd:                   cmd,
+		io:                    cliIO,
+		cancel:                cancel,
+		jobHandle:             jobHandle,
+		CreatedAt:             time.Now(),
+		LastActive:            time.Now(),
+		Status:                SessionStatusStarting,
+		TaskInstructions:      cfg.TaskInstructions,
+		statusChange:          make(chan SessionStatus, 10),
+		logger:                sessLog,
+		IsResuming:            isResuming,
+		FirstMessageOnSession: !isResuming, // New session needs BuildInputMessage; resumed session already has context
+		callback:              cb,
 	}
 
 	if err := sess.OpenLogFile(); err != nil {
@@ -319,12 +331,18 @@ func (s *CLISessionStarter) buildCLIArgs(providerSessionID string, sessLog *slog
 		SessionID:                  providerSessionID,
 	}
 
-	if s.markerStore.Exists(providerSessionID) {
-		if s.provider.VerifySession(providerSessionID, cfg.WorkDir) {
-			opts.ResumeSession = true
-			opts.ProviderSessionID = providerSessionID
-			sessLog.Info("Resuming existing persistent CLI session")
-		} else {
+	// BaseSystemPrompt 注入规则（Claude Code 专用）：
+	// - 冷启动 + 会话初次创建：注入（持久化到会话上下文）
+	// - Resume / 热复用：不注入（会话已有上下文，重复注入会破坏对话连贯性）
+	isNewSession := !s.markerStore.Exists(providerSessionID)
+	if !isNewSession && s.provider.VerifySession(providerSessionID, cfg.WorkDir) {
+		opts.ResumeSession = true
+		opts.ProviderSessionID = providerSessionID
+		sessLog.Info("Resuming existing persistent CLI session")
+		// 清除 BaseSystemPrompt：resume 时不应重新注入
+		opts.BaseSystemPrompt = ""
+	} else {
+		if !isNewSession {
 			sessLog.Warn("Marker exists but CLI session data not found, creating fresh session",
 				"provider_session_id", providerSessionID)
 			if err := s.markerStore.Delete(providerSessionID); err != nil {
@@ -333,14 +351,9 @@ func (s *CLISessionStarter) buildCLIArgs(providerSessionID string, sessLog *slog
 			if err := s.provider.CleanupSession(providerSessionID, cfg.WorkDir); err != nil {
 				sessLog.Warn("Failed to cleanup stale CLI session file", "error", err)
 			}
-			opts.ProviderSessionID = providerSessionID
-			sessLog.Info("Creating new CLI session (marker was stale)")
 		}
-	} else {
 		opts.ProviderSessionID = providerSessionID
-		if err := s.provider.CleanupSession(providerSessionID, cfg.WorkDir); err != nil {
-			sessLog.Warn("Failed to cleanup stale CLI session file", "error", err)
-		}
+		// 新建会话：保留 BaseSystemPrompt（将在 BuildCLIArgs 中注入为 --append-system-prompt）
 		sessLog.Info("Creating new persistent CLI session")
 	}
 
@@ -349,25 +362,30 @@ func (s *CLISessionStarter) buildCLIArgs(providerSessionID string, sessLog *slog
 
 // HTTPSessionStarter connects to opencode serve via HTTP/SSE.
 type HTTPSessionStarter struct {
-	transport provider.Transport
-	provider  provider.Provider
-	logger    *slog.Logger
-	opts      EngineOptions
+	transport   provider.Transport
+	provider    provider.Provider
+	logger      *slog.Logger
+	opts        EngineOptions
+	pendingIO   *HTTPSessionIO // Set when StartReading goroutine is started; cleared on success or cleanup
+	markerStore persistence.SessionMarkerStore
 }
 
 // Compile-time interface verification
 var _ SessionStarter = (*HTTPSessionStarter)(nil)
 
 // NewHTTPSessionStarter creates an HTTPSessionStarter wrapping a Transport.
-func NewHTTPSessionStarter(transport provider.Transport, provider provider.Provider, logger *slog.Logger, opts EngineOptions) *HTTPSessionStarter {
+// The markerStore is used to detect session resumption across daemon restarts,
+// mirroring the CLI session recovery mechanism.
+func NewHTTPSessionStarter(transport provider.Transport, provider provider.Provider, markerStore persistence.SessionMarkerStore, logger *slog.Logger, opts EngineOptions) *HTTPSessionStarter {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &HTTPSessionStarter{
-		transport: transport,
-		provider:  provider,
-		logger:    logger,
-		opts:      opts,
+		transport:   transport,
+		provider:    provider,
+		markerStore: markerStore,
+		logger:      logger,
+		opts:        opts,
 	}
 }
 
@@ -412,6 +430,24 @@ func (s *HTTPSessionStarter) StartSession(
 	// Pass empty session ID for now, will update after CreateSession.
 	httpIO := NewHTTPSessionIO(s.transport, "", cancel, sessLog)
 
+	// Detect if this is a resumed session using the client-side marker store.
+	// Note: True HTTP session recovery (reconnecting to an existing server session with its
+	// conversation history) requires the server-side session ID which is not persisted.
+	// The marker only tracks whether BuildInputMessage was already sent for this sessionID.
+	isResuming := s.markerStore.Exists(providerSessionID)
+
+	if !isResuming {
+		sessLog.Debug("Creating marker for new HTTP session",
+			"provider_session_id", providerSessionID)
+		if err := s.markerStore.Create(providerSessionID); err != nil {
+			sessLog.Warn("Failed to create HTTP session marker",
+				"error", err, "impact", "System prompt may be re-injected on daemon restart")
+		}
+	} else {
+		sessLog.Info("HTTP session marker found; BuildInputMessage will be skipped on first turn",
+			"provider_session_id", providerSessionID)
+	}
+
 	// Establish SSE connection to OpenCode server.
 	if err := s.transport.Connect(sessCtx, provider.TransportConfig{}); err != nil {
 		cancel()
@@ -434,44 +470,34 @@ func (s *HTTPSessionStarter) StartSession(
 	// Build Session object.
 
 	sess := &Session{
-		ID:                sessionID,
-		ProviderSessionID: providerSessionID,
-		Config:            cfg,
-		io:                httpIO,
-		cancel:            cancel,
-		CreatedAt:         time.Now(),
-		LastActive:        time.Now(),
-		Status:            SessionStatusStarting,
-		TaskInstructions:  cfg.TaskInstructions,
-		statusChange:      make(chan SessionStatus, 10),
-		logger:            sessLog,
-		callback:          cb,
+		ID:                    sessionID,
+		ProviderSessionID:     providerSessionID,
+		Config:                cfg,
+		io:                    httpIO,
+		cancel:                cancel,
+		CreatedAt:             time.Now(),
+		LastActive:            time.Now(),
+		Status:                SessionStatusStarting,
+		TaskInstructions:      cfg.TaskInstructions,
+		statusChange:          make(chan SessionStatus, 10),
+		logger:                sessLog,
+		FirstMessageOnSession: !isResuming, // Skip BuildInputMessage on resumed sessions (marker exists)
+		callback:              nil,         // Will be set by runner.go before StartReading
 	}
 
-	// Inject callback into HTTPSessionIO so StartReading can dispatch events.
-	// CRITICAL: Use sess.GetCallback() instead of closure variable 'cb' because
-	// the callback is set AFTER session creation (in runner.go Execute).
-	httpIO.SetCallback(func(event string, data any) error {
-		if event == "runner_exit" {
-			sess.mu.Lock()
-			if sess.Status != SessionStatusDead {
-				sess.Status = SessionStatusDead
-				if !sess.closed {
-					select {
-					case sess.statusChange <- SessionStatusDead:
-					default:
-					}
-				}
-			}
-			sess.mu.Unlock()
-		}
-		// Get the current callback from session (set by Engine.Execute)
-		if currentCb := sess.GetCallback(); currentCb != nil {
-			return currentCb(event, data)
-		}
-		return nil
-	})
-
+	// Start SSE event reader goroutine (blocked by httpIO.startReadingGate).
+	// The gate is closed in runner.go when SetCallback is called.
+	// This ordering ensures no events are lost between session creation and callback setup:
+	//   1. Connect() → SSE connection established, events buffered (64-channel)
+	//   2. CreateSession() → server creates session, events for this session start arriving
+	//   3. Session returned to caller
+	//   4. SetCallback() → callback set AND gate closed → StartReading unblocks
+	//   5. Buffered events are processed with correct callback
+	//
+	// Safe to call: StartReading has internal timeout (30s) that calls Close() to clean up
+	// the subscriber channel even if SetCallback never arrives.
+	// Store httpIO in pendingIO so CleanupOnError can close it if StartSession returns an error.
+	s.pendingIO = httpIO
 	panicx.SafeGo(sessLog, func() {
 		httpIO.StartReading()
 	})
@@ -482,5 +508,20 @@ func (s *HTTPSessionStarter) StartSession(
 	sessLog.Debug("waitForReady returned", "session_status", sess.Status)
 
 	success = true
+	s.pendingIO = nil // Clear: session successfully returned; pool manages lifecycle
 	return sess, nil
+}
+
+// CleanupOnError cleans up any partially-initialized HTTPSessionIO when StartSession
+// returns an error. This is necessary because HTTPSessionStarter starts the StartReading
+// goroutine before returning, and if StartSession returns an error, the goroutine's
+// 30s timeout is the only automatic cleanup without this.
+// Safe to call multiple times (idempotent).
+func (s *HTTPSessionStarter) CleanupOnError() {
+	if s.pendingIO == nil {
+		return
+	}
+	s.logger.Debug("HTTPSessionStarter.CleanupOnError: closing pending HTTPSessionIO")
+	_ = s.pendingIO.Close()
+	s.pendingIO = nil
 }
