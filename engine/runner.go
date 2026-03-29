@@ -470,8 +470,8 @@ func (r *Engine) executeWithMultiplex(
 
 	// Send input. Rules:
 	// - CLI cold-start (RequiresInitialPromptAsArg=true): stdin skipped, prompt via CLI arg.
-	// - HTTP cold-start first turn: BuildInputMessage + WriteInput.
-	// - Hot-multiplexing (any provider): skip stdin; prompt context already in session.
+	// - First turn (any provider): BuildInputMessage + WriteInput with system prompt.
+	// - Hot-multiplexing / resume: BuildInputMessage + WriteInput without system prompt.
 	if created && r.provider.Metadata().Features.RequiresInitialPromptAsArg {
 		r.logger.Debug("Skipping Stdin injection for cold-start (system prompt via CLI args)",
 			"namespace", r.opts.Namespace,
@@ -485,6 +485,15 @@ func (r *Engine) executeWithMultiplex(
 			return fmt.Errorf("write input: %w", err)
 		}
 		sess.FirstMessageOnSession = false
+	} else {
+		// Hot-multiplexing / resume: send prompt without system prompt.
+		input, err := r.provider.BuildInputMessage(prompt, cfg.TaskInstructions, "")
+		if err != nil {
+			return fmt.Errorf("build input message: %w", err)
+		}
+		if err := sess.WriteInput(input); err != nil {
+			return fmt.Errorf("write input: %w", err)
+		}
 	}
 
 	// Wait for turn completion with timeout

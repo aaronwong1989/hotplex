@@ -89,8 +89,8 @@ func (t tableBlock) MarshalJSON() ([]byte, error) {
 		ColSets []slack.ColumnSetting `json:"column_settings,omitempty"`
 	}
 
-	cells := make([][]tableCell, 0, len(t.TableBlock.Rows))
-	for _, row := range t.TableBlock.Rows {
+	cells := make([][]tableCell, 0, len(t.Rows))
+	for _, row := range t.Rows {
 		var rowCells []tableCell
 		for _, cell := range row {
 			if cell == nil {

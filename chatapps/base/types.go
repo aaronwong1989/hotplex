@@ -197,11 +197,11 @@ type StreamWriter interface {
 type StatusType string
 
 const (
-	StatusInitializing  StatusType = "initializing"
-	StatusThinking      StatusType = "thinking"
-	StatusToolUse       StatusType = "tool_use"
-	StatusToolResult    StatusType = "tool_result"
-	StatusAnswering     StatusType = "answering"
+	StatusInitializing StatusType = "initializing"
+	StatusThinking     StatusType = "thinking"
+	StatusToolUse      StatusType = "tool_use"
+	StatusToolResult   StatusType = "tool_result"
+	StatusAnswering    StatusType = "answering"
 	StatusStepFinish   StatusType = "step_finish"   // Current task stage building complete
 	StatusSessionStats StatusType = "session_stats" // Session finalization (used for clearing)
 	StatusIdle         StatusType = "idle"
@@ -221,11 +221,11 @@ type StatusProvider interface {
 // StatusEmojiMap maps StatusType to Slack emoji name for fallback
 // when native Assistant API is not available (e.g., Free workspace).
 var StatusEmojiMap = map[StatusType]string{
-	StatusInitializing:  "hourglass_flowing_sand",
-	StatusThinking:      "brain",
-	StatusToolUse:       "gear",
-	StatusToolResult:    "wrench",
-	StatusAnswering:     "pencil",
+	StatusInitializing: "hourglass_flowing_sand",
+	StatusThinking:     "brain",
+	StatusToolUse:      "gear",
+	StatusToolResult:   "wrench",
+	StatusAnswering:    "pencil",
 	StatusStepFinish:   "white_check_mark",
 	StatusSessionStats: "white_circle",
 	StatusIdle:         "white_circle",

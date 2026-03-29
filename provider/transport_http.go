@@ -172,7 +172,7 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 			// Uses global rand source (not cryptographic; acceptable for jitter).
 			secs := min(10<<uint(attempt), 60)
 			baseDelay := time.Duration(secs) * time.Second
-			jitter := time.Duration(rand.Int63n(int64(baseDelay)/2))
+			jitter := time.Duration(rand.Int63n(int64(baseDelay) / 2))
 			delay := baseDelay + jitter
 
 			t.logger.Warn("SSE disconnected, reconnecting",
@@ -199,8 +199,8 @@ func (t *HTTPTransport) streamSSE(ctx context.Context) {
 
 // streamResult is the result of a single SSE connection attempt.
 type streamResult struct {
-	HadData bool    // true if at least one non-heartbeat event was received
-	Err     error   // nil if clean close; non-nil for HTTP/network errors
+	HadData bool  // true if at least one non-heartbeat event was received
+	Err     error // nil if clean close; non-nil for HTTP/network errors
 }
 
 // connectAndStream establishes a single SSE connection and reads events.

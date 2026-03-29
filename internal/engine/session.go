@@ -54,12 +54,12 @@ type Session struct {
 	mu     sync.RWMutex
 	closed bool
 
-	callback   Callback
-	logger     *slog.Logger
-	logFile    *os.File // Session-specific log file for stderr persistence
-	ext        any      // Extension payload for consumer packages
-	IsResuming            bool   // True if session was resumed from persistent marker
-	FirstMessageOnSession bool   // True until the first BuildInputMessage is sent (for HTTP hot-multiplexing gate)
+	callback              Callback
+	logger                *slog.Logger
+	logFile               *os.File // Session-specific log file for stderr persistence
+	ext                   any      // Extension payload for consumer packages
+	IsResuming            bool     // True if session was resumed from persistent marker
+	FirstMessageOnSession bool     // True until the first BuildInputMessage is sent (for HTTP hot-multiplexing gate)
 }
 
 // IsAlive checks if the process is still running.

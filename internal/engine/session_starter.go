@@ -482,7 +482,7 @@ func (s *HTTPSessionStarter) StartSession(
 		statusChange:          make(chan SessionStatus, 10),
 		logger:                sessLog,
 		FirstMessageOnSession: !isResuming, // Skip BuildInputMessage on resumed sessions (marker exists)
-		callback:              nil,  // Will be set by runner.go before StartReading
+		callback:              nil,         // Will be set by runner.go before StartReading
 	}
 
 	// Start SSE event reader goroutine (blocked by httpIO.startReadingGate).
