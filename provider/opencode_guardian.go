@@ -73,20 +73,50 @@ type ProcessGuardian struct {
 	logger *slog.Logger
 }
 
+// GuardianConfig contains configuration for ProcessGuardian.
+type GuardianConfig struct {
+	HealthCheckInterval time.Duration
+	StartupTimeout      time.Duration
+	Backoff            []time.Duration
+	MaxFailBurst       int
+}
+
+// DefaultGuardianConfig returns the default guardian configuration.
+func DefaultGuardianConfig() GuardianConfig {
+	return GuardianConfig{
+		HealthCheckInterval: 10 * time.Second,
+		StartupTimeout:      60 * time.Second,
+		Backoff: []time.Duration{
+			1 * time.Second,
+			2 * time.Second,
+			4 * time.Second,
+			8 * time.Second,
+			16 * time.Second,
+			30 * time.Second,
+		},
+		MaxFailBurst: 1000,
+	}
+}
+
 // NewProcessGuardian creates a new ProcessGuardian for the opencode serve process.
 func NewProcessGuardian(binary string, args []string, password string, workDir string, transport *HTTPTransport, logger *slog.Logger) *ProcessGuardian {
+	return NewProcessGuardianWithConfig(binary, args, password, workDir, transport, DefaultGuardianConfig(), logger)
+}
+
+// NewProcessGuardianWithConfig creates a new ProcessGuardian with custom configuration.
+func NewProcessGuardianWithConfig(binary string, args []string, password string, workDir string, transport *HTTPTransport, cfg GuardianConfig, logger *slog.Logger) *ProcessGuardian {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	// Default backoff: 1s → 2s → 4s → 8s → 16s → 30s (max)
-	defaultBackoff := []time.Duration{
-		1 * time.Second,
-		2 * time.Second,
-		4 * time.Second,
-		8 * time.Second,
-		16 * time.Second,
-		30 * time.Second,
+	backoff := cfg.Backoff
+	if len(backoff) == 0 {
+		backoff = []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 30 * time.Second}
+	}
+
+	maxFailBurst := cfg.MaxFailBurst
+	if maxFailBurst == 0 {
+		maxFailBurst = 1000
 	}
 
 	return &ProcessGuardian{
@@ -96,11 +126,11 @@ func NewProcessGuardian(binary string, args []string, password string, workDir s
 		workDir:         workDir,
 		transport:       transport,
 		logger:          logger.With("component", "process_guardian"),
-		healthInterval:  10 * time.Second,
-		startupTimeout:  60 * time.Second,
-		backoff:         defaultBackoff,
+		healthInterval:  cfg.HealthCheckInterval,
+		startupTimeout:  cfg.StartupTimeout,
+		backoff:         backoff,
 		attempt:         0,
-		maxFailBurst:    1000,
+		maxFailBurst:    maxFailBurst,
 		failures:        make([]FailureEntry, 100), // Ring buffer of 100
 		failureIndex:    0,
 	}
@@ -279,33 +309,42 @@ func (g *ProcessGuardian) healthCheckLoop(ctx context.Context) {
 // handleUnhealthy handles an unhealthy state by restarting the process.
 func (g *ProcessGuardian) handleUnhealthy(ctx context.Context, err error) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 
-	// Record failure
-	g.recordFailure(err.Error())
-
-	// Check max fail burst
-	g.attempt++
-	if g.attempt > g.maxFailBurst {
-		g.logger.Error("Max fail burst exceeded, entering dead state", "attempt", g.attempt)
-		g.setState(GuardianDead)
-		// Still attempt restart even in dead state
+	if g.state == GuardianStopped || g.state == GuardianDead {
+		g.mu.Unlock()
+		return
 	}
 
-	// If already stopped or dead and not restarting, skip
-	if g.state == GuardianStopped {
+	// Kill existing process
+	if g.cmd != nil && g.cmd.Process != nil {
+		g.cmd.Process.Kill()
+	}
+
+	// Record failure
+	g.attempt++
+	entry := FailureEntry{
+		Time:    time.Now(),
+		Reason:  err.Error(),
+		Attempt: g.attempt,
+	}
+	g.failures[g.failureIndex] = entry
+	g.failureIndex = (g.failureIndex + 1) % len(g.failures)
+
+	// Check if超阈值
+	if g.attempt > g.maxFailBurst {
+		g.state = GuardianDead
+		state := g.state
+		g.mu.Unlock()
+		g.logger.Error("Max fail burst exceeded, entering dead state", "attempt", g.attempt)
+		if g.onStateChange != nil {
+			g.onStateChange(state)
+		}
 		return
 	}
 
 	oldState := g.state
-	g.setState(GuardianRestarting)
-
-	// Kill existing process
-	g.killProcessLocked()
-
-	// Calculate backoff delay
-	backoffIdx := min(g.attempt-1, len(g.backoff)-1)
-	delay := g.backoff[backoffIdx]
+	g.state = GuardianRestarting
+	delay := g.backoff[min(g.attempt-1, len(g.backoff)-1)]
 
 	g.logger.Info("Restarting opencode serve",
 		"attempt", g.attempt,
@@ -321,16 +360,23 @@ func (g *ProcessGuardian) handleUnhealthy(ctx context.Context, err error) {
 	case <-time.After(delay):
 	}
 
-	g.mu.Lock()
-
-	// Start new process
+	// Restart process
 	startCtx, cancel := context.WithTimeout(context.Background(), g.startupTimeout)
-	err = g.startProcess(startCtx)
+	restartErr := g.startProcess(startCtx)
 	cancel()
 
-	if err != nil {
-		g.logger.Error("Failed to restart process", "error", err)
-		g.setState(GuardianDead)
+	if restartErr != nil {
+		g.mu.Lock()
+		g.logger.Error("Failed to restart process", "error", restartErr)
+		g.state = GuardianDead
+		state := g.state
+		g.mu.Unlock()
+		if g.onStateChange != nil {
+			g.onStateChange(state)
+		}
+		if g.onFailure != nil {
+			g.onFailure(entry)
+		}
 		return
 	}
 
@@ -339,16 +385,31 @@ func (g *ProcessGuardian) handleUnhealthy(ctx context.Context, err error) {
 	healthyErr := g.waitForHealthy(waitCtx)
 	cancel()
 
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	if healthyErr != nil {
 		g.logger.Error("Process restarted but not healthy", "error", healthyErr)
-		g.killProcessLocked()
-		g.setState(GuardianDead)
+		if g.cmd != nil && g.cmd.Process != nil {
+			g.cmd.Process.Kill()
+		}
+		g.state = GuardianDead
+		state := g.state
+		g.mu.Unlock()
+		if g.onStateChange != nil {
+			g.onStateChange(state)
+		}
+		if g.onFailure != nil {
+			g.onFailure(entry)
+		}
 		return
 	}
 
-	// Success - update restorted timestamp of last failure
-	g.mu.Unlock()
-	g.mu.Lock()
+	// Success
+	g.state = GuardianRunning
+	g.attempt = 0
+
+	// Update restored timestamp of last failure
 	if len(g.failures) > 0 {
 		for i := range g.failures {
 			if !g.failures[i].Time.IsZero() && g.failures[i].RestoredAt.IsZero() {
@@ -357,9 +418,10 @@ func (g *ProcessGuardian) handleUnhealthy(ctx context.Context, err error) {
 		}
 	}
 
-	g.setState(GuardianRunning)
-	g.attempt = 0
 	g.logger.Info("opencode serve restored", "previous_state", oldState.String())
+	if g.onStateChange != nil {
+		g.onStateChange(g.state)
+	}
 }
 
 // killProcessLocked kills the subprocess. Caller must hold the lock.
@@ -382,13 +444,3 @@ func (g *ProcessGuardian) setState(state GuardianState) {
 	}
 }
 
-// recordFailure records a failure entry in the ring buffer.
-func (g *ProcessGuardian) recordFailure(reason string) {
-	entry := FailureEntry{
-		Time:    time.Now(),
-		Reason:  reason,
-		Attempt: g.attempt,
-	}
-	g.failures[g.failureIndex] = entry
-	g.failureIndex = (g.failureIndex + 1) % len(g.failures)
-}

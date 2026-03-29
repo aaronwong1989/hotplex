@@ -376,9 +376,12 @@ func (p *OpenCodeServerProvider) GetHTTPTransport() Transport {
 
 // ─── Plugin Registration ───
 
-func init() {
-	RegisterPlugin(&openCodeServerPlugin{})
-}
+// COMMENTED OUT: OpenCodeServerProvider 被 OpenCodeNursedProvider 取代
+// 两个 Provider 注册为同一 Type (ProviderTypeOpenCodeServer)，由字母序决定 opencode_nursed.go 先注册
+// 如果需要临时启用 OpenCodeServerProvider，取消下面的注释
+// func init() {
+//	RegisterPlugin(&openCodeServerPlugin{})
+// }
 
 type openCodeServerPlugin struct{}
 

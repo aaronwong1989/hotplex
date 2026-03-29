@@ -314,15 +314,15 @@ func (r *EventRelay) mapPart(part OCPart, delta string) ([]*ProviderEvent, error
 		toolName := part.GetToolName()
 
 		switch status {
-		case "pending", "running":
+		case ToolStatusPending, ToolStatusRunning:
 			return []*ProviderEvent{{
 				Type:      EventTypeToolUse,
 				ToolName:  toolName,
 				ToolID:    part.ID,
 				ToolInput: part.Input,
-				Status:    "running",
+				Status:    ToolStatusRunning,
 			}}, nil
-		case "completed":
+		case ToolStatusCompleted:
 			return []*ProviderEvent{{
 				Type:     EventTypeToolResult,
 				ToolName: toolName,
@@ -330,14 +330,14 @@ func (r *EventRelay) mapPart(part OCPart, delta string) ([]*ProviderEvent, error
 				Content:  part.Output,
 				Status:   "success",
 			}}, nil
-		case "error":
+		case ToolStatusError:
 			return []*ProviderEvent{{
 				Type:     EventTypeToolResult,
 				ToolName: toolName,
 				ToolID:   part.ID,
 				Error:    part.Error,
 				IsError:  true,
-				Status:   "error",
+				Status:   ToolStatusError,
 			}}, nil
 		}
 
@@ -382,6 +382,16 @@ func (r *EventRelay) extractSessionID(evt OCSSEEvent) string {
 		}
 	}
 	return ""
+}
+
+// MapEvent parses and maps an SSE event JSON string to provider events.
+// This is exposed so other providers (e.g., OpenCodeNursedProvider) can reuse the mapping logic.
+func (r *EventRelay) MapEvent(line string) ([]*ProviderEvent, error) {
+	var sseEvt OCSSEEvent
+	if err := json.Unmarshal([]byte(line), &sseEvt); err != nil {
+		return nil, err
+	}
+	return r.mapEvent(sseEvt)
 }
 
 // Start begins dispatching events from the transport to subscribers.

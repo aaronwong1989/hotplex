@@ -2,8 +2,11 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -28,8 +31,10 @@ type SessionInfo struct {
 // namespace + sessionID using UUID v5) and server session IDs.
 type HTTPSessionManager struct {
 	transport *HTTPTransport
-	mu        sync.RWMutex
-	sessions  map[string]*SessionInfo // key: providerSessionID
+	baseURL  string
+	password string
+	mu       sync.RWMutex
+	sessions map[string]*SessionInfo // key: providerSessionID
 
 	logger *slog.Logger
 }
@@ -41,6 +46,8 @@ func NewHTTPSessionManager(transport *HTTPTransport, logger *slog.Logger) *HTTPS
 	}
 	return &HTTPSessionManager{
 		transport: transport,
+		baseURL:   transport.baseURL,
+		password:  transport.password,
 		sessions:  make(map[string]*SessionInfo),
 		logger:    logger.With("component", "http_session_manager"),
 	}
@@ -146,31 +153,61 @@ func (m *HTTPSessionManager) SendMessage(ctx context.Context, serverSessionID st
 	return m.transport.Send(ctx, serverSessionID, msg)
 }
 
-// ListSessions returns all sessions from the server.
+// ListSessions returns all sessions from the server via GET /session.
 func (m *HTTPSessionManager) ListSessions(ctx context.Context) ([]*OCSession, error) {
-	// This would need a list endpoint on the server
-	// For now, return sessions from memory
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, m.baseURL+"/session", nil)
+	if err != nil {
+		return nil, err
+	}
+	if m.password != "" {
+		req.SetBasicAuth("opencode", m.password)
+	}
 
-	// Note: The server may have sessions not tracked in memory
-	// This is a simplified implementation
-	return nil, fmt.Errorf("ListSessions not implemented - use RecoverMappings instead")
+	resp, err := m.transport.restClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("list sessions failed (HTTP %d): %s", resp.StatusCode, string(data))
+	}
+
+	var sessions []*OCSession
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
+		return nil, err
+	}
+	return sessions, nil
 }
 
 // RecoverMappings recovers session mappings from the server by matching titles.
 // Called during process startup to restore in-memory mappings.
 func (m *HTTPSessionManager) RecoverMappings(ctx context.Context) error {
-	m.logger.Info("Recovering session mappings from server")
+	sessions, err := m.ListSessions(ctx)
+	if err != nil {
+		return err
+	}
 
-	// The server stores sessions with title = providerSessionID
-	// We need to list all sessions and match our known provider session IDs
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	// For now, we rely on the deterministic UUID v5 to match
-	// If a session exists on server with matching title, we can recover it
-	// This is a placeholder - actual implementation would need server-side session enumeration
+	for _, s := range sessions {
+		//判断是否是 Hotplex 创建的 session（Title 格式为 UUID v5）
+		if _, err := uuid.Parse(s.Title); err == nil {
+			m.sessions[s.Title] = &SessionInfo{
+				ServerSessionID:   s.ID,
+				ProviderSessionID: s.Title,
+				WorkDir:          s.Directory,
+				Status:           parseSessionStatus(s.Status),
+			}
+			m.logger.Debug("Recovered session mapping",
+				"provider_session_id", s.Title,
+				"server_session_id", s.ID)
+		}
+	}
 
-	m.logger.Info("Session mapping recovery complete")
+	m.logger.Info("Session mapping recovery complete", "count", len(m.sessions))
 	return nil
 }
 
@@ -202,11 +239,30 @@ func ResolveWorkDir(tpl, namespace, sessionID string) string {
 
 // findSessionByTitle searches the server for a session with matching title.
 func (m *HTTPSessionManager) findSessionByTitle(ctx context.Context, title string) (string, error) {
-	// The server's GET /session returns a list of sessions
-	// We need to iterate and find the one with matching title
-	// This is a simplified implementation - actual API may differ
-
-	// For OpenCode Server, we don't have a direct list endpoint exposed
-	// So we return empty and let CreateSession handle it
+	sessions, err := m.ListSessions(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, s := range sessions {
+		if s.Title == title {
+			return s.ID, nil
+		}
+	}
 	return "", nil
+}
+
+// parseSessionStatus converts server status string to internal status.
+func parseSessionStatus(serverStatus string) string {
+	switch serverStatus {
+	case "busy", "running":
+		return "active"
+	case "idle":
+		return "idle"
+	case "completed", "done":
+		return "completed"
+	case "error", "failed":
+		return "error"
+	default:
+		return "unknown"
+	}
 }

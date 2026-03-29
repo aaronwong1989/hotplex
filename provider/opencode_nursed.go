@@ -96,7 +96,34 @@ func NewOpenCodeNursedProvider(cfg ProviderConfig, logger *slog.Logger) (*OpenCo
 			}
 		}
 
-		guardian = NewProcessGuardian(binary, args, ocCfg.Password, ocCfg.WorkDir, transport, logger)
+		// Build guardian config from OpenCodeConfig fields
+		guardianCfg := DefaultGuardianConfig()
+		if ocCfg.HealthCheckInterval != "" {
+			if d, err := time.ParseDuration(ocCfg.HealthCheckInterval); err == nil {
+				guardianCfg.HealthCheckInterval = d
+			}
+		}
+		if ocCfg.StartupTimeout != "" {
+			if d, err := time.ParseDuration(ocCfg.StartupTimeout); err == nil {
+				guardianCfg.StartupTimeout = d
+			}
+		}
+		if len(ocCfg.RestartBackoff) > 0 {
+			guardianCfg.Backoff = nil
+			for _, s := range ocCfg.RestartBackoff {
+				if d, err := time.ParseDuration(s); err == nil {
+					guardianCfg.Backoff = append(guardianCfg.Backoff, d)
+				}
+			}
+			if len(guardianCfg.Backoff) == 0 {
+				guardianCfg.Backoff = DefaultGuardianConfig().Backoff
+			}
+		}
+		if ocCfg.MaxFailBurst > 0 {
+			guardianCfg.MaxFailBurst = ocCfg.MaxFailBurst
+		}
+
+		guardian = NewProcessGuardianWithConfig(binary, args, ocCfg.Password, ocCfg.WorkDir, transport, guardianCfg, logger)
 
 		// Set callbacks
 		guardian.SetStateChangeCallback(func(state GuardianState) {
@@ -196,11 +223,7 @@ func (p *OpenCodeNursedProvider) BuildInputMessage(prompt, taskInstructions stri
 
 // ParseEvent parses an SSE event line into provider events.
 func (p *OpenCodeNursedProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
-	var sseEvt OCSSEEvent
-	if err := unmarshalJSON([]byte(line), &sseEvt); err != nil {
-		return nil, fmt.Errorf("parse SSE event: %w", err)
-	}
-	return p.mapEvent(sseEvt)
+	return p.relay.MapEvent(line)
 }
 
 // mapEvent converts an OpenCode SSE event to provider events.
@@ -324,15 +347,15 @@ func (p *OpenCodeNursedProvider) mapPart(part OCPart, delta string) ([]*Provider
 		toolName := part.GetToolName()
 
 		switch status {
-		case "pending", "running":
+		case ToolStatusPending, ToolStatusRunning:
 			return []*ProviderEvent{{
 				Type:      EventTypeToolUse,
 				ToolName:  toolName,
 				ToolID:    part.ID,
 				ToolInput: part.Input,
-				Status:    "running",
+				Status:    ToolStatusRunning,
 			}}, nil
-		case "completed":
+		case ToolStatusCompleted:
 			return []*ProviderEvent{{
 				Type:     EventTypeToolResult,
 				ToolName: toolName,
@@ -340,14 +363,14 @@ func (p *OpenCodeNursedProvider) mapPart(part OCPart, delta string) ([]*Provider
 				Content:  part.Output,
 				Status:   "success",
 			}}, nil
-		case "error":
+		case ToolStatusError:
 			return []*ProviderEvent{{
 				Type:     EventTypeToolResult,
 				ToolName: toolName,
 				ToolID:   part.ID,
 				Error:    part.Error,
 				IsError:  true,
-				Status:   "error",
+				Status:   ToolStatusError,
 			}}, nil
 		}
 

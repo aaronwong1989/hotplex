@@ -168,6 +168,7 @@ type OCSession struct {
 	Directory string `json:"directory,omitempty"`
 	Title     string `json:"title"`
 	Version   string `json:"version,omitempty"`
+	Status    string `json:"status,omitempty"`
 }
 
 // FinishReason represents the reason why a step finished
