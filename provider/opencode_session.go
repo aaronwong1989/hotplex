@@ -226,15 +226,11 @@ func ResolveWorkDir(tpl, namespace, sessionID string) string {
 	if tpl == "" {
 		tpl = "/hotplex/{namespace}/{date}/{session_id}"
 	}
-
-	date := time.Now().Format("2006-01-02")
-
-	result := tpl
-	result = strings.ReplaceAll(result, "{namespace}", namespace)
-	result = strings.ReplaceAll(result, "{session_id}", sessionID)
-	result = strings.ReplaceAll(result, "{date}", date)
-
-	return result
+	return strings.NewReplacer(
+		"{namespace}", namespace,
+		"{session_id}", sessionID,
+		"{date}", time.Now().Format("2006-01-02"),
+	).Replace(tpl)
 }
 
 // findSessionByTitle searches the server for a session with matching title.
@@ -251,18 +247,27 @@ func (m *HTTPSessionManager) findSessionByTitle(ctx context.Context, title strin
 	return "", nil
 }
 
+// Session status constants for parseSessionStatus
+const (
+	sessionStatusActive    = "active"
+	sessionStatusIdle     = "idle"
+	sessionStatusCompleted = "completed"
+	sessionStatusError    = "error"
+	sessionStatusUnknown  = "unknown"
+)
+
 // parseSessionStatus converts server status string to internal status.
 func parseSessionStatus(serverStatus string) string {
 	switch serverStatus {
 	case "busy", "running":
-		return "active"
+		return sessionStatusActive
 	case "idle":
-		return "idle"
+		return sessionStatusIdle
 	case "completed", "done":
-		return "completed"
+		return sessionStatusCompleted
 	case "error", "failed":
-		return "error"
+		return sessionStatusError
 	default:
-		return "unknown"
+		return sessionStatusUnknown
 	}
 }

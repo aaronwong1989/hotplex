@@ -220,18 +220,10 @@ func (g *ProcessGuardian) Failures() []FailureEntry {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	// Count actual entries
-	count := 0
-	for i := range g.failures {
-		if !g.failures[i].Time.IsZero() {
-			count++
-		}
-	}
-
-	result := make([]FailureEntry, 0, count)
-	for i := range g.failures {
-		if !g.failures[i].Time.IsZero() {
-			result = append(result, g.failures[i])
+	result := make([]FailureEntry, 0, len(g.failures))
+	for _, e := range g.failures {
+		if !e.Time.IsZero() {
+			result = append(result, e)
 		}
 	}
 	return result
@@ -434,7 +426,8 @@ func (g *ProcessGuardian) killProcessLocked() {
 	}
 }
 
-// setState updates the guardian state and calls callback if set.
+// setState updates the guardian state and calls the callback if set.
+// Caller must hold the lock.
 func (g *ProcessGuardian) setState(state GuardianState) {
 	g.state = state
 	if g.onStateChange != nil {
