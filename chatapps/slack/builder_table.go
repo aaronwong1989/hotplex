@@ -297,9 +297,3 @@ func (tb *TableBuilder) BuildCommandProgressTable(msg *base.ChatMessage) []slack
 	}
 	return []slack.Block{tableBlock{TableBlock: native}}
 }
-
-// BuildToolCallsTable is removed — metadata["tool_calls"] is never populated by the engine.
-// Kept for reference until the engine provides per-tool call statistics.
-func (tb *TableBuilder) BuildToolCallsTable(msg *base.ChatMessage) []slack.Block {
-	return nil
-}

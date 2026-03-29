@@ -224,23 +224,6 @@ func TestBuildCommandProgressTable_Basic(t *testing.T) {
 	assert.Len(t, table.Rows, 5) // Header + 4 data rows
 }
 
-func TestBuildToolCallsTable_Removed(t *testing.T) {
-	// BuildToolCallsTable is stubbed — metadata["tool_calls"] is never populated.
-	// Engine does not provide per-tool call statistics; tool_call_count is used instead.
-	builder := NewTableBuilder(TableConfig{MaxRows: 10, ShowHeader: true})
-	msg := &base.ChatMessage{
-		Type:    base.MessageTypeSessionStats,
-		Content: "",
-		Metadata: map[string]any{
-			"tool_calls": []map[string]any{
-				{"name": "Read", "count": int64(15), "success_rate": "100%"},
-			},
-		},
-	}
-	blocks := builder.BuildToolCallsTable(msg)
-	assert.Nil(t, blocks)
-}
-
 func TestBuildSessionStatsTable_FromStatsMessageBuilder(t *testing.T) {
 	config := &Config{
 		Features: FeaturesConfig{
