@@ -1,17 +1,8 @@
 // Package slack provides the Slack adapter implementation for the hotplex engine.
 // Table builder for structured data display using Slack's native Table Block.
-//
-// Correct Table Block cell schema per Slack API:
-//   - rich_text cells: { "type": "rich_text", "elements": [{ "type": "rich_text_section", "elements": [...] }] }
-//   - NO block_id field in cells (slack-go SDK's RichTextBlock.MarshalJSON incorrectly emits it,
-//     causing Slack API "invalid_blocks" error).
-//
-// Solution: Use a custom tableBlock wrapper with MarshalJSON that serializes cells
-// without block_id, while still accepting []*RichTextBlock from the SDK for type safety.
 package slack
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/hrygo/hotplex/chatapps/base"
@@ -37,138 +28,6 @@ func NewTableBuilder(config TableConfig) *TableBuilder {
 	return &TableBuilder{config: config}
 }
 
-// tableCell serializes as a Slack Table Block cell without block_id.
-// Slack API only accepts { "type": "rich_text", "elements": [...] } — no block_id.
-type tableCell struct {
-	Type     string                 `json:"type"`
-	Elements []tableRichTextSection `json:"elements"`
-}
-
-type tableRichTextSection struct {
-	Type     string                     `json:"type"`
-	Elements []tableRichTextSectionElem `json:"elements"`
-}
-
-// tableRichTextSectionElem is a discriminated union of element types.
-// Only fields relevant for JSON serialization are included.
-type tableRichTextSectionElem struct {
-	Type      string    `json:"type"`
-	Text      string    `json:"text,omitempty"`
-	URL       string    `json:"url,omitempty"`
-	ChannelID string    `json:"channel_id,omitempty"`
-	UserID    string    `json:"user_id,omitempty"`
-	Name      string    `json:"name,omitempty"`
-	Unicode   string    `json:"unicode,omitempty"`
-	SkinTone  int       `json:"skin_tone,omitempty"`
-	Style     *styleRef `json:"style,omitempty"`
-}
-
-type styleRef struct {
-	Bold   bool `json:"bold,omitempty"`
-	Italic bool `json:"italic,omitempty"`
-	Strike bool `json:"strike,omitempty"`
-	Code   bool `json:"code,omitempty"`
-}
-
-// tableBlock wraps slack.TableBlock for correct JSON serialization.
-// It implements json.Marshaler so that when embedded in a blocks array,
-// cells serialize without the block_id field that Slack rejects.
-type tableBlock struct {
-	*slack.TableBlock
-}
-
-// MarshalJSON produces Slack API-compliant JSON for a Table Block.
-// The SDK's TableBlock.MarshalJSON would emit block_id inside cells,
-// which Slack rejects with "invalid_blocks". We override it here.
-func (t tableBlock) MarshalJSON() ([]byte, error) {
-	// Build a plain struct with the correct JSON shape.
-	type alias struct {
-		Type    string                `json:"type"`
-		BlockID string                `json:"block_id,omitempty"`
-		Rows    [][]tableCell         `json:"rows"`
-		ColSets []slack.ColumnSetting `json:"column_settings,omitempty"`
-	}
-
-	cells := make([][]tableCell, 0, len(t.Rows))
-	for _, row := range t.Rows {
-		var rowCells []tableCell
-		for _, cell := range row {
-			if cell == nil {
-				continue
-			}
-			elems := extractCellElements(cell)
-			rowCells = append(rowCells, tableCell{
-				Type:     string(cell.Type),
-				Elements: elems,
-			})
-		}
-		cells = append(cells, rowCells)
-	}
-
-	obj := alias{
-		Type:    string(t.Type),
-		BlockID: t.BlockID,
-		Rows:    cells,
-	}
-	if len(t.ColumnSettings) > 0 {
-		obj.ColSets = t.ColumnSettings
-	}
-	return json.Marshal(obj)
-}
-
-// extractCellElements converts a RichTextBlock's generic []RichTextElement
-// into a []tableRichTextSection for JSON serialization.
-// Only handles the element types used by this builder.
-func extractCellElements(cell *slack.RichTextBlock) []tableRichTextSection {
-	if cell == nil || len(cell.Elements) == 0 {
-		return nil
-	}
-	var sections []tableRichTextSection
-	for _, elem := range cell.Elements {
-		rtSec, ok := elem.(*slack.RichTextSection)
-		if !ok {
-			continue
-		}
-		var elems []tableRichTextSectionElem
-		for _, se := range rtSec.Elements {
-			switch v := se.(type) {
-			case slack.RichTextSectionTextElement:
-				e := tableRichTextSectionElem{Type: "text"}
-				e.Text = v.Text
-				if v.Style != nil {
-					e.Style = &styleRef{
-						Bold:   v.Style.Bold,
-						Italic: v.Style.Italic,
-						Strike: v.Style.Strike,
-						Code:   v.Style.Code,
-					}
-				}
-				elems = append(elems, e)
-			case slack.RichTextSectionLinkElement:
-				e := tableRichTextSectionElem{Type: "link"}
-				e.URL = v.URL
-				e.Text = v.Text
-				elems = append(elems, e)
-			case slack.RichTextSectionChannelElement:
-				elems = append(elems, tableRichTextSectionElem{Type: "channel", ChannelID: v.ChannelID})
-			case slack.RichTextSectionUserElement:
-				elems = append(elems, tableRichTextSectionElem{Type: "user", UserID: v.UserID})
-			case slack.RichTextSectionEmojiElement:
-				e := tableRichTextSectionElem{Type: "emoji", Name: v.Name, Unicode: v.Unicode}
-				if v.SkinTone != 0 {
-					e.SkinTone = v.SkinTone
-				}
-				elems = append(elems, e)
-			}
-		}
-		sections = append(sections, tableRichTextSection{
-			Type:     string(rtSec.Type),
-			Elements: elems,
-		})
-	}
-	return sections
-}
-
 // BuildStatsTable builds a Table Block for session statistics.
 // Note: Session stats tables intentionally omit a header row regardless of ShowHeader
 // (label/value rows are self-describing), unlike BuildCommandProgressTable.
@@ -181,7 +40,7 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 
 	metadata := msg.Metadata
 	if metadata == nil {
-		return []slack.Block{tableBlock{TableBlock: native}}
+		return []slack.Block{native}
 	}
 
 	addRow := func(label, value string) {
@@ -226,9 +85,6 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 		case "end_turn":
 			label = "✅ 正常结束"
 		case "tool_use", "tool_calls":
-			// tool_calls: MiniMax API stop_reason format
-			// tool_use: OpenAI-compatible API format
-			// Skip: redundant with tool count row (🔧 N tools)
 		case "max_tokens":
 			label = "⚠️ Token 超限"
 		default:
@@ -239,15 +95,15 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 		}
 	}
 
-	return []slack.Block{tableBlock{TableBlock: native}}
+	return []slack.Block{native}
 }
 
-// cell creates a simple text cell with empty block_id (Slack API requirement).
+// cell creates a simple text cell with empty block_id.
 func (tb *TableBuilder) cell(text string) *slack.RichTextBlock {
 	section := slack.NewRichTextSection(
 		slack.NewRichTextSectionTextElement(text, nil),
 	)
-	return slack.NewRichTextBlock("", section) // block_id intentionally empty
+	return slack.NewRichTextBlock("", section)
 }
 
 // formatTokenCell formats token count with optional cache info.
@@ -264,11 +120,11 @@ func (tb *TableBuilder) BuildCommandProgressTable(msg *base.ChatMessage) []slack
 	native := slack.NewTableBlock("command_progress")
 	metadata := msg.Metadata
 	if metadata == nil {
-		return []slack.Block{tableBlock{TableBlock: native}}
+		return []slack.Block{native}
 	}
 	steps, ok := metadata["steps"].([]map[string]any)
 	if !ok || len(steps) == 0 {
-		return []slack.Block{tableBlock{TableBlock: native}}
+		return []slack.Block{native}
 	}
 	if tb.config.ShowHeader {
 		native.AddRow(tb.cell("Step"), tb.cell("Status"), tb.cell("Details"))
@@ -295,5 +151,5 @@ func (tb *TableBuilder) BuildCommandProgressTable(msg *base.ChatMessage) []slack
 		}
 		native.AddRow(tb.cell(num), tb.cell(status), tb.cell(details))
 	}
-	return []slack.Block{tableBlock{TableBlock: native}}
+	return []slack.Block{native}
 }

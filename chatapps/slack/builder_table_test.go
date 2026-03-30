@@ -28,13 +28,13 @@ func TestNewTableBuilder_DefaultMaxRows(t *testing.T) {
 	assert.Equal(t, 10, builder.config.MaxRows)
 }
 
-// getNativeTable extracts the underlying *slack.TableBlock from a []slack.Block returned by builder methods.
+// getNativeTable extracts the underlying *slack.TableBlock from a []slack.Block.
 func getNativeTable(blocks []slack.Block) *slack.TableBlock {
 	if len(blocks) == 0 {
 		return nil
 	}
-	if tb, ok := blocks[0].(tableBlock); ok {
-		return tb.TableBlock
+	if tb, ok := blocks[0].(*slack.TableBlock); ok {
+		return tb
 	}
 	return nil
 }
@@ -62,7 +62,7 @@ func TestBuildStatsTable_BasicStats(t *testing.T) {
 	assert.NotNil(t, table)
 	assert.Equal(t, "session_stats", table.BlockID)
 	assert.Equal(t, slack.MBTTable, table.Type)
-	assert.Len(t, table.Rows, 4) // Duration + Input + Output + Files (no Tools row in table) // Duration, Input, Output, Files, Tools
+	assert.Len(t, table.Rows, 4) // Duration + Input + Output + Files (no Tools row in table)
 }
 
 func TestBuildStatsTable_WithCacheTokens(t *testing.T) {
@@ -168,10 +168,9 @@ func TestBuildStatsTable_Int32Types(t *testing.T) {
 	assert.Len(t, table.Rows, 4) // Duration + Input + Output + Files (no Tools row in table)
 }
 
-// TestBuildStatsTable_NoBlockIdInJSON verifies the critical fix:
-// Table Block cells must NOT include block_id in the JSON payload.
-// Slack API rejects cells with block_id set.
-func TestBuildStatsTable_NoBlockIdInJSON(t *testing.T) {
+// TestBuildStatsTable_NoBlockIdInCells verifies that SDK serialization
+// correctly omits block_id in cells (empty string + omitempty).
+func TestBuildStatsTable_NoBlockIdInCells(t *testing.T) {
 	builder := NewTableBuilder(TableConfig{MaxRows: 10})
 
 	msg := &base.ChatMessage{
@@ -187,20 +186,21 @@ func TestBuildStatsTable_NoBlockIdInJSON(t *testing.T) {
 	blocks := builder.BuildStatsTable(msg)
 	assert.Len(t, blocks, 1)
 
-	// Marshal the tableBlock and verify no block_id in cells
+	// Verify cells have empty BlockID
+	table := getNativeTable(blocks)
+	for i, row := range table.Rows {
+		for j, cell := range row {
+			assert.Equal(t, "", cell.BlockID,
+				"cell [%d][%d] must have empty BlockID, got %q", i, j, cell.BlockID)
+		}
+	}
+
+	// Verify JSON output only contains the table's own block_id
 	payload, err := json.Marshal(blocks[0])
 	assert.NoError(t, err)
 	jsonStr := string(payload)
-
-	// Should be a table block
-	assert.Contains(t, jsonStr, `"type":"table"`)
-	assert.Contains(t, jsonStr, `"rows"`)
-	assert.Contains(t, jsonStr, `"rich_text"`)
-	assert.Contains(t, jsonStr, `"rich_text_section"`)
-
-	// Must NOT contain block_id in the JSON (the root block_id is fine)
-	assert.NotContains(t, jsonStr, `"block_id":"label"`, "cell must not have block_id='label'")
-	assert.NotContains(t, jsonStr, `"block_id":"value"`, "cell must not have block_id='value'")
+	assert.Equal(t, 1, strings.Count(jsonStr, `"block_id"`),
+		"JSON should only contain 1 block_id (the table's own id), got: %s", jsonStr)
 }
 
 func TestBuildCommandProgressTable_Basic(t *testing.T) {
@@ -254,42 +254,9 @@ func TestBuildSessionStatsTable_FromStatsMessageBuilder(t *testing.T) {
 	assert.NotNil(t, blocks)
 	assert.Len(t, blocks, 1)
 
-	// Should be tableBlock (our wrapper), not plain *slack.TableBlock
-	tb, ok := blocks[0].(tableBlock)
-	assert.True(t, ok, "BuildSessionStatsTable must return tableBlock")
+	// Should be native *slack.TableBlock
+	tb, ok := blocks[0].(*slack.TableBlock)
+	assert.True(t, ok, "BuildSessionStatsTable must return *slack.TableBlock")
 	assert.Equal(t, slack.MBTTable, tb.Type)
 	assert.Len(t, tb.Rows, 4) // Duration + Input + Output + Files (no Tools row in table)
-}
-
-func TestTableCell_EmptyBlockID(t *testing.T) {
-	// Verify that cells created with cell() have empty block_id
-	builder := NewTableBuilder(TableConfig{MaxRows: 10})
-	msg := &base.ChatMessage{
-		Type:    base.MessageTypeSessionStats,
-		Content: "",
-		Metadata: map[string]any{
-			"total_duration_ms": int64(5000),
-			"input_tokens":      int64(100),
-			"output_tokens":     int64(50),
-		},
-	}
-	blocks := builder.BuildStatsTable(msg)
-	table := getNativeTable(blocks)
-	assert.NotNil(t, table)
-
-	// Check all cells have empty BlockID (via the native tableBlock)
-	for i, row := range table.Rows {
-		for j, cell := range row {
-			assert.Equal(t, "", cell.BlockID,
-				"cell [%d][%d] must have empty BlockID, got %q", i, j, cell.BlockID)
-		}
-	}
-
-	// Verify JSON output does not contain cell block_ids
-	payload, err := json.Marshal(blocks[0])
-	assert.NoError(t, err)
-	jsonStr := string(payload)
-	// Count block_id occurrences - should be exactly 1 (the table block's own block_id)
-	assert.Equal(t, 1, strings.Count(jsonStr, `"block_id"`),
-		"JSON should only contain 1 block_id (the table's own id), got: %s", jsonStr)
 }
