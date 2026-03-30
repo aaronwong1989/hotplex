@@ -97,28 +97,28 @@ help: ## Show this help message
 	@printf "${DIM}Usage: make ${YELLOW}<target>$(NC) ${DIM}[args]$(NC)\n"
 	@printf "\n"
 	@$(call SECTION_HEADER,🔨 Build)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@build/ {gsub(/@build /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@build/ {gsub(/@build /, "", $$2); printf "  ${GREEN}make %-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🧪 Test)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@test/ {gsub(/@test /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@test/ {gsub(/@test /, "", $$2); printf "  ${GREEN}make %-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🔧 Development)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@dev/ {gsub(/@dev /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@dev/ {gsub(/@dev /, "", $$2); printf "  ${GREEN}make %-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🚀 Runtime)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@runtime/ {gsub(/@runtime /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@runtime/ {gsub(/@runtime /, "", $$2); printf "  ${GREEN}make %-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,📦 Service)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@service/ {gsub(/@service /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@service/ {gsub(/@service /, "", $$2); printf "  ${GREEN}make %-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🛠️ Utils)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@util/ {gsub(/@util /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@util/ {gsub(/@util /, "", $$2); printf "  ${GREEN}make %-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🐳 Docker)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@docker/ {gsub(/@docker /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@docker/ {gsub(/@docker /, "", $$2); printf "  ${GREEN}make %-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@$(call SECTION_HEADER,🎯 OpenCode Server)
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@opencode/ {gsub(/@opencode /, "", $$2); printf "  ${GREEN}%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## .*$$/ && /@opencode/ {gsub(/@opencode /, "", $$2); printf "  ${GREEN}make %-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@$(call SECTION_FOOTER)
 	@printf "\n${DIM}💡 Tip: Use 'make <target> V=1' for verbose output$(NC)\n\n"
 
