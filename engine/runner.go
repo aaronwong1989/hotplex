@@ -774,7 +774,7 @@ func (r *Engine) handleNormalizedResult(pevt *provider.ProviderEvent, stats *Ses
 			ToolsUsed:          toolsUsed,
 			FilesModified:      stats.FilesModified,
 			FilePaths:          filePaths,
-			ModelUsed:          modelUsed,
+			Worker:             modelUsed,
 			TotalCostUSD:       costUSD,
 			FinishReason:       finishReason,
 			IsError:            pevt.IsError,

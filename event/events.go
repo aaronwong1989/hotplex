@@ -97,7 +97,7 @@ type SessionStatsData struct {
 	FilesModified        int32    `json:"files_modified"`
 	FilePaths            []string `json:"file_paths"`
 	TotalCostUSD         float64  `json:"total_cost_usd"`
-	ModelUsed            string   `json:"model_used"`
+	Worker               string   `json:"worker"`
 	FinishReason         string   `json:"finish_reason"` // Original finish reason (end_turn / tool_use / max_tokens)
 	IsError              bool     `json:"is_error"`
 	ErrorMessage         string   `json:"error_message,omitempty"`

@@ -98,7 +98,7 @@ func main() {
 			fmt.Println("\n\n📊 Task Completed!")
 			if stats, ok := data.(*hotplex.SessionStatsData); ok {
 				fmt.Printf("- Duration: %d ms\n", stats.TotalDurationMs)
-				fmt.Printf("- Model: %s\n", stats.ModelUsed)
+				fmt.Printf("- Worker: %s\n", stats.Worker)
 				fmt.Printf("- Tools used: %d\n", stats.ToolCallCount)
 			}
 		}

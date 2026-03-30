@@ -1261,7 +1261,7 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 		"files_modified":       int64(stats.FilesModified),
 		"file_paths":           stats.FilePaths,
 		"context_used_percent": stats.ContextUsedPercent, // Context window usage percentage (0-100)
-		"model_used":           stats.ModelUsed,          // Model ID (e.g., claude-sonnet-4 from SSE)
+		"worker":               stats.Worker,             // Provider name (e.g., claude-code, opencode-server)
 		"finish_reason":        stats.FinishReason,       // end_turn / tool_use / max_tokens
 	}); err != nil {
 		return err

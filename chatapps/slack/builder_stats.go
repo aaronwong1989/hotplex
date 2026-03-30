@@ -74,9 +74,9 @@ func (b *StatsMessageBuilder) buildSessionStatsParts(meta map[string]any) []stri
 		stats = append(stats, fmt.Sprintf("🔧 %d tools", tools))
 	}
 
-	// Model used
-	if model := base.ExtractString(meta, "model_used"); model != "" {
-		stats = append(stats, "🤖 "+model)
+	// Worker
+	if worker := base.ExtractString(meta, "worker"); worker != "" {
+		stats = append(stats, "🤖 "+worker)
 	}
 
 	// Finish reason

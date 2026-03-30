@@ -76,8 +76,8 @@ func (tb *TableBuilder) BuildStatsTable(msg *base.ChatMessage) []slack.Block {
 		addRow("💵 Cost", base.FormatCost(v))
 	}
 	addRowOpt("📝 Files", fmt.Sprintf("%d modified", base.ExtractInt64(metadata, "files_modified")), base.ExtractInt64(metadata, "files_modified") > 0)
-	if v := base.ExtractString(metadata, "model_used"); v != "" {
-		addRow("🤖 Model", v)
+	if v := base.ExtractString(metadata, "worker"); v != "" {
+		addRow("🤖 Worker", v)
 	}
 	if v := base.ExtractString(metadata, "finish_reason"); v != "" {
 		label := v
