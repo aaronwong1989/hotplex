@@ -114,8 +114,6 @@ services:
       - ${HOME}/.hotplex/claude-seed/plugins:/home/hotplex/.claude/plugins.seed:ro
       # Writable plugins directory (created from named volume)
       - hotplex-matrix-plugins:/home/hotplex/.claude/plugins:rw
-      # statusline.sh is mounted as .seed file and processed by entrypoint
-      - ${HOME}/.hotplex/claude-seed/statusline.sh:/home/hotplex/.claude/statusline.sh.seed:ro
       # Shared Go module cache (safe to share across instances)
       - hotplex-matrix-go-mod:/home/hotplex/go/pkg/mod:rw
       # Note: Per-instance build cache is mounted in docker-compose.yml per service

@@ -900,14 +900,6 @@ add-bot: ## @docker Interactive bot instance creation
 docker-sync: docker-prepare ## @docker Sync configs to all Docker instances
 	@$(call SECTION_HEADER,🔄 Syncing Docker Instance Configs)
 
-	# Sync Claude statusline.sh to seed directory (if updated on host)
-	@if [ -f "$(HOME)/.claude/statusline.sh" ]; then \
-		printf "  ${CYAN}→$(NC) Syncing statusline.sh to seed...\n"; \
-		mkdir -p $(HOME)/.hotplex/claude-seed; \
-		cp $(HOME)/.claude/statusline.sh $(HOME)/.hotplex/claude-seed/statusline.sh; \
-		printf "  ${GREEN}✓$(NC) statusline.sh synced to seed\n"; \
-	fi
-
 	# Sync instance-specific configs
 	@for f in docker/matrix/.env-*; do \
 		ID=$$(grep "^HOTPLEX_BOT_ID=" $$f | cut -d= -f2 | tr -d ' ' | tr -d '\r'); \

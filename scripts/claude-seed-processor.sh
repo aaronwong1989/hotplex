@@ -216,10 +216,10 @@ process_skills() {
 }
 
 # ------------------------------------------------------------------------------
-# Scripts + hooks + statusline
+# Scripts + hooks
 # ------------------------------------------------------------------------------
 process_scripts_hooks() {
-    log_info "Processing scripts, hooks, statusline..."
+    log_info "Processing scripts, hooks..."
 
     if [[ -d "$SOURCE_DIR/scripts" ]]; then
         mkdir -p "$OUTPUT_DIR/scripts"
@@ -233,20 +233,6 @@ process_scripts_hooks() {
         process_dir "$SOURCE_DIR/hooks" "$OUTPUT_DIR/hooks" "hooks" "$FORCE_MTIME_SKIP"
     else
         log_info "  hooks/ not found"
-    fi
-
-    if [[ -f "$SOURCE_DIR/statusline.sh" ]]; then
-        local mfp sfp; mfp=$(mlookup "statusline.sh"); sfp=$(fp "$SOURCE_DIR/statusline.sh")
-        if [[ -z "$mfp" ]] || [[ "$sfp" != "$mfp" ]]; then
-            mupd "statusline.sh" "$sfp"
-            cp "$SOURCE_DIR/statusline.sh" "$OUTPUT_DIR/statusline.sh"
-            replace_paths "$OUTPUT_DIR/statusline.sh"
-            chmod +x "$OUTPUT_DIR/statusline.sh"
-            log_chg "  statusline.sh"; S_CHANGED=$((S_CHANGED + 1))
-            log_success "  statusline.sh updated"
-        else
-            log_info "  statusline.sh unchanged"; S_SKIPPED=$((S_SKIPPED + 1))
-        fi
     fi
 }
 
