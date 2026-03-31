@@ -1,5 +1,13 @@
 # CHANGELOG.md
 
+## [v0.36.1] - 2026-03-31
+
+### Bug Fixes
+- fix(engine): handle EventTypeResult dispatch and intermediate result events (S567)
+
+### Maintenance
+- refactor(skills): optimize HotPlex agent skills - reduce size, clean state, remove garbage
+
 ## [v0.36.0] - 2026-03-28
 
 ### Features
