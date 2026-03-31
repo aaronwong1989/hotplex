@@ -120,12 +120,13 @@ services:
       - hotplex-matrix-plugins:/home/hotplex/.claude/plugins:rw
 
       # ─────────────────────────────────────────────────────────────────
-      # Claude Core Identity (.claude.json)
-      # Location: Directly in container home directory (/home/hotplex/)
-      # Source: Preprocessed by seed-processor (userID removed for OAuth bypass).
-      # Role: Writable (rw) to allow maintenance.go to keep userID cleared.
+      # Claude Core Identity (Seed Version)
+      # Source: Preprocessed by seed-processor (userID removed).
+      # Mount: Read-only seed at /home/hotplex/.claude.json.seed.
+      # Persistence: Entrypoint clones this to private volume (~/.claude/) 
+      # and symlinks it for isolation and persistence.
       # ─────────────────────────────────────────────────────────────────
-      - ${HOME}/.hotplex/claude-seed/.claude.json:/home/hotplex/.claude.json:rw
+      - ${HOME}/.hotplex/claude-seed/.claude.json:/home/hotplex/.claude.json.seed:ro
 
       # ─────────────────────────────────────────────────────────────────
       # System & Build Infrastructure
