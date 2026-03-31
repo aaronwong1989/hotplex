@@ -133,9 +133,9 @@ if [[ "$(id -u)" = "0" ]]; then
     chown -R hotplex:hotplex "${HOTPLEX_HOME}/.claude" 2>/dev/null || true
     chown -R hotplex:hotplex "${HOTPLEX_HOME}/projects" 2>/dev/null || true
 
-    # Fix .claude.json permissions (if existing as file or symlink)
-    if [[ -e "${HOTPLEX_HOME}/.claude.json" ]]; then
-        chown -h hotplex:hotplex "${HOTPLEX_HOME}/.claude.json" 2>/dev/null || true
+    # Fix .claude.json permissions (if existing)
+    if [[ -f "${HOTPLEX_HOME}/.claude.json" ]]; then
+        chown hotplex:hotplex "${HOTPLEX_HOME}/.claude.json" 2>/dev/null || true
     fi
 
     # Fix backup files created by CLI (may be owned by root if CLI runs during entrypoint)
@@ -191,37 +191,29 @@ if [[ -d "${CONFIG_CHATAPPS_DIR}" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 4. Claude Code Runtime Files (named volume persists across restarts)
+# 4. Claude Code Runtime Files (Identity Sync)
 # ------------------------------------------------------------------------------
 CLAUDE_DIR="${HOTPLEX_HOME}/.claude"
-CLAUDE_JSON_PERSISTENT="${CLAUDE_DIR}/.claude.json"
 CLAUDE_JSON_HOME="${HOTPLEX_HOME}/.claude.json"
 CLAUDE_JSON_SEED="${HOTPLEX_HOME}/.claude.json.seed"
 
 # Ensure container-private .claude directory exists (named volume auto-creates)
 run_as_hotplex mkdir -p "${CLAUDE_DIR}"
 
-# Seed & Clone strategy for .claude.json
-# Prevents race conditions by isolating state in per-instance volumes
-if [[ ! -f "${CLAUDE_JSON_PERSISTENT}" ]]; then
-    if [[ -f "${CLAUDE_JSON_SEED}" ]]; then
-        echo "--> Cloning .claude.json from seed source..."
-        run_as_hotplex cp "${CLAUDE_JSON_SEED}" "${CLAUDE_JSON_PERSISTENT}"
-    else
-        echo "--> Creating empty .claude.json configuration file..."
-        run_as_hotplex sh -c "echo '{}' > '${CLAUDE_JSON_PERSISTENT}'"
-    fi
-    
-    # Ensure correct permissions for the new file
-    [[ "$(id -u)" = "0" ]] && chown hotplex:hotplex "${CLAUDE_JSON_PERSISTENT}" 2>/dev/null || true
+# Force-Sync strategy for .claude.json
+# Ensures the container always starts with the latest seed from host.
+# .claude.json is volatile (instance-private) and reset on container launch from seed.
+if [[ -f "${CLAUDE_JSON_SEED}" ]]; then
+    echo "--> Syncing .claude.json from seed source (force-overwrite)..."
+    rm -f "${CLAUDE_JSON_HOME}" 2>/dev/null || true
+    run_as_hotplex cp -f "${CLAUDE_JSON_SEED}" "${CLAUDE_JSON_HOME}"
+elif [[ ! -f "${CLAUDE_JSON_HOME}" ]]; then
+    echo "--> Creating empty .claude.json configuration file..."
+    run_as_hotplex sh -c "echo '{}' > '${CLAUDE_JSON_HOME}'"
 fi
 
-# Ensure symlink for system & CLI compatibility
-if [[ ! -L "${CLAUDE_JSON_HOME}" ]]; then
-    echo "--> Linking persistent .claude.json to home directory..."
-    rm -f "${CLAUDE_JSON_HOME}" 2>/dev/null || true
-    run_as_hotplex ln -sf "${CLAUDE_JSON_PERSISTENT}" "${CLAUDE_JSON_HOME}"
-fi
+# Ensure correct permissions for the identity file
+[[ "$(id -u)" = "0" ]] && chown hotplex:hotplex "${CLAUDE_JSON_HOME}" 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
 # 5. Git Identity Injection (from environment variables)
