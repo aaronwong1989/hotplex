@@ -481,7 +481,11 @@ func (c *StreamCallback) Handle(eventType string, data any) error {
 	case provider.EventTypeAskUserQuestion:
 		return c.handleAskUserQuestion(data)
 	case provider.EventTypeResult:
-		return c.handleSessionStats(data)
+		// Route intermediate result events (DetectTurnEnd=false) separately from final session_stats.
+		// Both come in as EventTypeResult but with different data types:
+		// - "session_stats" eventType → handleSessionStats (SessionStatsData, from handleNormalizedResult)
+		// - "result" eventType       → handleIntermediateResult (ProviderEvent, from handleStreamRawLine fix)
+		return c.handleIntermediateResult(data)
 	case provider.EventTypeCommandProgress:
 		return c.handleCommandProgress(data)
 	case provider.EventTypeCommandComplete:
@@ -1270,6 +1274,36 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 	// Final cleanup: ensure all processor state is reset
 	c.processor.ResetSession(c.platform, c.sessionID)
 
+	return nil
+}
+
+// handleIntermediateResult handles intermediate EventTypeResult events from the SSE stream
+// where DetectTurnEnd=false (e.g., OpenCode message.updated with finish before session.idle).
+//
+// Unlike handleSessionStats, this does NOT finalize the session — it only acknowledges
+// the result and logs token usage so the SSE transport does not block waiting for more events.
+// The session is only truly finalized when session.idle arrives (DetectTurnEnd=true).
+func (c *StreamCallback) handleIntermediateResult(data any) error {
+	pevt, ok := data.(*provider.ProviderEvent)
+	if !ok {
+		c.logger.Debug("handleIntermediateResult: unexpected data type", "type", fmt.Sprintf("%T", data))
+		return nil
+	}
+
+	// Log intermediate result for observability
+	var inputTokens, outputTokens int32
+	if pevt.Metadata != nil {
+		inputTokens = pevt.Metadata.InputTokens
+		outputTokens = pevt.Metadata.OutputTokens
+	}
+	c.logger.Debug("Intermediate result received (waiting for session.idle to finalize)",
+		"raw_type", pevt.RawType,
+		"input_tokens", inputTokens,
+		"output_tokens", outputTokens,
+		"content_len", len(pevt.Content))
+
+	// Do NOT finalize session here — wait for session.idle.
+	// Do NOT send any Slack message — handleSessionStats will send session_stats card.
 	return nil
 }
 

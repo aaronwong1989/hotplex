@@ -631,8 +631,21 @@ func (r *Engine) handleStreamRawLine(line string, cfg *types.Config, stats *Sess
 			return nil
 		}
 
+		// P0-FIX: EventTypeResult had no dispatch branch, silently falling into default.
+		// Intermediate result events (DetectTurnEnd=false) must also be dispatched so that
+		// engine_handler.go receives acknowledgment and does NOT block on the SSE stream.
+		if pevt.Type == provider.EventTypeResult {
+			if callback != nil {
+				_ = callback(string(provider.EventTypeResult), pevt) // raw ProviderEvent: engine_handler extracts metadata
+			}
+			continue
+		}
+
 		if pevt.Type == provider.EventTypeError {
-			closeDoneChan(doneChan)
+			if callback != nil {
+				_ = callback(string(provider.EventTypeError), event.NewEventWithMeta(string(provider.EventTypeError), pevt.Error, nil))
+			}
+			continue
 		}
 
 		if pevt.Type == provider.EventTypeSystem || pevt.Type == provider.EventTypeRaw {
