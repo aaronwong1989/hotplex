@@ -1,5 +1,5 @@
 ---
-name: Docker Container Operations
+name: docker-container-ops
 description: Use this skill when the user asks to "manage Docker containers", "restart hotplex", "check container status", "scale hotplex", "stop bot", "start bot", "docker restart", "docker up", "docker down". Provides container lifecycle management for hotplex deployment.
 version: 0.2.0
 ---

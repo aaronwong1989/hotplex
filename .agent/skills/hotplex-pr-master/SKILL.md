@@ -356,135 +356,16 @@ add_labels_to_issue(  # GitHub 将 PR 视为 issue
 "验证所有 PRs 的 issue 关联是否正确"
 ```
 
-## 详细功能
-
-### 1. 自动标注引擎
-
-基于 5 个维度自动分析并应用标签（详见 `references/pr-label-best-practices.md`）：
-
-- **优先级**：继承关联 issue 优先级 + 标题/描述关键词
-- **类型**：分支名前缀 + 文件路径 + 标题关键词
-- **规模**：变更行数 + 文件数
-- **状态**：Draft/Review/CI/冲突/更新时间
-- **Review**：GitHub review state
-
-### 2. Review 状态跟踪
-
-- 自动追踪 requested reviewers
-- 检测 review 状态（approved/changes-requested/pending）
-- 识别长期未 review 的 PR（7+ 天）并提醒
-
-### 3. CI/CD 监控
-
-- 自动检查 GitHub Actions 状态
-- 标注 CI 失败/通过
-- 阻塞合并提醒（CI 失败时）
-
-### 4. 冲突检测
-
-- 自动检测与 base branch 的冲突
-- 标注 `status/conflicts`
-- 提醒需要 rebase 的 PRs
-
-### 5. Issue 关联
-
-- 解析 "Resolves #XXX" / "Closes #XXX"
-- 验证关联的 issue 是否存在且有效
-- 自动继承 issue 优先级
-
-### 6. 批量操作
-
-- 批量打标签、请求 review、调整优先级
-- 批量合并（需人工确认）
-
-### 7. 分析报告
-
-简化版报告示例：
-
-```markdown
-# HotPlex PR 分析报告
-
-**分析时间**: 2026-03-22
-**总 PR 数**: 15 | **已标注**: 15
-
-## 标签分布
-- **优先级**: Critical (1), High (5), Medium (7), Low (2)
-- **类型**: Feature (6), Bug (3), Enhancement (2), Docs (2), Test (1), Refactor (1)
-- **规模**: Small (4), Medium (8), Large (3)
-- **状态**: Ready (10), Draft (2), Approved (2), Blocked (1)
-- **Review**: Pending (8), Approved (5), Changes-Requested (2)
-
-## CI/CD 状态
-✅ 通过: 12 | ❌ 失败: 2 | ⏳ 进行中: 1
-
-## 阻塞 PRs (需处理)
-1. **#345** - CI 失败 (tests failed)
-2. **#338** - 与 main 冲突，需要 rebase
-3. **#335** - 长期未 review (15天)
-
-## 高优先级 PRs
-1. **#345** - Fix critical security vulnerability [P0, review/approved]
-2. **#342** - Add Admin API endpoints [P1, review/pending]
-3. **#340** - Implement multi-level typing indicator [P1, review/pending]
-```
-
-完整报告模板请参考 `references/report-templates.md`。
-
 ## 工作流程
 
-### 标准流程
+详见 `references/` 目录（流程图见 `references/incremental-management.md`）
 
-```mermaid
-graph TD
-    A[获取 Open PRs] --> B[分析每个 PR]
-    B --> C{检测冲突?}
-    C -->|是| D[标注 status/conflicts]
-    C -->|否| E[检查 CI 状态]
-    E --> F{CI 通过?}
-    F -->|否| G[标注 status/blocked]
-    F -->|是| H[检查 Review 状态]
-    H --> I[应用标签]
-    I --> J{可合并?}
-    J -->|是| K[生成合并列表]
-    J -->|否| L[生成待处理列表]
-    D --> L
-    G --> L
-    K --> M[人工确认]
-    L --> N[生成报告]
-    M --> N
-```
+### 详细实现参考
 
-### 详细实现
-
-详细的代码实现（包括冲突检测、CI 状态检查、Review 状态检查等）请参考：
-- **增量管理实现**：`references/incremental-management.md`
-- **GitHub Actions 配置**：`references/github-actions-examples.md`
+- **增量管理**：`references/incremental-management.md`
+- **GitHub Actions**：`references/github-actions-examples.md`
 - **标签最佳实践**：`references/pr-label-best-practices.md`
-
-## 自动化集成
-
-详细的 GitHub Actions 配置示例请参考 `references/github-actions-examples.md`，包括：
-
-- **PR Triage Workflow** - 自动标注、冲突检测、Review 提醒、CI 监控
-- **Branch Protection Rules** - 分支保护规则配置
-- **Auto-merge Workflow** - 自动合并已批准的 PRs
-- **Stale PR 清理** - 自动清理长期未更新的 PRs
-- **完整脚本示例** - pr-labeler.js, conflict-checker.js, review-reminder.js, ci-monitor.js
-
-### 快速配置
-
-1. **创建 `.github/workflows/pr-triage.yml`**：
-   - 触发条件：PR opened/edited/synchronize/review
-   - 定时任务：每 6 小时运行一次
-
-2. **创建 `.github/pr-labeler.yml`**：
-   - 基于文件路径自动打标签
-   - 基于分支名自动识别类型
-
-3. **配置 Branch Protection Rules**：
-   - 要求 1 个 approval
-   - 要求 CI 通过
-   - 启用 code owner review
+- **报告模板**：`references/report-templates.md`
 
 ## 注意事项
 

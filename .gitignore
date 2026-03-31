@@ -118,6 +118,15 @@ cert.log
 .serena/cache/
 .serena/memories/
 
+# ------------------------------------------------------------------------------
+# 🔧 Skill Runtime State (运行时状态，不应同步到仓库)
+# ------------------------------------------------------------------------------
+
+# hotplex-issue-master: GitHub issue triage state (labeler_v2.py creates on first run)
+.agent/skills/hotplex-issue-master/.issue-state.json
+# hotplex-issue-master: Obsidian sync backup state (方案 B 兼容，仅外部工具需要)
+.agent/skills/hotplex-issue-master/.issue-obsidian-sync.json
+
 
 # ------------------------------------------------------------------------------
 # 📝 Documentation & Project Specific (文档与项目特定)

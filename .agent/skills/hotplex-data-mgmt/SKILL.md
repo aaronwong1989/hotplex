@@ -1,5 +1,5 @@
 ---
-name: HotPlex Data Management
+name: hotplex-data-mgmt
 description: Use this skill when the user asks to "manage data", "clean sessions", "cleanup markers", "view messages", "export data", "delete session", "message database", "session cleanup". Provides data and session management for hotplex persistence layer.
 version: 0.2.0
 ---

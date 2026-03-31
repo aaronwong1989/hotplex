@@ -185,7 +185,9 @@ graph TD
 
 ### 状态持久化
 
-**Issue 状态文件**：`.issue-state.json`
+**Issue 状态文件**：`.issue-state.json`（**运行时文件，由脚本首次运行自动创建**）
+> ⚠️ 此文件为运行时状态，已加入 `.gitignore`，不应 commit 到仓库。
+
 ```json
 {
   "last_incremental_scan": "2026-03-27T12:00:00Z",
@@ -205,7 +207,8 @@ graph TD
 - ✅ 支持 Dataview 查询
 - ✅ 自动同步到移动端
 
-**方案 B（兼容）**：使用 `.issue-obsidian-sync.json` 文件
+**方案 B（备选，仅外部工具需要）**：使用 `.issue-obsidian-sync.json` 文件
+> ⚠️ 方案 A 足以满足大多数场景。仅在与外部工具集成时才需要方案 B。
 ```json
 {
   "last_sync_time": "2026-03-27T12:00:00Z",

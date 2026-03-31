@@ -1,5 +1,5 @@
 ---
-name: HotPlex Diagnostics
+name: hotplex-diagnostics
 description: Use this skill when the user asks to "diagnose", "check health", "view logs", "debug", "check status", "get stats", "container logs", "check error", "troubleshoot", "what's wrong with", "diagnose docker", "check containers", "system health". Provides comprehensive diagnostics for all Docker containers with enhanced analysis for HotPlex services.
 version: 0.3.0
 ---
