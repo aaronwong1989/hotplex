@@ -133,6 +133,11 @@ if [[ "$(id -u)" = "0" ]]; then
     chown -R hotplex:hotplex "${HOTPLEX_HOME}/.claude" 2>/dev/null || true
     chown -R hotplex:hotplex "${HOTPLEX_HOME}/projects" 2>/dev/null || true
 
+    # Fix .claude.json permissions (if mounted or exists)
+    if [[ -f "${HOTPLEX_HOME}/.claude.json" ]]; then
+        chown hotplex:hotplex "${HOTPLEX_HOME}/.claude.json" 2>/dev/null || true
+    fi
+
     # Fix backup files created by CLI (may be owned by root if CLI runs during entrypoint)
     # These are .claude.json.backup.* files in home directory
     find "${HOTPLEX_HOME}" -maxdepth 1 -name ".claude.json.backup.*" -type f -exec chown hotplex:hotplex {} \; 2>/dev/null || true
@@ -201,10 +206,6 @@ run_as_hotplex mkdir -p "${CLAUDE_DIR}"
 if [[ ! -f "${CLAUDE_JSON}" ]]; then
     echo "--> Creating empty .claude.json configuration file..."
     run_as_hotplex sh -c "echo '{}' > '${CLAUDE_JSON}'"
-    # Ensure correct permissions
-    if [[ "$(id -u)" = "0" ]]; then
-        chown hotplex:hotplex "${CLAUDE_JSON}" 2>/dev/null || true
-    fi
 fi
 
 # ------------------------------------------------------------------------------
